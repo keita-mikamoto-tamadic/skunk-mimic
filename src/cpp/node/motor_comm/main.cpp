@@ -10,7 +10,7 @@
 #include "../../driver/moteus_converter.hpp"
 
 // config ファイルパス（dora 実行ディレクトリ = プロジェクトルート基準）
-constexpr const char* kConfigPath = "src/robot_config/mimic_v2.json";
+constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
 // 入出力ID
 constexpr const char* kInputMotorCommands = "motor_commands";
