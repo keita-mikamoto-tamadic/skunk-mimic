@@ -1,0 +1,13 @@
+{
+  "robot_name": "mimic_v2",
+  "axis_count": 6,
+  "interpolation_time": 3.0,
+  "axes": [
+    {"index": 0, "name": "hip_pitch_r", "device_id": 50, "motdir": 1, "initial_position": 1.2, "reset_position": -0.130899, "velocity_limit": 100.0, "accel_limit": 20.0, "torque_limit": 15.0},
+    {"index": 1, "name": "knee_r", "device_id": 60, "motdir": 1, "initial_position": -1.8, "reset_position": -2.373644, "velocity_limit": 100.0, "accel_limit": 20.0, "torque_limit": 15.0},
+    {"index": 2, "name": "wheel_r", "device_id": 70, "motdir": 1, "initial_position": 0.0, "reset_position": 0.0, "velocity_limit": "nan", "accel_limit": "nan", "torque_limit": 14.0},
+    {"index": 3, "name": "hip_pitch_l", "device_id": 80, "motdir": 1, "initial_position": 1.2, "reset_position": -0.130899, "velocity_limit": 100.0, "accel_limit": 20.0, "torque_limit": 15.0},
+    {"index": 4, "name": "knee_l", "device_id": 90, "motdir": 1, "initial_position": -1.8, "reset_position": -2.373644, "velocity_limit": 100.0, "accel_limit": 20.0, "torque_limit": 15.0},
+    {"index": 5, "name": "wheel_l", "device_id": 100, "motdir": 1, "initial_position": 0.0, "reset_position": 0.0, "velocity_limit": "nan", "accel_limit": "nan", "torque_limit": 14.0}
+  ]
+}

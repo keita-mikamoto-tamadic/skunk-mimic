@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+*.o
+*.a
+
+# Test binaries (built locally)
+src/cpp/lib/robot_config_test
+src/cpp/node/state_manage/test_sm
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Dora runtime output
+out/
+
+# IDE / tools
+.vscode/
+.serena/
+.claude/
+
+# Python virtual environments
+.venv/
+
+# Reference / external repos (not part of this project)
+ref/
+moteus/

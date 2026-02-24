@@ -1,0 +1,27 @@
+nodes:
+  - id: teleop_dummy
+    path: dynamic
+    outputs:
+      - command
+
+  - id: dummy_input
+    path: dynamic
+    outputs:
+      - state_command
+
+  - id: state_manager
+    path: src/cpp/node/state_manage/build/state_manager
+    inputs:
+      tick: dora/timer/millis/3
+      state_command: dummy_input/state_command
+      motor_status: motor_comm/motor_status
+    outputs:
+      - motor_commands
+      - state_status
+
+  - id: motor_comm
+    path: src/cpp/node/motor_comm/build/motor_comm
+    inputs:
+      motor_commands: state_manager/motor_commands
+    outputs:
+      - motor_status
