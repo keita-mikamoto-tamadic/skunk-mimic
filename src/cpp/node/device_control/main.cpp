@@ -56,21 +56,21 @@ static std::vector<AxisRef> DeserializeMotorCommands(
 
 int main() {
   auto node = init_dora_node();
-  std::cout << "[motor_comm] started" << std::endl;
+  std::cout << "[device_control] started" << std::endl;
 
   // 起動時に config ファイルを直接読み込む
   auto config = robot_config::LoadFromFile(kConfigPath);
-  std::cout << "[motor_comm] loaded config: "
+  std::cout << "[device_control] loaded config: "
             << config.robot_name << " ("
             << config.axis_count << " axes)" << std::endl;
 
   // CAN 通信初期化
   SocketCanComm can;
   if (!can.Open("can0")) {
-      std::cerr << "[motor_comm] failed to open CAN" << std::endl;
+      std::cerr << "[device_control] failed to open CAN" << std::endl;
       return 1;
   }
-  std::cout << "[motor_comm] CAN opened" << std::endl;
+  std::cout << "[device_control] CAN opened" << std::endl;
 
   MoteusConverter converter;
   const size_t axis_count = config.axes.size();
@@ -92,7 +92,7 @@ int main() {
               can.SendFrame(
                   converter.GetArbId(ax.device_id), buf, len);
           }
-          std::cout << "[motor_comm] stopping (all axes OFF)" << std::endl;
+          std::cout << "[device_control] stopping (all axes OFF)" << std::endl;
           break;
       }
 
