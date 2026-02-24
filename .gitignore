@@ -2,6 +2,8 @@
 build/
 *.o
 *.a
+*.so
+*.dylib
 
 # Test binaries (built locally)
 src/cpp/lib/robot_config_test
