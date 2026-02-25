@@ -1,13 +1,4 @@
 nodes:
-  - id: teleop_dummy
-    path: dynamic
-    outputs:
-      - command
-
-  - id: dummy_input
-    path: dynamic
-    outputs:
-      - state_command
 
   - id: state_manager
     path: src/cpp/node/state_manage/build/state_manager
