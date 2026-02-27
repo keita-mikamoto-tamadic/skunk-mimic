@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "dora-rs==0.3.13",
     "pyarrow>=23.0.1",
+    "rich>=14.3.3",
 ]
 [tool.uv.workspace]
-members = ["dummy_input"]
-
+members = ["dummy_input", "data_viewer"]

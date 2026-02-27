@@ -21,7 +21,8 @@ RobotConfig Parse(const std::string& json_str) {
   config.robot_name = j.at("robot_name").get<std::string>();
   config.axis_count = j.at("axis_count").get<int>();
   config.interpolation_time = j.at("interpolation_time").get<double>();
-  
+  config.transport = j.value("transport", "socketcan");
+
   for (const auto& ax : j.at("axes")) {
     AxisConfig a;
     a.index = ax.at("index").get<int>();

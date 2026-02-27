@@ -1,12 +1,18 @@
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <cstring>
 #include "dora-node-api.h"
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
+#include <pthread.h>
+#include <sched.h>
+
 #include "../../lib/robot_config.hpp"
 #include "../../lib/shm_data_format.hpp"
+#include "../../interface/communication.hpp"
 #include "../../driver/socket_can_comm.hpp"
+#include "../../driver/dummy_comm.hpp"
 #include "../../driver/moteus_converter.hpp"
 
 // config ファイルパス（dora 実行ディレクトリ = プロジェクトルート基準）
@@ -18,6 +24,29 @@ constexpr const char* kOutputMotorStatus  = "motor_status";
 
 // CAN フレームバッファサイズ（CAN-FD 最大）
 constexpr size_t kMaxFrameSize = 64;
+
+static void SetCpuAffinity(uint32_t core, int32_t priority) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core, &cpuset);
+    
+    pthread_t current_thread = pthread_self();
+    if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "[device_control] Warning: Failed to set CPU affinity" << std::endl;
+    } else {
+        std::cout << "[device_control] CPU affinity set to core :" << core << std::endl;
+    }
+    
+    // 優先度設定
+    struct sched_param param;
+    param.sched_priority = priority;
+    
+    if (pthread_setschedparam(current_thread, SCHED_FIFO, &param) != 0) {
+        std::cerr << "[device_control] Warning: Failed to set RT Process priority" << std::endl;
+    } else {
+        std::cout << "[device_control] RT Process priority set to " << priority << std::endl;
+    }
+}
 
 // AxisAct[] を UInt8Array として送信
 static void SendMotorStatus(
@@ -55,6 +84,7 @@ static std::vector<AxisRef> DeserializeMotorCommands(
 }
 
 int main() {
+  SetCpuAffinity(1, 80);
   auto node = init_dora_node();
   std::cout << "[device_control] started" << std::endl;
 
@@ -64,13 +94,19 @@ int main() {
             << config.robot_name << " ("
             << config.axis_count << " axes)" << std::endl;
 
-  // CAN 通信初期化
-  SocketCanComm can;
-  if (!can.Open("can0")) {
-      std::cerr << "[device_control] failed to open CAN" << std::endl;
+  // 通信初期化（transport に応じて実装を切り替え）
+  std::unique_ptr<Communication> can;
+  if (config.transport == "dummy") {
+      can = std::make_unique<DummyComm>();
+  } else {
+      can = std::make_unique<SocketCanComm>();
+  }
+  std::string device = (config.transport == "dummy") ? "dummy" : "can0";
+  if (!can->Open(device)) {
+      std::cerr << "[device_control] failed to open " << device << std::endl;
       return 1;
   }
-  std::cout << "[device_control] CAN opened" << std::endl;
+  std::cout << "[device_control] " << config.transport << " opened" << std::endl;
 
   MoteusConverter converter;
   const size_t axis_count = config.axes.size();
@@ -89,7 +125,7 @@ int main() {
               const auto& ax = config.axes[i];
               size_t len = converter.BuildCommandFrame(
                   buf, off_ref, ax.motdir);
-              can.SendFrame(
+              can->SendFrame(
                   converter.GetArbId(ax.device_id), buf, len);
           }
           std::cout << "[device_control] stopping (all axes OFF)" << std::endl;
@@ -123,10 +159,10 @@ int main() {
                   // コマンドフレーム送信
                   size_t len = converter.BuildCommandFrame(
                       buf, refs[i], ax.motdir);
-                  can.SendFrame(
+                  can->SendFrame(
                       converter.GetArbId(ax.device_id), buf, len);
                   // レスポンス受信
-                  if (can.ReceiveFrame(ax.device_id, rx, &rxlen, 3)) {
+                  if (can->ReceiveFrame(ax.device_id, rx, &rxlen, 3)) {
                       converter.ParseResponse(
                           rx, rxlen, acts[i], ax.motdir);
                   }

@@ -20,6 +20,7 @@ add_executable(device_control
   ../../lib/robot_config.cpp
   ../../driver/moteus_converter.cpp
   ../../driver/socket_can_comm.cpp
+  ../../driver/dummy_comm.cpp
   ${DORA_NODE_API_INC}/dora-node-api.cc
 )
 

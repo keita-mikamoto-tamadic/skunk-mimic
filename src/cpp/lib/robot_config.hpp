@@ -19,6 +19,7 @@ struct RobotConfig {
   std::string robot_name;
   int axis_count;
   double interpolation_time;
+  std::string transport;  // "socketcan" or "dummy"
   std::vector<AxisConfig> axes;
 };
 

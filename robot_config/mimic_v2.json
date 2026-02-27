@@ -1,5 +1,6 @@
 {
   "robot_name": "mimic_v2",
+  "transport": "dummy",
   "axis_count": 6,
   "interpolation_time": 3.0,
   "axes": [

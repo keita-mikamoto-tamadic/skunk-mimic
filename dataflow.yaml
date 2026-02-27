@@ -16,3 +16,13 @@ nodes:
       motor_commands: state_manager/motor_commands
     outputs:
       - motor_status
+
+  - id: dummy_input
+    path: dynamic
+    outputs:
+      - state_command
+      
+  - id: data_viewer
+    path: dynamic
+    inputs:
+      motor_status: device_control/motor_status
