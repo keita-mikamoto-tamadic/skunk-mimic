@@ -5,13 +5,13 @@ nodes:
     inputs:
       tick: dora/timer/millis/3
       state_command: dummy_input/state_command
-      motor_status: device_control/motor_status
+      motor_status: device_manage/motor_status
     outputs:
       - motor_commands
       - state_status
 
-  - id: device_control
-    path: src/cpp/node/device_control/build/device_control
+  - id: device_manage
+    path: src/cpp/node/device_manage/build/device_manage
     inputs:
       motor_commands: state_manager/motor_commands
     outputs:
@@ -25,5 +25,5 @@ nodes:
   - id: data_viewer
     path: dynamic
     inputs:
-      motor_status: device_control/motor_status
+      motor_status: device_manage/motor_status
       state_status: state_manager/state_status

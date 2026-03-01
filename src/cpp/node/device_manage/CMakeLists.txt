@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(device_control CXX)
+project(device_manage CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,7 +15,7 @@ set(DORA_ROOT "$ENV{HOME}/dora")
 set(DORA_NODE_API_INC "${DORA_ROOT}/target/cxxbridge/dora-node-api-cxx/install")
 set(DORA_NODE_API_LIB "${DORA_ROOT}/target/release/libdora_node_api_cxx.a")
 
-add_executable(device_control
+add_executable(device_manage
   main.cpp
   ../../lib/robot_config.cpp
   ../../driver/moteus_converter.cpp
@@ -24,13 +24,13 @@ add_executable(device_control
   ${DORA_NODE_API_INC}/dora-node-api.cc
 )
 
-target_include_directories(device_control PRIVATE
+target_include_directories(device_manage PRIVATE
   ${DORA_NODE_API_INC}
   ${ARROW_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/../..
 )
 
-target_link_libraries(device_control PRIVATE
+target_link_libraries(device_manage PRIVATE
   ${DORA_NODE_API_LIB}
   ${ARROW_LIBRARIES}
   pthread
