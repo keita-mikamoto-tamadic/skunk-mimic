@@ -1,0 +1,8 @@
+skunk-mimic
+Copyright 2026 Keita Mikamoto
+
+This product includes software developed by mjbots:
+  moteus (https://github.com/mjbots/moteus)
+  Copyright 2020-2023 Josh Pieper
+  Licensed under the Apache License, Version 2.0
+  See src/cpp/lib/vendor/mjbots/LICENSE

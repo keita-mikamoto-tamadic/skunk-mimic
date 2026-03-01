@@ -32,9 +32,9 @@ static void SetCpuAffinity(uint32_t core, int32_t priority) {
     
     pthread_t current_thread = pthread_self();
     if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
-        std::cerr << "[device_control] Warning: Failed to set CPU affinity" << std::endl;
+        std::cerr << "Warning: Failed to set CPU affinity" << std::endl;
     } else {
-        std::cout << "[device_control] CPU affinity set to core :" << core << std::endl;
+        std::cout << "CPU affinity set to core :" << core << std::endl;
     }
     
     // 優先度設定
@@ -42,9 +42,9 @@ static void SetCpuAffinity(uint32_t core, int32_t priority) {
     param.sched_priority = priority;
     
     if (pthread_setschedparam(current_thread, SCHED_FIFO, &param) != 0) {
-        std::cerr << "[device_control] Warning: Failed to set RT Process priority" << std::endl;
+        std::cerr << "Warning: Failed to set RT Process priority" << std::endl;
     } else {
-        std::cout << "[device_control] RT Process priority set to " << priority << std::endl;
+        std::cout << "RT Process priority set to " << priority << std::endl;
     }
 }
 
@@ -86,11 +86,11 @@ static std::vector<AxisRef> DeserializeMotorCommands(
 int main() {
   SetCpuAffinity(1, 80);
   auto node = init_dora_node();
-  std::cout << "[device_control] started" << std::endl;
+  std::cout << "started" << std::endl;
 
   // 起動時に config ファイルを直接読み込む
   auto config = robot_config::LoadFromFile(kConfigPath);
-  std::cout << "[device_control] loaded config: "
+  std::cout << "loaded config: "
             << config.robot_name << " ("
             << config.axis_count << " axes)" << std::endl;
 
@@ -103,10 +103,10 @@ int main() {
   }
   std::string device = (config.transport == "dummy") ? "dummy" : "can0";
   if (!can->Open(device)) {
-      std::cerr << "[device_control] failed to open " << device << std::endl;
+      std::cerr << "failed to open " << device << std::endl;
       return 1;
   }
-  std::cout << "[device_control] " << config.transport << " opened" << std::endl;
+  std::cout << config.transport << " opened" << std::endl;
 
   MoteusConverter converter;
   const size_t axis_count = config.axes.size();
@@ -128,7 +128,7 @@ int main() {
               can->SendFrame(
                   converter.GetArbId(ax.device_id), buf, len);
           }
-          std::cout << "[device_control] stopping (all axes OFF)" << std::endl;
+          std::cout << "stopping (all axes OFF)" << std::endl;
           break;
       }
 

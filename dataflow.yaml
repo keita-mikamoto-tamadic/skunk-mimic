@@ -26,3 +26,4 @@ nodes:
     path: dynamic
     inputs:
       motor_status: device_control/motor_status
+      state_status: state_manager/state_status
