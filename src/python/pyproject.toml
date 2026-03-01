@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "dora-rs==0.3.13",
+    "dora-rs==0.4.1",
     "pyarrow>=23.0.1",
     "rich>=14.3.3",
 ]

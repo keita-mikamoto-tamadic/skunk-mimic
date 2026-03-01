@@ -17,34 +17,88 @@ sudo apt install -y \
   libssl-dev
 ```
 
-# 2. dora CLI インストール
-### cargo (Rust パッケージマネージャー)
+# 2. Rust と dora のビルド
+
+### Rust ツールチェーン
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh
-```
-
-環境変数登録
-```bash
 source ~/.cargo/env
 ```
 
-確認
+確認：
 ```bash
-which cargo
 cargo --version
 ```
 
-### dora-rs
+### dora のビルド
+
+~/dora をクローンしてビルド（CLI + C++ API の両方が生成される）：
+
 ```bash
-cargo install dora-cli
+cd ~
+git clone https://github.com/dora-rs/dora.git
+cd dora
+git checkout v0.4.1
+cargo build --release
 ```
 
-確認
+これで以下が生成されます：
+- `~/dora/target/release/dora` — CLI 実行ファイル
+- `~/dora/target/release/libdora_node_api_cxx.a` — C++ 静的ライブラリ
+- `~/dora/target/cxxbridge/dora-node-api-cxx/install/` — C++ ヘッダーファイル
+
+### 環境変数設定
+
+dora CLI を使えるように alias を設定：
 ```bash
-which dora
-dora --version
+echo 'alias dora="$HOME/dora/target/release/dora"' >> ~/.bashrc
+source ~/.bashrc
 ```
+
+確認：
+```bash
+dora --version
+# 出力例:
+# dora-cli 0.4.1
+# dora-message: 0.7.0
+# dora-rs (Python): not found
+```
+
+### dora をバージョンアップする場合
+
+既存の dora を新しいバージョンに更新する手順：
+
+```bash
+cd ~/dora
+git fetch --tags
+git checkout v0.4.2  # 新しいバージョンを指定
+cargo clean          # 古いビルドキャッシュを削除（重要）
+cargo build --release
+cargo build --release -p dora-node-api-cxx  # C++ API を明示的にビルド
+```
+
+C++ ノードを再ビルド：
+```bash
+cd ~/ws/dora-test/src/cpp
+rm -rf node/*/build  # 各ノードのビルドディレクトリを削除
+mkdir -p build && cd build
+cmake .. && make
+```
+
+Python パッケージも更新：
+```bash
+cd ~/ws/dora-test/src/python
+uv add dora-rs==0.4.2  # dora CLI と同じバージョンに揃える
+```
+
+確認：
+```bash
+dora --version                    # CLI のバージョン確認
+uv run python -c "import dora; print(dora.__version__)"  # Python パッケージのバージョン確認
+```
+
+> **重要**: `cargo clean` を実行しないと、古いバージョンのバイナリが残り、バージョンが更新されない場合があります。C++ API も明示的にビルドしないと、ヘッダーファイルが生成されません。
 
 # 3. Apache Arrow
 前提ツール
@@ -73,35 +127,7 @@ sudo apt install -y libarrow-dev
 pkg-config --modversion arrow
 ```
 
-# 4. C++ API の準備
-API 用にソースをクローン（ホームディレクトリ直下を想定）
-
-```bash
-cd ~
-git clone https://github.com/dora-rs/dora.git
-```
-
-C API をビルド
-```bash
-cd ~/dora
-cargo build -p dora-node-api-cxx --release
-```
-
-確認 — .a ファイルの場所
-```bash
-cd ~/dora
-ls -lah target/release | egrep 'dora.*api.*cxx|node_api|\.a$|\.so$' || true
-```
-
-確認 — ヘッダファイル (.h)
-```bash
-cd ~/dora
-find . -maxdepth 6 -type f -name 'dora-node-api.h' -print
-```
-
-この 2 つを CMake でリンクする。
-
-# 5. Python 環境セットアップ (uv)
+# 4. Python 環境セットアップ (uv)
 
 Python ノード用のパッケージマネージャーとして `uv` を使用しています。
 
@@ -122,9 +148,11 @@ uv sync
 ```
 
 これで以下がインストールされます：
-- `dora-rs` — dora Python API
-- `pyarrow` — Apache Arrow Python バインディング
-- `rich` — data_viewer 用ターミナル UI ライブラリ
+- `dora-rs==0.4.1` — dora Python API（CLI とバージョンを揃える）
+- `pyarrow>=23.0.1` — Apache Arrow Python バインディング
+- `rich>=14.3.3` — data_viewer 用ターミナル UI ライブラリ
+
+> **Note**: `dora-rs` のバージョンは dora CLI (0.4.1) と揃える必要があります。バージョン不一致があると "message format version mismatch" エラーが発生します。
 
 ### Python ノードの実行
 ```bash
@@ -136,7 +164,7 @@ cd src/python
 uv run data_viewer/data_viewer.py
 ```
 
-# 6. CMakeLists.txt でのリンク設定
+# 5. CMakeLists.txt でのリンク設定
 
 各ノードの CMakeLists.txt で以下のように参照している：
 
@@ -147,13 +175,13 @@ set(DORA_NODE_API_INC "${DORA_ROOT}/target/cxxbridge/dora-node-api-cxx/install")
 set(DORA_NODE_API_LIB "${DORA_ROOT}/target/release/libdora_node_api_cxx.a")
 ```
 
-# 7. ビルド
+# 6. ビルド
 
 ```bash
 cd src/cpp && mkdir -p build && cd build && cmake .. && make
 ```
 
-# 8. 通信モードの切り替え
+# 7. 通信モードの切り替え
 
 robot_config JSON ファイルの `transport` フィールドで通信方式を切り替えられます。
 
@@ -189,7 +217,7 @@ SocketCAN モードでは：
 - moteus モーターコントローラーと通信
 - 事前に CAN バスのセットアップが必要（`bash can_setup.bash`）
 
-# 9. 実行
+# 8. 実行
 
 ### Dummy モードでの実行（推奨・初回テスト用）
 
