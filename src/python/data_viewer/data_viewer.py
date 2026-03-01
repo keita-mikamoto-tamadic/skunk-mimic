@@ -3,6 +3,7 @@ import struct
 import time
 from rich.live import Live
 from rich.table import Table
+from rich.console import Group
 import sys
 import os
 
@@ -20,6 +21,11 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
 AXIS_ACT_FMT = "<dddB7x"  # little-endian
 AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
 
+# ImuData: timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw
+# sizeof(ImuData) = 14 * sizeof(double) = 112
+IMU_DATA_FMT = "<14d"  # little-endian
+IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
+
 # State enum with styles (C++ enum class State と対応)
 STATE_STYLES = {
     0: ("OFF", "dim white"),
@@ -29,7 +35,7 @@ STATE_STYLES = {
 }
 
 
-def build_table(axes, timestamp_ns=None, state=None, config=None):
+def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
     # Title: ロボット名を使用
     title = config.robot_name if config else "motor_status"
     table = Table(show_header=True, title=title)
@@ -72,21 +78,60 @@ def build_table(axes, timestamp_ns=None, state=None, config=None):
     return table
 
 
+def build_imu_table(imu_data):
+    table = Table(show_header=True, title="IMU", title_style="cyan")
+    table.add_column("", justify="left", style="dim")
+    table.add_column("Roll", justify="right")
+    table.add_column("Pitch", justify="right")
+    table.add_column("Yaw", justify="right")
+    table.add_column("ax", justify="right")
+    table.add_column("ay", justify="right")
+    table.add_column("az", justify="right")
+
+    if imu_data is not None:
+        # imu_data = (timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw)
+        roll, pitch, yaw = imu_data[11], imu_data[12], imu_data[13]
+        ax, ay, az = imu_data[1], imu_data[2], imu_data[3]
+        table.add_row(
+            "[dim]rad/m/s²[/]",
+            f"[cyan]{roll:+.3f}[/]",
+            f"[cyan]{pitch:+.3f}[/]",
+            f"[cyan]{yaw:+.3f}[/]",
+            f"{ax:+.2f}",
+            f"{ay:+.2f}",
+            f"{az:+.2f}",
+        )
+    else:
+        table.add_row("[dim]rad/m/s²[/]", "-", "-", "-", "-", "-", "-")
+
+    return table
+
+
 node = Node("data_viewer")
 
 # Load robot configuration
 config = robot_config.load_from_file(CONFIG_PATH)
 print(f"Loaded config: {config.robot_name} ({config.axis_count} axes)")
 
-with Live(build_table([], config=config), refresh_per_second=30) as live:
+initial_display = Group(
+    build_motor_table([], config=config),
+    build_imu_table(None)
+)
+
+with Live(initial_display, refresh_per_second=30) as live:
     start_time = time.time_ns()
     current_state = None
+    current_imu_data = None
     for event in node:
         if event["type"] == "INPUT":
             if event["id"] == "state_status":
                 raw = bytes(event["value"].to_pylist())
                 if len(raw) > 0:
                     current_state = raw[0]
+            elif event["id"] == "imu_data":
+                raw = bytes(event["value"].to_pylist())
+                if len(raw) >= IMU_DATA_SIZE:
+                    current_imu_data = struct.unpack(IMU_DATA_FMT, raw[:IMU_DATA_SIZE])
             elif event["id"] == "motor_status":
                 raw = bytes(event["value"].to_pylist())
                 axis_count = len(raw) // AXIS_ACT_SIZE
@@ -99,4 +144,8 @@ with Live(build_table([], config=config), refresh_per_second=30) as live:
                     axes.append(
                         struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
                     )
-                live.update(build_table(axes, timestamp_ns, current_state, config))
+
+                # 両方のテーブルを更新
+                motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
+                imu_table = build_imu_table(current_imu_data)
+                live.update(Group(motor_table, imu_table))

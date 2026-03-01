@@ -17,6 +17,13 @@ nodes:
     outputs:
       - motor_status
 
+  - id: imu_node
+    path: src/cpp/node/imu_node/build/imu_node
+    inputs:
+      tick: dora/timer/millis/3
+    outputs:
+      - imu_data
+
   - id: dummy_input
     path: dynamic
     outputs:
@@ -27,3 +34,4 @@ nodes:
     inputs:
       motor_status: device_manage/motor_status
       state_status: state_manager/state_status
+      imu_data: imu_node/imu_data
