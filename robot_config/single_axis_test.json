@@ -1,0 +1,9 @@
+{
+  "robot_name": "single_axis_test",
+  "transport": "socketcan",
+  "axis_count": 1,
+  "interpolation_time": 3.0,
+  "axes": [
+    {"index": 0, "name": "hip_pitch_r", "device_id": 50, "motdir": 1, "initial_position": 1.2, "reset_position": -0.130899, "velocity_limit": 100.0, "accel_limit": 20.0, "torque_limit": 15.0}
+  ]
+}

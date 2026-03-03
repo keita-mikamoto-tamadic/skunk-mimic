@@ -8,6 +8,7 @@
 #include <poll.h>
 #include <unistd.h>
 #include <cstring>
+#include <chrono>
 
 SocketCanComm::SocketCanComm() = default;
 
@@ -77,18 +78,29 @@ bool SocketCanComm::SendFrame(uint32_t arb_id, const uint8_t* data, size_t len) 
 
 bool SocketCanComm::ReceiveFrame(int device_id, uint8_t* data, size_t* len, int timeout_ms){
   if (!IsOpen()) return false;
-  
-  struct pollfd pfd = {socket_fd_, POLLIN, 0};
-  if (::poll(&pfd, 1, timeout_ms) <= 0) return false;
-
-  struct canfd_frame frame;
-  ssize_t n = ::read(socket_fd_, &frame, sizeof(frame));
-  if (n <= 0) return false;
 
   uint32_t expected = (static_cast<uint32_t>(device_id) << 8) | CAN_EFF_FLAG;
-  if (frame.can_id != expected) return false;
+  auto deadline = std::chrono::steady_clock::now()
+                  + std::chrono::milliseconds(timeout_ms);
 
-  *len = frame.len;
-  std::memcpy(data, frame.data, frame.len);
-  return true;
+  while (true) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) return false;
+    int remaining_ms = static_cast<int>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now).count());
+
+    struct pollfd pfd = {socket_fd_, POLLIN, 0};
+    if (::poll(&pfd, 1, remaining_ms) <= 0) return false;
+
+    struct canfd_frame frame;
+    ssize_t n = ::read(socket_fd_, &frame, sizeof(frame));
+    if (n <= 0) return false;
+
+    if ((frame.can_id & ~CAN_ERR_FLAG) != expected) continue;
+
+    *len = frame.len;
+    std::memcpy(data, frame.data, frame.len);
+    return true;
+  }
 }
