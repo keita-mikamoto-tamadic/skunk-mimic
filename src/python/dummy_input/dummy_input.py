@@ -2,12 +2,12 @@ from dora import Node
 import pyarrow as pa
 
 COMMANDS = {
-    "stop": 0,       # StateCommand::STOP
-    "run": 1,        # StateCommand::RUN
-    "off": 2,        # StateCommand::SERVO_OFF
-    "on": 3,         # StateCommand::SERVO_ON
-    "reset": 4,      # StateCommand::INIT_POSITION_RESET
-    "ready": 5,      # StateCommand::READY
+    "s": 0,       # StateCommand::STOP
+    "l": 1,        # StateCommand::RUN
+    "f": 2,        # StateCommand::SERVO_OFF
+    "o": 3,         # StateCommand::SERVO_ON
+    "z": 4,      # StateCommand::INIT_POSITION_RESET
+    "r": 5,      # StateCommand::READY
 }
 
 node = Node("dummy_input")

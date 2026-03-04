@@ -82,3 +82,27 @@ size_t DummyComm::BuildDummyResponse(
 
     return pos;  // 20 バイト
 }
+
+bool DummyComm::ReceiveAnyFrame(
+    const std::set<int>& expected_device_ids,
+    int* device_id_out,
+    uint8_t* data,
+    size_t* len,
+    int /*timeout_ms*/)
+{
+    if (!is_open_) return false;
+    if (expected_device_ids.empty()) return false;
+
+    // 期待される device_id の最初の1つを返す
+    *device_id_out = *expected_device_ids.begin();
+
+    dummy_pos_ = std::fmod(dummy_pos_ + 0.001, 10.0);
+    dummy_vel_ = std::fmod(dummy_vel_ + 0.01, 10.0);
+    dummy_torq_ = std::fmod(dummy_torq_ + 0.1, 1000.0);
+    *len = BuildDummyResponse(data,
+                              dummy_pos_,
+                              dummy_vel_,
+                              dummy_torq_,
+                              0);
+    return true;
+}

@@ -22,6 +22,13 @@ public:
                       uint8_t* data, size_t* len,
                       int timeout_ms) override;
 
+    bool ReceiveAnyFrame(
+        const std::set<int>& expected_device_ids,
+        int* device_id_out,
+        uint8_t* data,
+        size_t* len,
+        int timeout_ms) override;
+
 private:
     bool is_open_ = false;
     int last_sent_device_id_ = -1;

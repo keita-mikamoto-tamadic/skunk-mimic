@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string>
+#include <set>
 
 class Communication {
 public:
@@ -24,6 +25,14 @@ public:
     virtual bool ReceiveFrame(int device_id,
                               uint8_t* data, size_t* len,
                               int timeout_ms) = 0;
+
+    // -- Multiple device receive --
+    virtual bool ReceiveAnyFrame(
+        const std::set<int>& expected_device_ids,
+        int* device_id_out,
+        uint8_t* data,
+        size_t* len,
+        int timeout_ms) = 0;
 
 protected:
     Communication() = default;

@@ -1,6 +1,8 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <set>
+#include <chrono>
 #include "dora-node-api.h"
 #include <pthread.h>
 #include <sched.h>
@@ -118,17 +120,44 @@ int main() {
               uint8_t rx[kMaxFrameSize];
               size_t rxlen;
 
+              // 1. まとめて送信
               for (size_t i = 0; i < axis_count; i++) {
                   const auto& ax = config.axes[i];
-                  // コマンドフレーム送信
                   size_t len = converter.BuildCommandFrame(
                       buf, refs[i], ax.motdir);
                   can->SendFrame(
                       converter.GetArbId(ax.device_id), buf, len);
-                  // レスポンス受信
-                  if (can->ReceiveFrame(ax.device_id, rx, &rxlen, 3)) {
-                      converter.ParseResponse(
-                          rx, rxlen, acts[i], ax.motdir);
+              }
+
+              // 2. まとめて受信
+              std::set<int> expected_ids;
+              for (const auto& ax : config.axes) {
+                  expected_ids.insert(ax.device_id);
+              }
+
+              std::set<int> received_ids;
+              auto deadline = std::chrono::steady_clock::now()
+                              + std::chrono::milliseconds(10);
+
+              while (received_ids.size() < expected_ids.size()) {
+                  auto now = std::chrono::steady_clock::now();
+                  if (now >= deadline) break;
+
+                  int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      deadline - now).count();
+                  if (remaining_ms <= 0) break;
+
+                  int device_id;
+                  if (can->ReceiveAnyFrame(expected_ids, &device_id, rx, &rxlen, remaining_ms)) {
+                      // device_id から軸のインデックスを特定
+                      for (size_t i = 0; i < axis_count; i++) {
+                          if (config.axes[i].device_id == device_id) {
+                              converter.ParseResponse(
+                                  rx, rxlen, acts[i], config.axes[i].motdir);
+                              received_ids.insert(device_id);
+                              break;
+                          }
+                      }
                   }
               }
 
