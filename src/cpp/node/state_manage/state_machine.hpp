@@ -4,11 +4,6 @@
 #include "../../lib/shm_data_format.hpp"
 #include "../../lib/robot_config.hpp"
 
-struct ControlResult {
-    std::vector<AxisRef> commands;
-    bool ready_complete;
-};
-
 class StateMachine {
 public:
     StateMachine();
@@ -25,16 +20,20 @@ public:
     // 出力取得
     State GetState() const;
     size_t GetAxisCount() const;
+    const std::vector<AxisRef>& GetCommands() const;
+    bool IsReadyComplete() const;
 
-    // tick ごとの制御出力 — State に応じた AxisRef を生成
-    // AxisRef の全フィールド（limits 含む）を config から埋める
-    ControlResult RobotController();
+    // tick ごとの制御出力 — ref_val を更新（motor_state は状態遷移時に設定済み）
+    void RobotController();
 
 private:
     State state_;
     RobotConfig config_;
     std::vector<AxisAct> axes_status_;
     FaultEvaluator fault_evaluator_;
+
+    // 各軸のコマンド（メンバ変数として保持）
+    std::vector<AxisRef> commands_;
 
     // 補間パラメータ
     double interp_progress_;

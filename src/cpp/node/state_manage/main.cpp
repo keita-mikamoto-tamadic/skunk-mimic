@@ -39,7 +39,6 @@ int main() {
 
     StateMachine sm;
     sm.Configure(config, makeMoteusFaultEvaluator(State::STOP));
-    ControlResult last_ctrl;
 
     while (true) {
         auto event = node.events->next();
@@ -68,7 +67,7 @@ int main() {
             if (id == kInputStateCommand) {
                 auto cmd = ReceiveValue<StateCommand>(arr);
 
-                if (cmd == StateCommand::RUN && !last_ctrl.ready_complete) {
+                if (cmd == StateCommand::RUN && !sm.IsReadyComplete()) {
                     std::cout << "[state_manager] RUN rejected: READY not complete"
                               << std::endl;
                 } else {
@@ -80,11 +79,9 @@ int main() {
                 }
             }
             else if (id == kInputTick) {
-                // tick 処理
-                auto ctrl = sm.RobotController();
-                SendStructArray(node, kOutputMotorCommands, ctrl.commands);
+                sm.RobotController();
+                SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
                 SendValue(node, kOutputStateStatus, sm.GetState());
-                last_ctrl = ctrl;
             }
             else if (id == kInputMotorStatus) {
                 auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
