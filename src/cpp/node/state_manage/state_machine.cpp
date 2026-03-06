@@ -1,6 +1,24 @@
 #include "state_machine.hpp"
 #include <cmath>
 #include <iostream>
+#include <algorithm>
+
+constexpr double kTargetPitch = 0.0465;
+constexpr double kAngleKp = 12.0;
+constexpr double kAngleKi = 325.0;
+constexpr double kAngleKd = 0.17;
+constexpr double kAngleMaxIntegral = 0.21;
+constexpr double kAngleDDeadZone = 0.1;
+
+constexpr double kVelKp = 0.0001;
+constexpr double kVelKi = 0.00005;
+constexpr double kVelMaxIntegral = 0.5;
+
+constexpr double kMaxAngleOffset = 0.05;
+constexpr double kMaxWheelSpeed = 30.0;
+
+constexpr size_t kWheelR = 2;
+constexpr size_t kWheelL = 5;
 
 StateMachine::StateMachine()
     : state_(State::OFF), interp_progress_(0.0), tick_sec_(0.003),
@@ -15,6 +33,9 @@ void StateMachine::Configure(
     tick_sec_ = tick_sec;
     start_positions_.resize(config.axes.size(), 0.0);
     torque_limit_count_.resize(config.axes.size(), 0);
+
+    angle_pid_ = Pid(kAngleKp, kAngleKi, kAngleKd, kAngleMaxIntegral, kAngleDDeadZone);
+    velocity_pid_ = Pid(kVelKp, kVelKi, 0.0, kVelMaxIntegral);
 
     // commands_ を初期化（limits は静的なのでここで1回だけ設定）
     commands_.resize(config.axes.size());
@@ -62,16 +83,20 @@ void StateMachine::HandleStateCommand(StateCommand cmd) {
                 }
                 state_ = State::READY;
                 for (size_t i = 0; i < commands_.size(); i++) {
-                    if (i != 2 && i != 5) { 
+                    if (i != kWheelR && i != kWheelL) {
                         commands_[i].motor_state = MotorState::POSITION;
-                    } else commands_[i].motor_state = MotorState::VELOCITY;
+                    } else {
+                        commands_[i].motor_state = MotorState::VELOCITY;
+                    }
                 }
             }
             break;
         case StateCommand::RUN:
-            if (state_ == State::READY) state_ = State::RUN;
-            // motor_state は READY で設定した POSITION がそのまま保持される
-            // 将来: 制御ロジックがここで軸ごとに motor_state を変更
+            if (state_ == State::READY) {
+                angle_pid_.Reset();
+                velocity_pid_.Reset();
+                state_ = State::RUN;
+            }
             break;
         case StateCommand::INIT_POSITION_RESET:
             if (state_ == State::OFF) {
@@ -116,6 +141,11 @@ void StateMachine::UpdateMotorStatus(const std::vector<AxisAct>& status) {
             torque_limit_count_[i] = 0;
         }
     }
+}
+
+void StateMachine::UpdateImuData(double pitch, double pitch_rate) {
+    pitch_ = pitch;
+    pitch_rate_ = pitch_rate;
 }
 
 State StateMachine::GetState() const { return state_; }
@@ -173,12 +203,29 @@ void StateMachine::RobotController() {
             }
             break;
 
-        case State::RUN:
-            // 将来: PID計算をここで1回行い、結果をループ内で各軸に配分
+        case State::RUN: {
+            // 外側ループ: 速度PI（倒立点自動調整）
+            double wheel_velocity =
+                (axes_status_[kWheelR].velocity + axes_status_[kWheelL].velocity) / 2.0;
+            double velocity_error = 0.0 - wheel_velocity;
+            double angle_offset = velocity_pid_.Compute(velocity_error, 0.0, tick_sec_);
+            angle_offset = std::clamp(angle_offset, -kMaxAngleOffset, kMaxAngleOffset);
+
+            // 内側ループ: 角度PID
+            double effective_target = kTargetPitch + angle_offset;
+            double angle_error = pitch_ - effective_target;
+            double wheel_vel = angle_pid_.Compute(angle_error, -pitch_rate_, tick_sec_);
+            wheel_vel = std::clamp(wheel_vel, -kMaxWheelSpeed, kMaxWheelSpeed);
+
+            // 各軸に配分
             for (size_t i = 0; i < axes.size(); i++) {
-                if (commands_[i].motor_state == MotorState::POSITION) commands_[i].ref_val = axes[i].initial_position;
-                if (commands_[i].motor_state == MotorState::VELOCITY) commands_[i].ref_val = 0.0F;
+                if (commands_[i].motor_state == MotorState::VELOCITY) {
+                    commands_[i].ref_val = wheel_vel;
+                } else {
+                    commands_[i].ref_val = axes[i].initial_position;
+                }
             }
             break;
+        }
     }
 }

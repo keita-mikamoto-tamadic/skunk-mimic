@@ -13,6 +13,7 @@ constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 constexpr const char* kInputStateCommand  = "state_command";
 constexpr const char* kInputTick          = "tick";
 constexpr const char* kInputMotorStatus   = "motor_status";
+constexpr const char* kInputImuData       = "imu_data";
 constexpr const char* kOutputMotorCommands  = "motor_commands";
 constexpr const char* kOutputStateStatus    = "state_status";
 
@@ -86,6 +87,10 @@ int main() {
             else if (id == kInputMotorStatus) {
                 auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
                 sm.UpdateMotorStatus(acts);
+            }
+            else if (id == kInputImuData) {
+                auto imu = ReceiveStructArray<ImuData>(arr, 1);
+                sm.UpdateImuData(imu[0].pitch, imu[0].gy);
             }
         }
     }

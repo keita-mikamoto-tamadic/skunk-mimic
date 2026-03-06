@@ -6,6 +6,7 @@ nodes:
       tick: dora/timer/millis/3
       state_command: dummy_input/state_command
       motor_status: device_manage/motor_status
+      imu_data: imu_node/imu_data
     outputs:
       - motor_commands
       - state_status
