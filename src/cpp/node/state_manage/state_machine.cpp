@@ -1,4 +1,6 @@
 #include "state_machine.hpp"
+#include <cmath>
+#include <iostream>
 
 StateMachine::StateMachine()
     : state_(State::OFF), interp_progress_(0.0), tick_sec_(0.003),
@@ -12,6 +14,7 @@ void StateMachine::Configure(
     fault_evaluator_ = std::move(fault_evaluator);
     tick_sec_ = tick_sec;
     start_positions_.resize(config.axes.size(), 0.0);
+    torque_limit_count_.resize(config.axes.size(), 0);
 
     // commands_ を初期化（limits は静的なのでここで1回だけ設定）
     commands_.resize(config.axes.size());
@@ -21,7 +24,7 @@ void StateMachine::Configure(
         commands_[i].torque_limit = config.axes[i].torque_limit;
         commands_[i].kp_scale = 1.0;
         commands_[i].kv_scale = 1.0;
-        commands_[i].motor_state = static_cast<uint8_t>(MotorState::OFF);
+        commands_[i].motor_state = MotorState::OFF;
         commands_[i].ref_val = 0.0;
     }
 }
@@ -32,14 +35,14 @@ void StateMachine::HandleStateCommand(StateCommand cmd) {
             if (state_ == State::OFF) {
                 state_ = State::STOP;
                 for (size_t i = 0; i < commands_.size(); i++) {
-                    commands_[i].motor_state = static_cast<uint8_t>(MotorState::STOP);
+                    commands_[i].motor_state = MotorState::STOP;
                 }
             }
             break;
         case StateCommand::SERVO_OFF:
             state_ = State::OFF;
             for (size_t i = 0; i < commands_.size(); i++) {
-                commands_[i].motor_state = static_cast<uint8_t>(MotorState::OFF);
+                commands_[i].motor_state = MotorState::OFF;
                 commands_[i].ref_val = 0.0;
             }
             break;
@@ -47,7 +50,7 @@ void StateMachine::HandleStateCommand(StateCommand cmd) {
             if (state_ != State::OFF) {
                 state_ = State::STOP;
                 for (size_t i = 0; i < commands_.size(); i++) {
-                    commands_[i].motor_state = static_cast<uint8_t>(MotorState::STOP);
+                    commands_[i].motor_state = MotorState::STOP;
                 }
             }
             break;
@@ -60,8 +63,8 @@ void StateMachine::HandleStateCommand(StateCommand cmd) {
                 state_ = State::READY;
                 for (size_t i = 0; i < commands_.size(); i++) {
                     if (i != 2 && i != 5) { 
-                        commands_[i].motor_state = static_cast<uint8_t>(MotorState::POSITION);
-                    } else commands_[i].motor_state = static_cast<uint8_t>(MotorState::VELOCITY);
+                        commands_[i].motor_state = MotorState::POSITION;
+                    } else commands_[i].motor_state = MotorState::VELOCITY;
                 }
             }
             break;
@@ -80,18 +83,37 @@ void StateMachine::HandleStateCommand(StateCommand cmd) {
 
 void StateMachine::UpdateMotorStatus(const std::vector<AxisAct>& status) {
     axes_status_ = status;
+
     // フォルト検出: evaluator が注入されていれば使用
     if (fault_evaluator_) {
         for (const auto& s : axes_status_) {
             auto result = fault_evaluator_(s.fault);
             if (result.has_value()) {
                 state_ = result.value();
-                // フォルト時は全軸 STOP に設定
                 for (size_t i = 0; i < commands_.size(); i++) {
-                    commands_[i].motor_state = static_cast<uint8_t>(MotorState::STOP);
+                    commands_[i].motor_state = MotorState::OFF;
+                    commands_[i].ref_val = 0.0;
                 }
                 break;
             }
+        }
+    }
+
+    // トルクリミット連続ヒット監視（軸ごと）
+    constexpr int kTorqueLimitThreshold = 100;
+    for (size_t i = 0; i < axes_status_.size(); i++) {
+        if (std::abs(axes_status_[i].torque) >= config_.axes[i].torque_limit) {
+            torque_limit_count_[i]++;
+            if (torque_limit_count_[i] >= kTorqueLimitThreshold) {
+                commands_[i].motor_state = MotorState::OFF;
+                commands_[i].ref_val = 0.0;
+                std::cerr << "[state_manager] axis " << i
+                          << " servo OFF: torque limit hit "
+                          << kTorqueLimitThreshold << " consecutive ticks"
+                          << std::endl;
+            }
+        } else {
+            torque_limit_count_[i] = 0;
         }
     }
 }
@@ -114,7 +136,7 @@ void StateMachine::RobotController() {
         case State::OFF:
             if (position_reset_pending_) {
                 for (size_t i = 0; i < axes.size(); i++) {
-                    commands_[i].motor_state = static_cast<uint8_t>(MotorState::SET_POSITION);
+                    commands_[i].motor_state = MotorState::SET_POSITION;
                     commands_[i].ref_val = axes[i].reset_position;
                 }
                 position_reset_pending_ = false;
@@ -129,7 +151,7 @@ void StateMachine::RobotController() {
 
         case State::READY:
             for (size_t i = 0; i < axes.size(); i++) {
-                if (commands_[i].motor_state == static_cast<uint8_t>(MotorState::VELOCITY)) {
+                if (commands_[i].motor_state == MotorState::VELOCITY) {
                     commands_[i].ref_val = 0.0;
                 } else {
                     double target;
@@ -154,8 +176,8 @@ void StateMachine::RobotController() {
         case State::RUN:
             // 将来: PID計算をここで1回行い、結果をループ内で各軸に配分
             for (size_t i = 0; i < axes.size(); i++) {
-                if (commands_[i].motor_state == static_cast<uint8_t>(MotorState::POSITION)) commands_[i].ref_val = axes[i].initial_position;
-                if (commands_[i].motor_state == static_cast<uint8_t>(MotorState::VELOCITY)) commands_[i].ref_val = 0.0F;
+                if (commands_[i].motor_state == MotorState::POSITION) commands_[i].ref_val = axes[i].initial_position;
+                if (commands_[i].motor_state == MotorState::VELOCITY) commands_[i].ref_val = 0.0F;
             }
             break;
     }

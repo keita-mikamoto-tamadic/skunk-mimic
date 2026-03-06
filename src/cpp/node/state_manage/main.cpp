@@ -38,7 +38,7 @@ int main() {
               << config.axis_count << " axes)" << std::endl;
 
     StateMachine sm;
-    sm.Configure(config, makeMoteusFaultEvaluator(State::STOP));
+    sm.Configure(config, makeMoteusFaultEvaluator(State::OFF));
 
     while (true) {
         auto event = node.events->next();

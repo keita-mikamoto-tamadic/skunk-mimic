@@ -42,4 +42,7 @@ private:
 
     // エンコーダ位置リセット（1tick だけ SET_POSITION を出力）
     bool position_reset_pending_;
+
+    // トルクリミット連続ヒットカウント（軸ごと）
+    std::vector<int> torque_limit_count_;
 };

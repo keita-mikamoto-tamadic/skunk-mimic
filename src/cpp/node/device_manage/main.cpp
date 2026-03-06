@@ -86,7 +86,7 @@ int main() {
           // 全軸 OFF 送信
           uint8_t buf[kMaxFrameSize];
           AxisRef off_ref = {};
-          off_ref.motor_state = static_cast<uint8_t>(MotorState::OFF);
+          off_ref.motor_state = MotorState::OFF;
           for (size_t i = 0; i < axis_count; i++) {
               const auto& ax = config.axes[i];
               size_t len = converter.BuildCommandFrame(

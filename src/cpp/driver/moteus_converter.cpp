@@ -17,7 +17,7 @@ size_t MoteusConverter::BuildCommandFrame(
   moteus::CanData frame;
   moteus::WriteCanData writer(&frame);
   
-  auto state = static_cast<MotorState>(ref.motor_state);
+  auto state = ref.motor_state;
 
   // rad --> rev 単位変換 (moteusはrev)
   double ref_rev = (ref.ref_val / kTwoPi) * motdir;
@@ -48,7 +48,7 @@ size_t MoteusConverter::BuildCommandFrame(
         // NaN位置 = 現在位置を保持してブレーキ
         cmd.position = std::numeric_limits<double>::quiet_NaN();
         cmd.velocity = 0.0;
-        cmd.maximum_torque = std::numeric_limits<double>::quiet_NaN();
+        cmd.maximum_torque = ref.torque_limit;
         cmd.kp_scale = ref.kp_scale;
         cmd.kd_scale = ref.kv_scale;
         cmd.velocity_limit = std::numeric_limits<double>::quiet_NaN();
