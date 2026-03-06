@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string>
+#include <queue>
 #include "../interface/communication.hpp"
 
 // ハードウェアなしで device_control をテストするためのダミー通信。
@@ -31,7 +32,7 @@ public:
 
 private:
     bool is_open_ = false;
-    int last_sent_device_id_ = -1;
+    std::queue<int> pending_device_ids_;
     double dummy_pos_ = 0.0;
     double dummy_vel_ = 0.0;
     double dummy_torq_ = 0.0;

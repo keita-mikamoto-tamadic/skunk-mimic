@@ -20,8 +20,7 @@ bool DummyComm::IsOpen() const {
 
 bool DummyComm::SendFrame(uint32_t arb_id,
                            const uint8_t* /*data*/, size_t /*len*/) {
-    // arb_id から device_id を抽出して記録
-    last_sent_device_id_ = static_cast<int>(arb_id & 0x7F);
+    pending_device_ids_.push(static_cast<int>(arb_id & 0x7F));
     return true;
 }
 
@@ -29,17 +28,14 @@ bool DummyComm::ReceiveFrame(int device_id,
                               uint8_t* data, size_t* len,
                               int /*timeout_ms*/) {
     if (!is_open_) return false;
-    if (last_sent_device_id_ != device_id) return false;
+    if (pending_device_ids_.empty() || pending_device_ids_.front() != device_id)
+        return false;
 
+    pending_device_ids_.pop();
     dummy_pos_ = std::fmod(dummy_pos_ + 0.001, 10.0);
     dummy_vel_ = std::fmod(dummy_vel_ + 0.01, 10.0);
-    dummy_torq_ = std::fmod(dummy_torq_ + 0.1, 1000.0);
-    *len = BuildDummyResponse(data,
-                              dummy_pos_,    // position: 0 rev
-                              dummy_vel_,    // velocity: 0 rev/s
-                              dummy_torq_,    // torque: 0 Nm
-                              0);     // fault: 0（正常）
-    last_sent_device_id_ = -1;
+    dummy_torq_ = 0.0F;
+    *len = BuildDummyResponse(data, dummy_pos_, dummy_vel_, dummy_torq_, 0);
     return true;
 }
 
@@ -91,18 +87,19 @@ bool DummyComm::ReceiveAnyFrame(
     int /*timeout_ms*/)
 {
     if (!is_open_) return false;
-    if (expected_device_ids.empty()) return false;
 
-    // 期待される device_id の最初の1つを返す
-    *device_id_out = *expected_device_ids.begin();
-
-    dummy_pos_ = std::fmod(dummy_pos_ + 0.001, 10.0);
-    dummy_vel_ = std::fmod(dummy_vel_ + 0.01, 10.0);
-    dummy_torq_ = std::fmod(dummy_torq_ + 0.1, 1000.0);
-    *len = BuildDummyResponse(data,
-                              dummy_pos_,
-                              dummy_vel_,
-                              dummy_torq_,
-                              0);
-    return true;
+    // キューから期待される device_id を探して返す
+    while (!pending_device_ids_.empty()) {
+        int id = pending_device_ids_.front();
+        pending_device_ids_.pop();
+        if (expected_device_ids.count(id)) {
+            *device_id_out = id;
+            dummy_pos_ = std::fmod(dummy_pos_ + 0.001, 10.0);
+            dummy_vel_ = std::fmod(dummy_vel_ + 0.01, 10.0);
+            dummy_torq_ = 0.0F;
+            *len = BuildDummyResponse(data, dummy_pos_, dummy_vel_, dummy_torq_, 0);
+            return true;
+        }
+    }
+    return false;
 }
