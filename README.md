@@ -122,11 +122,18 @@ sudo apt update
 sudo apt install -y ca-certificates lsb-release wget
 ```
 
-apt リポジトリインストール
+(Ubuntu) apt リポジトリインストール
 ```bash
 # Ubuntu 22.04 (jammy) の場合。24.04 の場合は jammy → noble に読み替える
 wget https://packages.apache.org/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-jammy.deb
 sudo apt install -y ./apache-arrow-apt-source-latest-jammy.deb
+```
+
+(rasbianOS) apt リポジトリインストール
+```bash
+wget https://packages.apache.org/artifactory/arrow/debian/apache-arrow-apt-source-latest-bookworm.deb
+sudo apt install -y ./apache-arrow-apt-source-latest-bookworm.deb
+sudo apt update
 ```
 
 本体インストール
