@@ -40,7 +40,22 @@ cd ~
 git clone https://github.com/dora-rs/dora.git
 cd dora
 git checkout v0.4.1
+```
+
+本体build
+```bash
 cargo build --release
+```
+これでビルドが失敗した場合は、
+
+```bash
+cargo build -p dora-cli --release
+```
+
+
+CAPI build
+```bash
+cargo build --package dora-node-api-cxx --release
 ```
 
 これで以下が生成されます：
