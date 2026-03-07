@@ -9,6 +9,8 @@ using namespace mjbots;
 constexpr double kTwoPi = 2.0 * M_PI;
 
 uint32_t MoteusConverter::GetArbId(int device_id) {
+  // 返信フレーム要求のためreply requiredビット
+  // 0x8000を付加する
   return 0x8000 | static_cast<uint32_t>(device_id);
 }
 
