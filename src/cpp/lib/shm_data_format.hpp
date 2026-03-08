@@ -2,7 +2,7 @@
 #include <cstdint>
 #include "enum_def.hpp"
 
-// state_manage → motor_comm: 1軸分の指令値
+// robot_control_manager → motor_comm: 1軸分の指令値
 struct AxisRef {
     MotorState motor_state;
     double ref_val;        // 目標値: position(rad) or velocity(rad/s)
@@ -13,7 +13,7 @@ struct AxisRef {
     double torque_limit;   // Nm
 };
 
-// motor_comm → state_manage: 1軸分の現在値
+// motor_comm → robot_control_manager: 1軸分の現在値
 struct AxisAct {
     double position;       // rad
     double velocity;       // rad/s

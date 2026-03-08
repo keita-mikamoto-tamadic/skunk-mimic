@@ -7,7 +7,7 @@ build/
 
 # Test binaries (built locally)
 src/cpp/lib/robot_config_test
-src/cpp/node/state_manage/test_sm
+src/cpp/node/robot_control_manager/test_sm
 
 # CMake
 CMakeCache.txt

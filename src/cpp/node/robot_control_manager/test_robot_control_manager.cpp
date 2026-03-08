@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <stdexcept>
-#include "state_machine.hpp"
+#include "robot_control_manager.hpp"
 
 // --- テスト基盤 ---
 static int g_passed = 0, g_failed = 0;
@@ -32,12 +32,12 @@ static AxisStatus makeStatus(double pos) {
 // Phase 1: 基本
 // =========================================================
 void test_initial_state_is_off() {
-    StateMachine sm;
+    RobotControlManager sm;
     ASSERT_EQ(sm.getState(), State::OFF);
 }
 
 void test_configure_keeps_state() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)});
     ASSERT_EQ(sm.getState(), State::OFF);
 }
@@ -46,14 +46,14 @@ void test_configure_keeps_state() {
 // Phase 2: 状態遷移
 // =========================================================
 void test_servo_on_off_to_stop() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     ASSERT_EQ(sm.getState(), State::STOP);
 }
 
 void test_servo_on_from_stop_ignored() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -61,7 +61,7 @@ void test_servo_on_from_stop_ignored() {
 }
 
 void test_ready_from_stop() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::READY);
@@ -69,14 +69,14 @@ void test_ready_from_stop() {
 }
 
 void test_ready_from_off_ignored() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::READY);
     ASSERT_EQ(sm.getState(), State::OFF);
 }
 
 void test_run_from_ready() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::READY);
@@ -85,7 +85,7 @@ void test_run_from_ready() {
 }
 
 void test_run_from_stop_ignored() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::RUN);
@@ -93,7 +93,7 @@ void test_run_from_stop_ignored() {
 }
 
 void test_stop_from_run() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::READY);
@@ -103,14 +103,14 @@ void test_stop_from_run() {
 }
 
 void test_stop_from_off_ignored() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::STOP);
     ASSERT_EQ(sm.getState(), State::OFF);
 }
 
 void test_servo_off_from_any() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::READY);
@@ -123,7 +123,7 @@ void test_servo_off_from_any() {
 // Phase 3: robotController 基本出力
 // =========================================================
 void test_ctrl_off_motor_off() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)});
     auto ctrl = sm.robotController();
     ASSERT_EQ(ctrl.commands.size(), (size_t)1);
@@ -132,7 +132,7 @@ void test_ctrl_off_motor_off() {
 }
 
 void test_ctrl_stop_holds_position() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)});
     sm.updateMotorStatus({makeStatus(0.75)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -142,7 +142,7 @@ void test_ctrl_stop_holds_position() {
 }
 
 void test_ctrl_run_holds_initial() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(2.5)}, nullptr, 1.0, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -155,7 +155,7 @@ void test_ctrl_run_holds_initial() {
 }
 
 void test_ctrl_command_count() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0), makeAxis(1.0), makeAxis(2.0)});
     auto ctrl = sm.robotController();
     ASSERT_EQ(ctrl.commands.size(), (size_t)3);
@@ -165,7 +165,7 @@ void test_ctrl_command_count() {
 // Phase 4: READY 補間
 // =========================================================
 void test_ready_starts_from_current() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 0.5, 1.0);
     sm.updateMotorStatus({makeStatus(0.5)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -175,7 +175,7 @@ void test_ready_starts_from_current() {
 }
 
 void test_ready_interpolates() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 0.3, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -189,7 +189,7 @@ void test_ready_interpolates() {
 }
 
 void test_ready_clamps_at_one() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(2.0)}, nullptr, 0.5, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -202,7 +202,7 @@ void test_ready_clamps_at_one() {
 }
 
 void test_ready_multi_axis() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0), makeAxis(2.0)}, nullptr, 0.5, 1.0);
     sm.updateMotorStatus({makeStatus(0.0), makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -215,7 +215,7 @@ void test_ready_multi_axis() {
 }
 
 void test_ready_reentry_resets() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 0.3, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -235,7 +235,7 @@ void test_ready_reentry_resets() {
 // Phase 5: ready_complete フラグ
 // =========================================================
 void test_ready_complete_false_during_interp() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 0.3, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -245,7 +245,7 @@ void test_ready_complete_false_during_interp() {
 }
 
 void test_ready_complete_true_after_interp() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 1.0, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -255,7 +255,7 @@ void test_ready_complete_true_after_interp() {
 }
 
 void test_ready_complete_persists_in_run() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 1.0, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
@@ -270,7 +270,7 @@ void test_ready_complete_persists_in_run() {
 // Phase 6: フォルト注入
 // =========================================================
 void test_no_evaluator_ignores_fault() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)});
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.updateMotorStatus({{.position = 0.0, .velocity = 0.0, .torque = 0.0, .fault = 99}});
@@ -282,7 +282,7 @@ void test_evaluator_triggers_stop() {
         if (fault != 0) return State::STOP;
         return std::nullopt;
     };
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)}, eval);
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::READY);
@@ -293,7 +293,7 @@ void test_evaluator_triggers_stop() {
 
 void test_evaluator_nullopt_no_change() {
     auto eval = [](uint8_t) -> std::optional<State> { return std::nullopt; };
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0)}, eval);
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.updateMotorStatus({{.position = 0.0, .velocity = 0.0, .torque = 0.0, .fault = 42}});
@@ -306,7 +306,7 @@ void test_evaluator_first_fault_wins() {
         if (fault == 2) return State::OFF;
         return std::nullopt;
     };
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(0.0), makeAxis(0.0)}, eval);
     sm.handleStateCommand(StateCommand::SERVO_ON);
     sm.handleStateCommand(StateCommand::READY);
@@ -322,14 +322,14 @@ void test_evaluator_first_fault_wins() {
 // Phase 7: エッジケース
 // =========================================================
 void test_empty_axes() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({});
     auto ctrl = sm.robotController();
     ASSERT_EQ(ctrl.commands.size(), (size_t)0);
 }
 
 void test_full_lifecycle() {
-    StateMachine sm;
+    RobotControlManager sm;
     sm.configure({makeAxis(1.0)}, nullptr, 1.0, 1.0);
     sm.updateMotorStatus({makeStatus(0.0)});
 
@@ -359,7 +359,7 @@ void test_full_lifecycle() {
 // main
 // =========================================================
 int main() {
-    std::cout << "=== StateMachine Unit Tests ===\n\n";
+    std::cout << "=== RobotControlManager Unit Tests ===\n\n";
 
     // Phase 1: 基本
     RUN_TEST(test_initial_state_is_off);

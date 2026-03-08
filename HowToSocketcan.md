@@ -68,7 +68,7 @@ device_id は `robot_config/mimic_v2.json` で定義:
 | 4 | knee_l | 90 |
 | 5 | wheel_l | 100 |
 
-### 送受信パターン（device_manage ノード）
+### 送受信パターン（device_control_manager ノード）
 ```
 1. 全6軸のコマンドを連続送信（ノンブロッキング write）
 2. ReceiveAnyFrame() で 10ms デッドライン内にレスポンスを収集

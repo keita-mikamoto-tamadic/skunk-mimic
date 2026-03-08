@@ -1,4 +1,4 @@
-#include "state_machine.hpp"
+#include "robot_control_manager.hpp"
 #include <cmath>
 #include <iostream>
 #include <algorithm>
@@ -20,11 +20,11 @@ constexpr double kMaxWheelSpeed = 30.0;
 constexpr size_t kWheelR = 2;
 constexpr size_t kWheelL = 5;
 
-StateMachine::StateMachine()
+RobotControlManager::RobotControlManager()
     : state_(State::OFF), interp_progress_(0.0), tick_sec_(0.003),
       position_reset_pending_(false) {}
 
-void StateMachine::Configure(
+void RobotControlManager::Configure(
     const RobotConfig& config, FaultEvaluator fault_evaluator,
     double tick_sec) {
     config_ = config;
@@ -50,7 +50,7 @@ void StateMachine::Configure(
     }
 }
 
-void StateMachine::HandleStateCommand(StateCommand cmd) {
+void RobotControlManager::HandleStateCommand(StateCommand cmd) {
     switch (cmd) {
         case StateCommand::SERVO_ON:
             if (state_ == State::OFF) {
@@ -106,7 +106,7 @@ void StateMachine::HandleStateCommand(StateCommand cmd) {
     }
 }
 
-void StateMachine::UpdateMotorStatus(const std::vector<AxisAct>& status) {
+void RobotControlManager::UpdateMotorStatus(const std::vector<AxisAct>& status) {
     axes_status_ = status;
 
     // フォルト検出: evaluator が注入されていれば使用
@@ -132,7 +132,7 @@ void StateMachine::UpdateMotorStatus(const std::vector<AxisAct>& status) {
             if (torque_limit_count_[i] >= kTorqueLimitThreshold) {
                 commands_[i].motor_state = MotorState::OFF;
                 commands_[i].ref_val = 0.0;
-                std::cerr << "[state_manager] axis " << i
+                std::cerr << "axis " << i
                           << " servo OFF: torque limit hit "
                           << kTorqueLimitThreshold << " consecutive ticks"
                           << std::endl;
@@ -143,23 +143,23 @@ void StateMachine::UpdateMotorStatus(const std::vector<AxisAct>& status) {
     }
 }
 
-void StateMachine::UpdateImuData(double pitch, double pitch_rate) {
+void RobotControlManager::UpdateImuData(double pitch, double pitch_rate) {
     pitch_ = pitch;
     pitch_rate_ = pitch_rate;
 }
 
-State StateMachine::GetState() const { return state_; }
-size_t StateMachine::GetAxisCount() const { return config_.axes.size(); }
+State RobotControlManager::GetState() const { return state_; }
+size_t RobotControlManager::GetAxisCount() const { return config_.axes.size(); }
 
-const std::vector<AxisRef>& StateMachine::GetCommands() const {
+const std::vector<AxisRef>& RobotControlManager::GetCommands() const {
     return commands_;
 }
 
-bool StateMachine::IsReadyComplete() const {
+bool RobotControlManager::IsReadyComplete() const {
     return interp_progress_ >= 1.0;
 }
 
-void StateMachine::RobotController() {
+void RobotControlManager::RobotController() {
     const auto& axes = config_.axes;
 
     switch (state_) {

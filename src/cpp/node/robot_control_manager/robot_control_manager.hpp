@@ -5,9 +5,9 @@
 #include "../../lib/robot_config.hpp"
 #include "../../lib/pid.hpp"
 
-class StateMachine {
+class RobotControlManager {
 public:
-    StateMachine();
+    RobotControlManager();
 
     // 設定（RobotConfig から軸情報・補間時間を取得）
     void Configure(const RobotConfig& config,

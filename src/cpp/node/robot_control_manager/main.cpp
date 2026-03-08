@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include "dora-node-api.h"
-#include "state_machine.hpp"
+#include "robot_control_manager.hpp"
 #include "../../lib/robot_config.hpp"
 #include "../../lib/moteus_fault.hpp"
 #include "../../lib/dora_helpers.hpp"
@@ -30,15 +30,15 @@ static const char* StateName(State s) {
 
 int main() {
     auto node = init_dora_node();
-    std::cout << "[state_manager] started" << std::endl;
+    std::cout << "started" << std::endl;
 
     // 起動時に config ファイルを直接読み込む
     auto config = robot_config::LoadFromFile(kConfigPath);
-    std::cout << "[state_manager] loaded config: "
+    std::cout << "loaded config: "
               << config.robot_name << " ("
               << config.axis_count << " axes)" << std::endl;
 
-    StateMachine sm;
+    RobotControlManager sm;
     sm.Configure(config, makeMoteusFaultEvaluator(State::OFF));
 
     while (true) {
@@ -47,7 +47,7 @@ int main() {
 
         if (type == DoraEventType::Stop ||
             type == DoraEventType::AllInputsClosed) {
-            std::cout << "[state_manager] stopping" << std::endl;
+            std::cout << "stopping" << std::endl;
             break;
         }
 
@@ -69,12 +69,12 @@ int main() {
                 auto cmd = ReceiveValue<StateCommand>(arr);
 
                 if (cmd == StateCommand::RUN && !sm.IsReadyComplete()) {
-                    std::cout << "[state_manager] RUN rejected: READY not complete"
+                    std::cout << "RUN rejected: READY not complete"
                               << std::endl;
                 } else {
                     State old_state = sm.GetState();
                     sm.HandleStateCommand(cmd);
-                    std::cout << "[state_manager] cmd=" << (int)arr->Value(0)
+                    std::cout << "cmd=" << (int)arr->Value(0)
                               << ": " << StateName(old_state)
                               << " -> " << StateName(sm.GetState()) << std::endl;
                 }
