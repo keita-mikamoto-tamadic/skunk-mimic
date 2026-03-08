@@ -1,14 +1,17 @@
 """Excitation signal generator for system identification.
 
-Combines dummy_input (state commands) and robot_control_manager (motor commands)
-into a single node. Directly sends AxisRef[6] motor_commands.
+Bypasses robot_control_manager and sends motor_commands directly.
 
-Non-target axes are held at initial_position via POSITION mode.
-Target axes (wheels) receive step or chirp excitation in VELOCITY mode.
+State sequence:
+  1. STOP: All axes hold current position (servo on, brake)
+  2. Wait for --startup-delay seconds
+  3. Excitation: target axes (wheels) receive step/chirp in VELOCITY mode,
+     non-target axes (hip/knee) remain in STOP
+  4. Post-excitation: all axes STOP
 
 Usage:
   uv run sysid_input/sysid_input.py [--axes wheel] [--pattern step+chirp]
-                                     [--duration 60] [--startup-delay 3]
+                                     [--startup-delay 3]
 """
 
 import argparse
@@ -55,21 +58,13 @@ NUM_AXES = 6
 # Axis indices
 WHEEL_R = 2
 WHEEL_L = 5
-HIP_R = 0
-KNEE_R = 1
-HIP_L = 3
-KNEE_L = 4
-
-# Base servo gains (must match mujoco_node.py / moteus config)
-BASE_KP = 50.0
-BASE_KV = 20.0
 
 # ---------------------------------------------------------------------------
 # Excitation patterns
 # ---------------------------------------------------------------------------
 
 class StepPattern:
-    """Step response: alternating ±amplitude with hold period."""
+    """Step response: alternating +/- amplitude with hold period."""
 
     def __init__(self, amplitude=5.0, period=3.0, num_cycles=3):
         self.amplitude = amplitude
@@ -97,7 +92,6 @@ class ChirpPattern:
     def value(self, t: float) -> float:
         if t >= self.duration:
             return 0.0
-        # Linear chirp: instantaneous freq = f0 + (f1-f0)*t/T
         phase = 2 * math.pi * (self.f0 * t + 0.5 * (self.f1 - self.f0) * t * t / self.duration)
         return self.amplitude * math.sin(phase)
 
@@ -153,6 +147,17 @@ def pack_axis_ref(motor_state, ref_val, kp_scale, kv_scale,
     )
 
 
+def pack_stop(torque_limit):
+    """Pack AxisRef for STOP mode (hold current position, brake)."""
+    return pack_axis_ref(
+        MOTOR_STOP,
+        0.0,             # ref_val unused in STOP (moteus uses NaN position)
+        1.0, 1.0,
+        float('nan'), float('nan'),
+        torque_limit,
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="SysID excitation signal generator")
     parser.add_argument("--axes", default="wheel",
@@ -160,7 +165,7 @@ def parse_args():
     parser.add_argument("--pattern", default="step+chirp",
                         help="Excitation pattern: step, chirp, step+chirp (default)")
     parser.add_argument("--startup-delay", type=float, default=3.0,
-                        help="Seconds to hold initial position before excitation")
+                        help="Seconds in STOP before excitation starts")
     return parser.parse_args()
 
 
@@ -181,90 +186,103 @@ def main():
     else:
         raise ValueError(f"Unknown axis group: {args.axes}")
     print(f"[sysid_input] Target axes: {[config.axes[i].name for i in target_axes]}")
+    print(f"[sysid_input] All axes start in STOP (hold current position)")
+    print(f"[sysid_input] Excitation begins after {args.startup_delay}s delay")
 
     node = Node("sysid_input")
 
+    def send_all_off(node, config):
+        """Send MOTOR_OFF to all axes."""
+        cmd_buf = bytearray()
+        for i in range(NUM_AXES):
+            cmd_buf += pack_axis_ref(
+                MOTOR_OFF, 0.0, 0.0, 0.0,
+                float('nan'), float('nan'),
+                config.axes[i].torque_limit,
+            )
+        node.send_output(
+            "motor_commands",
+            pa.array(list(bytes(cmd_buf)), type=pa.uint8()),
+        )
+
     # State tracking
+    recorder_ready = False
     excitation_start = None
-    startup_complete = False
+    ready_time = None      # monotonic time when recorder_ready received
     finished = False
     tick_count = 0
-    node_start = time.monotonic()
 
     for event in node:
+        if event["type"] == "STOP":
+            # Dora shutdown: servo off all axes
+            print("[sysid_input] STOP event -> sending MOTOR_OFF to all axes")
+            send_all_off(node, config)
+            break
+
         if event["type"] == "INPUT":
             eid = event["id"]
 
-            if eid == "tick":
+            if eid == "recorder_ready":
+                recorder_ready = True
+                ready_time = time.monotonic()
+                print("[sysid_input] Recorder ready, starting startup delay")
+
+            elif eid == "tick":
                 tick_count += 1
                 now = time.monotonic()
-                elapsed = now - node_start
+                elapsed = (now - ready_time) if ready_time else 0.0
 
-                # Build AxisRef[6]
                 cmd_buf = bytearray()
+
+                if not recorder_ready:
+                    # Waiting for recorder: all axes STOP
+                    for i in range(NUM_AXES):
+                        cmd_buf += pack_stop(config.axes[i].torque_limit)
+                    node.send_output(
+                        "motor_commands",
+                        pa.array(list(bytes(cmd_buf)), type=pa.uint8()),
+                    )
+                    if tick_count % 333 == 0:
+                        print("[sysid_input] Waiting for data_recorder...")
+                    continue
 
                 for i in range(NUM_AXES):
                     ax = config.axes[i]
 
-                    if i in target_axes:
-                        # Target axis: excitation signal
-                        if elapsed < args.startup_delay:
-                            # Startup phase: hold position
-                            cmd_buf += pack_axis_ref(
-                                MOTOR_POSITION,
-                                ax.initial_position,
-                                1.0, 1.0,
-                                float('nan'), float('nan'),
-                                ax.torque_limit,
-                            )
-                        elif not finished:
-                            if excitation_start is None:
-                                excitation_start = now
-                                print("[sysid_input] Starting excitation")
+                    if i not in target_axes:
+                        # Non-target axes: always STOP (hold current position)
+                        cmd_buf += pack_stop(ax.torque_limit)
 
-                            t = now - excitation_start
-                            if t >= pattern.total_duration:
-                                # Excitation complete: stop wheel
-                                if not finished:
-                                    print("[sysid_input] Excitation complete")
-                                    finished = True
-                                cmd_buf += pack_axis_ref(
-                                    MOTOR_VELOCITY, 0.0,
-                                    0.0, 1.0,
-                                    float('nan'), float('nan'),
-                                    ax.torque_limit,
-                                )
-                            else:
-                                # Active excitation
-                                vel_cmd = pattern.value(t)
-                                # Safety clamp
-                                max_vel = 30.0
-                                vel_cmd = max(-max_vel, min(max_vel, vel_cmd))
-                                cmd_buf += pack_axis_ref(
-                                    MOTOR_VELOCITY,
-                                    vel_cmd,
-                                    0.0, 1.0,
-                                    float('nan'), float('nan'),
-                                    ax.torque_limit,
-                                )
+                    elif elapsed < args.startup_delay:
+                        # Target axes during startup: STOP
+                        cmd_buf += pack_stop(ax.torque_limit)
+
+                    elif not finished:
+                        # Target axes: active excitation
+                        if excitation_start is None:
+                            excitation_start = now
+                            print("[sysid_input] Starting excitation")
+
+                        t = now - excitation_start
+                        if t >= pattern.total_duration:
+                            print("[sysid_input] Excitation complete")
+                            finished = True
+                            cmd_buf += pack_stop(ax.torque_limit)
                         else:
-                            # Post-excitation: velocity zero (brake)
+                            vel_cmd = pattern.value(t)
+                            # Safety clamp
+                            max_vel = 30.0
+                            vel_cmd = max(-max_vel, min(max_vel, vel_cmd))
                             cmd_buf += pack_axis_ref(
-                                MOTOR_VELOCITY, 0.0,
+                                MOTOR_VELOCITY,
+                                vel_cmd,
                                 0.0, 1.0,
                                 float('nan'), float('nan'),
                                 ax.torque_limit,
                             )
                     else:
-                        # Non-target axis: hold initial position
-                        cmd_buf += pack_axis_ref(
-                            MOTOR_POSITION,
-                            ax.initial_position,
-                            1.0, 1.0,
-                            float('nan') if math.isnan(ax.velocity_limit) else ax.velocity_limit,
-                            float('nan') if math.isnan(ax.accel_limit) else ax.accel_limit,
-                            ax.torque_limit,
-                        )
+                        # Post-excitation: STOP
+                        cmd_buf += pack_stop(ax.torque_limit)
 
                 # Send motor_commands
                 node.send_output(
@@ -274,13 +292,20 @@ def main():
 
                 # Progress report
                 if tick_count % 333 == 0:  # ~1Hz at 333Hz tick
-                    if excitation_start is not None and not finished:
+                    if excitation_start is None:
+                        remaining = args.startup_delay - elapsed
+                        print(f"[sysid_input] STOP (excitation in {remaining:.1f}s)")
+                    elif not finished:
                         t = now - excitation_start
                         print(f"[sysid_input] t={t:.1f}/{pattern.total_duration:.1f}s")
 
             elif eid == "motor_status":
-                # Could monitor faults here if needed
-                pass
+                # Monitor for faults
+                raw = bytes(event["value"].to_pylist())
+                for i in range(min(len(raw) // AXIS_ACT_SIZE, NUM_AXES)):
+                    _, _, _, fault = struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
+                    if fault != 0:
+                        print(f"[sysid_input] FAULT on axis {i}: {fault}")
 
     print("[sysid_input] Shutting down")
 

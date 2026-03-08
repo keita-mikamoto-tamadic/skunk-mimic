@@ -176,6 +176,10 @@ def main():
     node = Node("data_recorder")
     print(f"[data_recorder] Recording to {DATA_DIR}")
 
+    # Notify sysid_input that recorder is ready
+    node.send_output("recorder_ready", pa.array([1], type=pa.uint8()))
+    print("[data_recorder] Sent recorder_ready")
+
     sample_count = 0
     for event in node:
         if event["type"] == "INPUT":

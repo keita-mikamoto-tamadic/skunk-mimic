@@ -8,6 +8,7 @@ nodes:
     inputs:
       tick: dora/timer/millis/3
       motor_status: device_control_manager/motor_status
+      recorder_ready: data_recorder/recorder_ready
     outputs:
       - motor_commands
 
@@ -31,3 +32,5 @@ nodes:
       motor_commands: sysid_input/motor_commands
       motor_status: device_control_manager/motor_status
       imu_data: imu_node/imu_data
+    outputs:
+      - recorder_ready
