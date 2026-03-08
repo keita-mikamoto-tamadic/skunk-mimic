@@ -76,13 +76,7 @@
         </body>
     </worldbody>
     <sensor>
-        <!-- IMU sensors (same as mimic_v2.xml) -->
-        <gyro site="imu" name="gyro"/>
-        <accelerometer site="imu" name="accel"/>
-        <velocimeter site="imu" name="linvel"/>
-        <framepos objtype="site" objname="imu" name="imu_pos"/>
-        <framequat objtype="site" objname="imu" name="imu_quat"/>
-        <!-- Joint position sensors (for sysid residual) -->
+        <!-- Joint sensors only (IMU removed for sysid dimension matching) -->
         <jointpos joint="upper_link_R_joint" name="jpos_hip_pitch_r"/>
         <jointpos joint="lower_link_R_joint" name="jpos_knee_r"/>
         <jointpos joint="wheel_R_joint" name="jpos_wheel_r"/>
@@ -103,18 +97,20 @@
         <key name="standing" qpos="1.2 -1.8 0 1.2 -1.8 0"/>
     </keyframe>
     <actuator>
-        <!-- gainprm/biasprm switched at runtime. Defaults = velocity mode with moteus kd -->
+        <!-- SysID actuator config: fixed modes matching data collection.
+             Hip/knee: STOP mode (position hold with kp=22.28, kv=0.0796)
+             Wheel: VELOCITY mode with kd_scale=20 (gain=kv*20=1.592, bias=[0,0,-kv*20]) -->
         <general joint="upper_link_R_joint" name="hip_pitch_r" gaintype="fixed" biastype="affine"
                  gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_R_joint" name="knee_r" gaintype="fixed" biastype="affine"
                  gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_R_joint" name="wheel_r" gaintype="fixed" biastype="affine"
-                 gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
+                 gainprm="1.592 0 0" biasprm="0 0 -1.592" forcelimited="true" forcerange="-14 14"/>
         <general joint="upper_link_L_joint" name="hip_pitch_l" gaintype="fixed" biastype="affine"
                  gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_L_joint" name="knee_l" gaintype="fixed" biastype="affine"
                  gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_L_joint" name="wheel_l" gaintype="fixed" biastype="affine"
-                 gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
+                 gainprm="1.592 0 0" biasprm="0 0 -1.592" forcelimited="true" forcerange="-14 14"/>
     </actuator>
 </mujoco>

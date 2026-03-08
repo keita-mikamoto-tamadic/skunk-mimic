@@ -1,15 +1,15 @@
 {
   "parameters": {
     "wheel_armature": {
-      "value": 0.005143962886082515,
+      "value": 0.008360664639140737,
       "nominal": 0.05
     },
     "wheel_damping": {
-      "value": 0.004231329972302335,
+      "value": 0.047420559746181826,
       "nominal": 0.0
     },
     "wheel_frictionloss": {
-      "value": 0.22213230723912142,
+      "value": 0.0,
       "nominal": 0.0
     },
     "ground_friction": {
@@ -17,7 +17,7 @@
       "nominal": 1.0
     }
   },
-  "cost": 9787.42264695513,
-  "success": true,
-  "message": "`ftol` termination condition is satisfied."
+  "cost": null,
+  "success": null,
+  "message": null
 }
