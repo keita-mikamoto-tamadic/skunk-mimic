@@ -96,7 +96,7 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
                     } else {
                         commands_[i].motor_state = MotorState::VELOCITY;
                         commands_[i].kp_scale = 0.0;
-                        commands_[i].kv_scale = 1.0;
+                        commands_[i].kv_scale = 20.0;
                     }
                 }
             }

@@ -85,9 +85,10 @@ NUM_AXES = 6
 # Control tick = 3ms, physics timestep = 1ms → 3 substeps.
 SUBSTEPS = 3
 
-# Base servo gains (matching moteus-like behaviour)
-BASE_KP = 50.0   # position proportional gain
-BASE_KV = 20.0   # position derivative / velocity proportional gain
+# Base servo gains (matching moteus PID: kp=140 Nm/rev, kd=0.5 Nm/(rev/s))
+# Convert from Nm/rev to Nm/rad: divide by 2π
+BASE_KP = 140.0 / (2.0 * 3.141592653589793)   # ≈ 22.28 Nm/rad
+BASE_KV = 0.5 / (2.0 * 3.141592653589793)     # ≈ 0.0796 Nm/(rad/s)
 
 
 def quat_to_euler(w, x, y, z):

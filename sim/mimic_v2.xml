@@ -47,7 +47,7 @@
                     <geom class="collision" type="mesh" mesh="lower_link_R"/>
                     <inertial pos="1e-05 -0.006665 -0.147119" mass="0.6476900000000001" fullinertia="0.002945 0.002802 0.000471 0.000000 -0.000001 -0.000410"/>
                     <body name="wheel_R" pos="0.0 -0.04984999999999999 -0.18">
-                        <joint name="wheel_R_joint" type="hinge" axis="0 1 0" armature="0.05"/>
+                        <joint name="wheel_R_joint" type="hinge" axis="0 1 0" armature="0.005144" damping="0.004231" frictionloss="0.222132"/>
                         <geom class="visual" type="mesh" mesh="wheel_R"/>
                         <geom class="collision" type="cylinder" size="0.07795 0.024361" euler="1.5708 0 0"/>
                         <inertial pos="0.0 0.024361 0.0" mass="0.637895" fullinertia="0.001205 0.002051 0.001207 -0.000000 -0.000003 0.000000"/>
@@ -65,7 +65,7 @@
                     <geom class="collision" type="mesh" mesh="lower_link_L"/>
                     <inertial pos="-2e-05 0.0066630000000000005 -0.14703899999999998" mass="0.6476989999999999" fullinertia="0.002942 0.002800 0.000472 0.000000 0.000003 0.000410"/>
                     <body name="wheel_L" pos="0.0 0.04984999999999999 -0.18">
-                        <joint name="wheel_L_joint" type="hinge" axis="0 1 0" armature="0.05"/>
+                        <joint name="wheel_L_joint" type="hinge" axis="0 1 0" armature="0.005144" damping="0.004231" frictionloss="0.222132"/>
                         <geom class="visual" type="mesh" mesh="wheel_L"/>
                         <geom class="collision" type="cylinder" size="0.07795 0.024361" euler="1.5708 0 0"/>
                         <inertial pos="0.0 -0.024361 0.0" mass="0.637895" fullinertia="0.001205 0.002051 0.001207 0.000000 0.000003 0.000000"/>
@@ -88,23 +88,24 @@
     <actuator>
         <!-- general actuators: gainprm/biasprm switched at runtime by mujoco_node
              for POSITION/VELOCITY/TORQUE/OFF modes.
-             Initial config = position servo (kp=50, kv=5).
+             Moteus PID: kp=140 Nm/rev, kd=0.5 Nm/(rev/s)
+             Converted: kp=22.28 Nm/rad, kd=0.0796 Nm/(rad/s)
              Force output = gainprm[0]*ctrl + biasprm[0] + biasprm[1]*qpos + biasprm[2]*qvel
                POSITION: gain=kp  bias=[0, -kp, -kv] → kp*(ctrl-qpos) - kv*qvel
                VELOCITY: gain=kv  bias=[0,   0, -kv] → kv*(ctrl-qvel)
                TORQUE:   gain=1   bias=[0,   0,   0] → ctrl
                OFF:      gain=0   bias=[0,   0,   0] → 0  -->
         <general joint="upper_link_R_joint" name="hip_pitch_r" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_R_joint" name="knee_r" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_R_joint" name="wheel_r" gaintype="fixed" biastype="affine"
-                 gainprm="20 0 0" biasprm="0 0 -20" forcelimited="true" forcerange="-14 14"/>
+                 gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
         <general joint="upper_link_L_joint" name="hip_pitch_l" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_L_joint" name="knee_l" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_L_joint" name="wheel_l" gaintype="fixed" biastype="affine"
-                 gainprm="20 0 0" biasprm="0 0 -20" forcelimited="true" forcerange="-14 14"/>
+                 gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
     </actuator>
 </mujoco>

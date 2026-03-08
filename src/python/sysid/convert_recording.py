@@ -36,6 +36,13 @@ ACTUATOR_NAMES = [
 ]
 
 
+MOTOR_VELOCITY = 3
+
+# Wheel axis indices
+WHEEL_R = 2
+WHEEL_L = 5
+
+
 def load_npz(filepath: str) -> dict:
     """Load and validate npz recording."""
     data = dict(np.load(filepath))
@@ -45,6 +52,61 @@ def load_npz(filepath: str) -> dict:
         if key not in data:
             raise ValueError(f"Missing key '{key}' in {filepath}")
     return data
+
+
+def trim_to_excitation(data: dict) -> dict:
+    """Trim data to excitation interval only (where wheels are in VELOCITY mode).
+
+    Removes STOP periods before/after excitation so that sysid rollout
+    only sees the active region where the actuator model matches.
+    """
+    states = data["cmd_motor_state"]
+    # Wheel is active when either wheel is in VELOCITY mode
+    wheel_active = (states[:, WHEEL_R] == MOTOR_VELOCITY) | \
+                   (states[:, WHEEL_L] == MOTOR_VELOCITY)
+    active_indices = np.where(wheel_active)[0]
+
+    if len(active_indices) == 0:
+        raise ValueError("No excitation found (no VELOCITY commands on wheels)")
+
+    # Contiguous range from first to last active command
+    cmd_start = active_indices[0]
+    cmd_end = active_indices[-1] + 1
+
+    t_start = data["cmd_timestamps"][cmd_start]
+    t_end = data["cmd_timestamps"][cmd_end - 1]
+    print(f"  Excitation window: {t_start:.2f}s - {t_end:.2f}s "
+          f"({cmd_end - cmd_start} cmd samples)")
+
+    # Trim command arrays
+    trimmed = {}
+    for key in data:
+        arr = data[key]
+        if key.startswith("cmd_"):
+            trimmed[key] = arr[cmd_start:cmd_end]
+        elif key.startswith("status_"):
+            # Trim status to matching time window
+            st = data["status_timestamps"]
+            mask = (st >= t_start) & (st <= t_end)
+            trimmed[key] = arr[mask]
+        elif key.startswith("imu_"):
+            it = data["imu_timestamps"]
+            mask = (it >= t_start) & (it <= t_end)
+            trimmed[key] = arr[mask]
+        else:
+            trimmed[key] = arr
+
+    # Re-zero timestamps
+    t0 = trimmed["cmd_timestamps"][0]
+    trimmed["cmd_timestamps"] = trimmed["cmd_timestamps"] - t0
+    if "status_timestamps" in trimmed:
+        trimmed["status_timestamps"] = trimmed["status_timestamps"] - t0
+    if "imu_timestamps" in trimmed:
+        trimmed["imu_timestamps"] = trimmed["imu_timestamps"] - t0
+
+    n_status = len(trimmed.get("status_timestamps", []))
+    print(f"  Trimmed: {cmd_end - cmd_start} cmd, {n_status} status samples")
+    return trimmed
 
 
 def build_control_timeseries(data: dict) -> sysid.TimeSeries:
@@ -103,8 +165,11 @@ def build_model_sequences(npz_path: str) -> sysid.ModelSequences:
 
     n_cmd = len(data["cmd_timestamps"])
     n_status = len(data["status_timestamps"])
-    print(f"  Commands: {n_cmd}, Status: {n_status}")
-    print(f"  Duration: {data['status_timestamps'][-1]:.1f}s")
+    print(f"  Raw: {n_cmd} cmd, {n_status} status, "
+          f"duration: {data['status_timestamps'][-1]:.1f}s")
+
+    # Trim to excitation-only interval
+    data = trim_to_excitation(data)
 
     spec = mujoco.MjSpec.from_file(MODEL_PATH)
     model = spec.compile()

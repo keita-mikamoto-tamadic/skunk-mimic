@@ -83,8 +83,8 @@ def run_sim_rollout(data: dict,
     cmd_kp = data.get("cmd_kp_scale", np.ones_like(cmd_refs))
     cmd_kv = data.get("cmd_kv_scale", np.ones_like(cmd_refs))
 
-    BASE_KP = 50.0
-    BASE_KV = 20.0
+    BASE_KP = 140.0 / (2.0 * 3.141592653589793)
+    BASE_KV = 0.5 / (2.0 * 3.141592653589793)
 
     act_ids = []
     for name in ACTUATOR_NAMES:

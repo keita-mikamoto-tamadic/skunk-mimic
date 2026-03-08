@@ -103,17 +103,18 @@
         <key name="standing" qpos="1.2 -1.8 0 1.2 -1.8 0"/>
     </keyframe>
     <actuator>
+        <!-- gainprm/biasprm switched at runtime. Defaults = velocity mode with moteus kd -->
         <general joint="upper_link_R_joint" name="hip_pitch_r" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_R_joint" name="knee_r" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_R_joint" name="wheel_r" gaintype="fixed" biastype="affine"
-                 gainprm="20 0 0" biasprm="0 0 -20" forcelimited="true" forcerange="-14 14"/>
+                 gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
         <general joint="upper_link_L_joint" name="hip_pitch_l" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_L_joint" name="knee_l" gaintype="fixed" biastype="affine"
-                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_L_joint" name="wheel_l" gaintype="fixed" biastype="affine"
-                 gainprm="20 0 0" biasprm="0 0 -20" forcelimited="true" forcerange="-14 14"/>
+                 gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
     </actuator>
 </mujoco>

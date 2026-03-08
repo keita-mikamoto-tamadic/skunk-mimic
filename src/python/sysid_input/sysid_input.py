@@ -276,7 +276,7 @@ def main():
                             cmd_buf += pack_axis_ref(
                                 MOTOR_VELOCITY,
                                 vel_cmd,
-                                0.0, 1.0,
+                                0.0, 20.0,
                                 float('nan'), float('nan'),
                                 ax.torque_limit,
                             )
