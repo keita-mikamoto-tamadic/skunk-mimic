@@ -57,6 +57,8 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
                 state_ = State::STOP;
                 for (size_t i = 0; i < commands_.size(); i++) {
                     commands_[i].motor_state = MotorState::STOP;
+                    commands_[i].kp_scale = 1.0;
+                    commands_[i].kv_scale = 1.0;
                 }
             }
             break;
@@ -65,6 +67,8 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
             for (size_t i = 0; i < commands_.size(); i++) {
                 commands_[i].motor_state = MotorState::OFF;
                 commands_[i].ref_val = 0.0;
+                commands_[i].kp_scale = 1.0;
+                commands_[i].kv_scale = 1.0;
             }
             break;
         case StateCommand::STOP:
@@ -72,6 +76,8 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
                 state_ = State::STOP;
                 for (size_t i = 0; i < commands_.size(); i++) {
                     commands_[i].motor_state = MotorState::STOP;
+                    commands_[i].kp_scale = 1.0;
+                    commands_[i].kv_scale = 1.0;
                 }
             }
             break;
@@ -85,8 +91,12 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
                 for (size_t i = 0; i < commands_.size(); i++) {
                     if (i != kWheelR && i != kWheelL) {
                         commands_[i].motor_state = MotorState::POSITION;
+                        commands_[i].kp_scale = 1.0;
+                        commands_[i].kv_scale = 1.0;
                     } else {
                         commands_[i].motor_state = MotorState::VELOCITY;
+                        commands_[i].kp_scale = 0.0;
+                        commands_[i].kv_scale = 1.0;
                     }
                 }
             }
