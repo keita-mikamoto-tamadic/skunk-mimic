@@ -1,0 +1,10 @@
+[project]
+name = "sysid-input"
+version = "0.1.0"
+description = "Excitation signal generator for system identification"
+requires-python = ">=3.11"
+dependencies = [
+    "dora-rs==0.4.1",
+    "pyarrow>=23.0.1",
+    "numpy",
+]

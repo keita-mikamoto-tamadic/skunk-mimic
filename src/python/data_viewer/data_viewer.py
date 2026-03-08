@@ -28,83 +28,83 @@ IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
 
 # State enum with styles (C++ enum class State と対応)
 STATE_STYLES = {
-    0: ("OFF", "dim white"),
-    1: ("STOP", "yellow bold"),
-    2: ("READY", "blue bold"),
-    3: ("RUN", "green bold")
+	0: ("OFF", "dim white"),
+	1: ("STOP", "yellow bold"),
+	2: ("READY", "blue bold"),
+	3: ("RUN", "green bold")
 }
 
 
 def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
-    # Title: ロボット名を使用
-    title = config.robot_name if config else "motor_status"
-    table = Table(show_header=True, title=title)
-    table.add_column("axis", justify="left", style="cyan")
-    table.add_column("CAN", justify="right", style="dim")
-    table.add_column("position", justify="right")
-    table.add_column("velocity", justify="right")
-    table.add_column("torque", justify="right")
-    table.add_column("fault", justify="center")
+	# Title: ロボット名を使用
+	title = config.robot_name if config else "motor_status"
+	table = Table(show_header=True, title=title)
+	table.add_column("axis", justify="left", style="cyan")
+	table.add_column("CAN", justify="right", style="dim")
+	table.add_column("position", justify="right")
+	table.add_column("velocity", justify="right")
+	table.add_column("torque", justify="right")
+	table.add_column("fault", justify="center")
 
-    for i, (pos, vel, torq, fault) in enumerate(axes):
-        # 軸名と CAN ID を config から取得
-        axis_name = config.axes[i].name if config and i < len(config.axes) else f"#{i}"
-        can_id = str(config.axes[i].device_id) if config and i < len(config.axes) else "-"
+	for i, (pos, vel, torq, fault) in enumerate(axes):
+		# 軸名と CAN ID を config から取得
+		axis_name = config.axes[i].name if config and i < len(config.axes) else f"#{i}"
+		can_id = str(config.axes[i].device_id) if config and i < len(config.axes) else "-"
 
-        fault_style = "red bold" if fault != 0 else "green"
-        table.add_row(
-            axis_name,
-            can_id,
-            f"{pos:+.4f}",
-            f"{vel:+.4f}",
-            f"{torq:+.4f}",
-            f"[{fault_style}]{fault}[/]",
-        )
+		fault_style = "red bold" if fault != 0 else "green"
+		table.add_row(
+			axis_name,
+			can_id,
+			f"{pos:+.4f}",
+			f"{vel:+.4f}",
+			f"{torq:+.4f}",
+			f"[{fault_style}]{fault}[/]",
+		)
 
-    # State と Time を一番下に追加
-    if state is not None or timestamp_ns is not None:
-        table.add_section()
-        info_parts = []
-        if state is not None:
-            state_name, state_style = STATE_STYLES.get(state, ("?", "red"))
-            info_parts.append(f"State: [{state_style}]{state_name}[/]")
-        if timestamp_ns is not None:
-            timestamp_sec = timestamp_ns / 1_000_000_000
-            info_parts.append(f"Time: [dim]{timestamp_sec:.3f}s[/]")
+	# State と Time を一番下に追加
+	if state is not None or timestamp_ns is not None:
+		table.add_section()
+		info_parts = []
+		if state is not None:
+			state_name, state_style = STATE_STYLES.get(state, ("?", "red"))
+			info_parts.append(f"State: [{state_style}]{state_name}[/]")
+		if timestamp_ns is not None:
+			timestamp_sec = timestamp_ns / 1_000_000_000
+			info_parts.append(f"Time: [dim]{timestamp_sec:.3f}s[/]")
 
-        info_text = "  |  ".join(info_parts)
-        table.add_row(info_text, "", "", "", "", "")
+		info_text = "  |  ".join(info_parts)
+		table.add_row(info_text, "", "", "", "", "")
 
-    return table
+	return table
 
 
 def build_imu_table(imu_data):
-    table = Table(show_header=True, title="IMU", title_style="cyan")
-    table.add_column("", justify="left", style="dim")
-    table.add_column("Roll", justify="right")
-    table.add_column("Pitch", justify="right")
-    table.add_column("Yaw", justify="right")
-    table.add_column("ax", justify="right")
-    table.add_column("ay", justify="right")
-    table.add_column("az", justify="right")
+	table = Table(show_header=True, title="IMU", title_style="cyan")
+	table.add_column("", justify="left", style="dim")
+	table.add_column("Roll", justify="right")
+	table.add_column("Pitch", justify="right")
+	table.add_column("Yaw", justify="right")
+	table.add_column("ax", justify="right")
+	table.add_column("ay", justify="right")
+	table.add_column("az", justify="right")
 
-    if imu_data is not None:
-        # imu_data = (timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw)
-        roll, pitch, yaw = imu_data[11], imu_data[12], imu_data[13]
-        ax, ay, az = imu_data[1], imu_data[2], imu_data[3]
-        table.add_row(
-            "[dim]rad/m/s²[/]",
-            f"[cyan]{roll:+.3f}[/]",
-            f"[cyan]{pitch:+.3f}[/]",
-            f"[cyan]{yaw:+.3f}[/]",
-            f"{ax:+.2f}",
-            f"{ay:+.2f}",
-            f"{az:+.2f}",
-        )
-    else:
-        table.add_row("[dim]rad/m/s²[/]", "-", "-", "-", "-", "-", "-")
+	if imu_data is not None:
+		# imu_data = (timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw)
+		roll, pitch, yaw = imu_data[11], imu_data[12], imu_data[13]
+		ax, ay, az = imu_data[1], imu_data[2], imu_data[3]
+		table.add_row(
+			"[dim]rad/m/s²[/]",
+			f"[cyan]{roll:+.3f}[/]",
+			f"[cyan]{pitch:+.3f}[/]",
+			f"[cyan]{yaw:+.3f}[/]",
+			f"{ax:+.2f}",
+			f"{ay:+.2f}",
+			f"{az:+.2f}",
+		)
+	else:
+		table.add_row("[dim]rad/m/s²[/]", "-", "-", "-", "-", "-", "-")
 
-    return table
+	return table
 
 
 node = Node("data_viewer")
@@ -114,38 +114,38 @@ config = robot_config.load_from_file(CONFIG_PATH)
 print(f"Loaded config: {config.robot_name} ({config.axis_count} axes)")
 
 initial_display = Group(
-    build_motor_table([], config=config),
-    build_imu_table(None)
+	build_motor_table([], config=config),
+	build_imu_table(None)
 )
 
 with Live(initial_display, refresh_per_second=30) as live:
-    start_time = time.time_ns()
-    current_state = None
-    current_imu_data = None
-    for event in node:
-        if event["type"] == "INPUT":
-            if event["id"] == "state_status":
-                raw = bytes(event["value"].to_pylist())
-                if len(raw) > 0:
-                    current_state = raw[0]
-            elif event["id"] == "imu_data":
-                raw = bytes(event["value"].to_pylist())
-                if len(raw) >= IMU_DATA_SIZE:
-                    current_imu_data = struct.unpack(IMU_DATA_FMT, raw[:IMU_DATA_SIZE])
-            elif event["id"] == "motor_status":
-                raw = bytes(event["value"].to_pylist())
-                axis_count = len(raw) // AXIS_ACT_SIZE
+	start_time = time.time_ns()
+	current_state = None
+	current_imu_data = None
+	for event in node:
+		if event["type"] == "INPUT":
+			if event["id"] == "state_status":
+				raw = bytes(event["value"].to_pylist())
+				if len(raw) > 0:
+					current_state = raw[0]
+			elif event["id"] == "imu_data":
+				raw = bytes(event["value"].to_pylist())
+				if len(raw) >= IMU_DATA_SIZE:
+					current_imu_data = struct.unpack(IMU_DATA_FMT, raw[:IMU_DATA_SIZE])
+			elif event["id"] == "motor_status":
+				raw = bytes(event["value"].to_pylist())
+				axis_count = len(raw) // AXIS_ACT_SIZE
 
-                # Get current timestamp relative to start
-                timestamp_ns = time.time_ns() - start_time
+				# Get current timestamp relative to start
+				timestamp_ns = time.time_ns() - start_time
 
-                axes = []
-                for i in range(axis_count):
-                    axes.append(
-                        struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
-                    )
+				axes = []
+				for i in range(axis_count):
+					axes.append(
+						struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
+					)
 
-                # 両方のテーブルを更新
-                motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
-                imu_table = build_imu_table(current_imu_data)
-                live.update(Group(motor_table, imu_table))
+				# 両方のテーブルを更新
+				motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
+				imu_table = build_imu_table(current_imu_data)
+				live.update(Group(motor_table, imu_table))

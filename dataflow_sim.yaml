@@ -1,0 +1,32 @@
+nodes:
+
+  - id: robot_control_manager
+    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    inputs:
+      tick: dora/timer/millis/3
+      state_command: dummy_input/state_command
+      motor_status: mujoco_node/motor_status
+      imu_data: mujoco_node/imu_data
+    outputs:
+      - motor_commands
+      - state_status
+
+  - id: mujoco_node
+    path: dynamic
+    inputs:
+      motor_commands: robot_control_manager/motor_commands
+    outputs:
+      - motor_status
+      - imu_data
+
+  - id: dummy_input
+    path: dynamic
+    outputs:
+      - state_command
+
+  - id: data_viewer
+    path: dynamic
+    inputs:
+      motor_status: mujoco_node/motor_status
+      state_status: robot_control_manager/state_status
+      imu_data: mujoco_node/imu_data

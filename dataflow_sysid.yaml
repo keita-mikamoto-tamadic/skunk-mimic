@@ -1,0 +1,33 @@
+# Dataflow for system identification data collection.
+# Bypasses robot_control_manager: sysid_input sends motor_commands directly.
+# Use with real hardware (device_control_manager + imu_node).
+nodes:
+
+  - id: sysid_input
+    path: dynamic
+    inputs:
+      tick: dora/timer/millis/3
+      motor_status: device_control_manager/motor_status
+    outputs:
+      - motor_commands
+
+  - id: device_control_manager
+    path: src/cpp/node/device_control_manager/build/device_control_manager
+    inputs:
+      motor_commands: sysid_input/motor_commands
+    outputs:
+      - motor_status
+
+  - id: imu_node
+    path: src/cpp/node/imu_node/build/imu_node
+    inputs:
+      tick: dora/timer/millis/3
+    outputs:
+      - imu_data
+
+  - id: data_recorder
+    path: dynamic
+    inputs:
+      motor_commands: sysid_input/motor_commands
+      motor_status: device_control_manager/motor_status
+      imu_data: imu_node/imu_data

@@ -1,0 +1,119 @@
+<?xml version="1.0" ?>
+<!-- MuJoCo model for system identification (based on mimic_v2.xml) -->
+<!-- Changes from mimic_v2.xml:
+     - Free joint removed: base_link fixed to worldbody (robot on test stand)
+     - jointpos/jointvel sensors added for all 6 joints (required by mujoco.sysid)
+     - Ground plane kept for wheel contact during future free-body tests -->
+<mujoco model="mimic_v2_sysid">
+    <compiler angle="radian" meshdir="meshes/"/>
+    <option timestep="0.001"/>
+    <asset>
+        <mesh name="base_link" file="base_link.stl"/>
+        <mesh name="upper_link_R" file="upper_link_R.stl"/>
+        <mesh name="lower_link_R" file="lower_link_R.stl"/>
+        <mesh name="wheel_R" file="wheel_R.stl"/>
+        <mesh name="upper_link_L" file="upper_link_L.stl"/>
+        <mesh name="lower_link_L" file="lower_link_L.stl"/>
+        <mesh name="wheel_L" file="wheel_L.stl"/>
+    </asset>
+    <default>
+        <default class="visual">
+            <geom contype="0" conaffinity="0" group="2"/>
+        </default>
+        <default class="collision">
+            <geom contype="1" conaffinity="1" group="3"/>
+        </default>
+    </default>
+    <contact>
+        <exclude body1="upper_link_L" body2="wheel_L"/>
+        <exclude body1="upper_link_R" body2="wheel_R"/>
+    </contact>
+    <worldbody>
+        <light pos="0 0 3" dir="0 0 -1"/>
+        <geom type="plane" size="5 5 0.1" rgba="0.8 0.8 0.8 1"/>
+        <!-- base_link fixed to world (no free joint) -->
+        <body name="base_link" pos="0 0 0.5">
+            <geom class="visual" type="mesh" mesh="base_link"/>
+            <geom class="collision" type="mesh" mesh="base_link"/>
+            <inertial pos="0.00487 -0.00051 0.018083" mass="3.139388" fullinertia="0.017020 0.014080 0.011680 0.000029 -0.000148 -0.000042"/>
+            <site name="imu" size="0.01" rgba="1 0 0 1" type="box"/>
+            <body name="upper_link_R" pos="0.0 -0.102 0.0">
+                <joint name="upper_link_R_joint" type="hinge" axis="0 1 0" range="0.6 1.6"/>
+                <geom class="visual" type="mesh" mesh="upper_link_R"/>
+                <geom class="collision" type="mesh" mesh="upper_link_R"/>
+                <inertial pos="-0.003464 -0.019143 -0.075009" mass="1.5997000000000001" fullinertia="0.008917 0.009472 0.001176 0.000010 -0.000006 0.000001"/>
+                <body name="lower_link_R" pos="0.0 0.0 -0.15">
+                    <joint name="lower_link_R_joint" type="hinge" axis="0 1 0"/>
+                    <geom class="visual" type="mesh" mesh="lower_link_R"/>
+                    <geom class="collision" type="mesh" mesh="lower_link_R"/>
+                    <inertial pos="1e-05 -0.006665 -0.147119" mass="0.6476900000000001" fullinertia="0.002945 0.002802 0.000471 0.000000 -0.000001 -0.000410"/>
+                    <body name="wheel_R" pos="0.0 -0.04984999999999999 -0.18">
+                        <joint name="wheel_R_joint" type="hinge" axis="0 1 0" armature="0.05"/>
+                        <geom class="visual" type="mesh" mesh="wheel_R"/>
+                        <geom class="collision" type="cylinder" size="0.07795 0.024361" euler="1.5708 0 0"/>
+                        <inertial pos="0.0 0.024361 0.0" mass="0.637895" fullinertia="0.001205 0.002051 0.001207 -0.000000 -0.000003 0.000000"/>
+                    </body>
+                </body>
+            </body>
+            <body name="upper_link_L" pos="0.0 0.102 0.0">
+                <joint name="upper_link_L_joint" type="hinge" axis="0 1 0" range="0.6 1.6"/>
+                <geom class="visual" type="mesh" mesh="upper_link_L"/>
+                <geom class="collision" type="mesh" mesh="upper_link_L"/>
+                <inertial pos="-0.0034649999999999998 0.019142 -0.07501999999999999" mass="1.599608" fullinertia="0.008916 0.009472 0.001176 -0.000010 -0.000007 -0.000001"/>
+                <body name="lower_link_L" pos="0.0 0.0 -0.15">
+                    <joint name="lower_link_L_joint" type="hinge" axis="0 1 0"/>
+                    <geom class="visual" type="mesh" mesh="lower_link_L"/>
+                    <geom class="collision" type="mesh" mesh="lower_link_L"/>
+                    <inertial pos="-2e-05 0.0066630000000000005 -0.14703899999999998" mass="0.6476989999999999" fullinertia="0.002942 0.002800 0.000472 0.000000 0.000003 0.000410"/>
+                    <body name="wheel_L" pos="0.0 0.04984999999999999 -0.18">
+                        <joint name="wheel_L_joint" type="hinge" axis="0 1 0" armature="0.05"/>
+                        <geom class="visual" type="mesh" mesh="wheel_L"/>
+                        <geom class="collision" type="cylinder" size="0.07795 0.024361" euler="1.5708 0 0"/>
+                        <inertial pos="0.0 -0.024361 0.0" mass="0.637895" fullinertia="0.001205 0.002051 0.001207 0.000000 0.000003 0.000000"/>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </worldbody>
+    <sensor>
+        <!-- IMU sensors (same as mimic_v2.xml) -->
+        <gyro site="imu" name="gyro"/>
+        <accelerometer site="imu" name="accel"/>
+        <velocimeter site="imu" name="linvel"/>
+        <framepos objtype="site" objname="imu" name="imu_pos"/>
+        <framequat objtype="site" objname="imu" name="imu_quat"/>
+        <!-- Joint position sensors (for sysid residual) -->
+        <jointpos joint="upper_link_R_joint" name="jpos_hip_pitch_r"/>
+        <jointpos joint="lower_link_R_joint" name="jpos_knee_r"/>
+        <jointpos joint="wheel_R_joint" name="jpos_wheel_r"/>
+        <jointpos joint="upper_link_L_joint" name="jpos_hip_pitch_l"/>
+        <jointpos joint="lower_link_L_joint" name="jpos_knee_l"/>
+        <jointpos joint="wheel_L_joint" name="jpos_wheel_l"/>
+        <!-- Joint velocity sensors (for sysid residual) -->
+        <jointvel joint="upper_link_R_joint" name="jvel_hip_pitch_r"/>
+        <jointvel joint="lower_link_R_joint" name="jvel_knee_r"/>
+        <jointvel joint="wheel_R_joint" name="jvel_wheel_r"/>
+        <jointvel joint="upper_link_L_joint" name="jvel_hip_pitch_l"/>
+        <jointvel joint="lower_link_L_joint" name="jvel_knee_l"/>
+        <jointvel joint="wheel_L_joint" name="jvel_wheel_l"/>
+    </sensor>
+    <!-- Standing pose: hip=1.2rad, knee=-1.8rad, wheel=0
+         No free joint, so qpos has 6 elements (one per hinge) -->
+    <keyframe>
+        <key name="standing" qpos="1.2 -1.8 0 1.2 -1.8 0"/>
+    </keyframe>
+    <actuator>
+        <general joint="upper_link_R_joint" name="hip_pitch_r" gaintype="fixed" biastype="affine"
+                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+        <general joint="lower_link_R_joint" name="knee_r" gaintype="fixed" biastype="affine"
+                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+        <general joint="wheel_R_joint" name="wheel_r" gaintype="fixed" biastype="affine"
+                 gainprm="20 0 0" biasprm="0 0 -20" forcelimited="true" forcerange="-14 14"/>
+        <general joint="upper_link_L_joint" name="hip_pitch_l" gaintype="fixed" biastype="affine"
+                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+        <general joint="lower_link_L_joint" name="knee_l" gaintype="fixed" biastype="affine"
+                 gainprm="50 0 0" biasprm="0 -50 -20" forcelimited="true" forcerange="-15 15"/>
+        <general joint="wheel_L_joint" name="wheel_l" gaintype="fixed" biastype="affine"
+                 gainprm="20 0 0" biasprm="0 0 -20" forcelimited="true" forcerange="-14 14"/>
+    </actuator>
+</mujoco>
