@@ -3,7 +3,6 @@
 #include "../../lib/enum_def.hpp"
 #include "../../lib/shm_data_format.hpp"
 #include "../../lib/robot_config.hpp"
-#include "../../lib/pid.hpp"
 
 class RobotControlManager {
 public:
@@ -17,7 +16,7 @@ public:
     // 入力処理
     void HandleStateCommand(StateCommand cmd);
     void UpdateMotorStatus(const std::vector<AxisAct>& status);
-    void UpdateImuData(double pitch, double pitch_rate);
+    void UpdateRunCommand(const std::vector<AxisRef>& run_command);
 
     // 出力取得
     State GetState() const;
@@ -48,11 +47,7 @@ private:
     // トルクリミット連続ヒットカウント（軸ごと）
     std::vector<int> torque_limit_count_;
 
-    // IMU
-    double pitch_ = 0.0;
-    double pitch_rate_ = 0.0;
-
-    // PID（RUN 用）
-    Pid angle_pid_;
-    Pid velocity_pid_;
+    // RUN 用: 外部ノードからのコマンド
+    std::vector<AxisRef> run_command_;
+    bool run_command_received_;
 };

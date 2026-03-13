@@ -3,26 +3,12 @@
 #include <iostream>
 #include <algorithm>
 
-constexpr double kTargetPitch = 0.0465;
-constexpr double kAngleKp = 12.0;
-constexpr double kAngleKi = 325.0;
-constexpr double kAngleKd = 0.17;
-constexpr double kAngleMaxIntegral = 0.21;
-constexpr double kAngleDDeadZone = 0.1;
-
-constexpr double kVelKp = 0.0001;
-constexpr double kVelKi = 0.00005;
-constexpr double kVelMaxIntegral = 0.5;
-
-constexpr double kMaxAngleOffset = 0.05;
-constexpr double kMaxWheelSpeed = 30.0;
-
 constexpr size_t kWheelR = 2;
 constexpr size_t kWheelL = 5;
 
 RobotControlManager::RobotControlManager()
     : state_(State::OFF), interp_progress_(0.0), tick_sec_(0.003),
-      position_reset_pending_(false) {}
+      position_reset_pending_(false), run_command_received_(false) {}
 
 void RobotControlManager::Configure(
     const RobotConfig& config, FaultEvaluator fault_evaluator,
@@ -33,9 +19,6 @@ void RobotControlManager::Configure(
     tick_sec_ = tick_sec;
     start_positions_.resize(config.axes.size(), 0.0);
     torque_limit_count_.resize(config.axes.size(), 0);
-
-    angle_pid_ = Pid(kAngleKp, kAngleKi, kAngleKd, kAngleMaxIntegral, kAngleDDeadZone);
-    velocity_pid_ = Pid(kVelKp, kVelKi, 0.0, kVelMaxIntegral);
 
     // commands_ を初期化（limits は静的なのでここで1回だけ設定）
     commands_.resize(config.axes.size());
@@ -48,6 +31,8 @@ void RobotControlManager::Configure(
         commands_[i].motor_state = MotorState::OFF;
         commands_[i].ref_val = 0.0;
     }
+
+    run_command_.resize(config.axes.size());
 }
 
 void RobotControlManager::HandleStateCommand(StateCommand cmd) {
@@ -103,8 +88,6 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
             break;
         case StateCommand::RUN:
             if (state_ == State::READY) {
-                angle_pid_.Reset();
-                velocity_pid_.Reset();
                 state_ = State::RUN;
             }
             break;
@@ -153,9 +136,9 @@ void RobotControlManager::UpdateMotorStatus(const std::vector<AxisAct>& status) 
     }
 }
 
-void RobotControlManager::UpdateImuData(double pitch, double pitch_rate) {
-    pitch_ = pitch;
-    pitch_rate_ = pitch_rate;
+void RobotControlManager::UpdateRunCommand(const std::vector<AxisRef>& run_command) {
+    run_command_ = run_command;
+    run_command_received_ = true;
 }
 
 State RobotControlManager::GetState() const { return state_; }
@@ -214,27 +197,38 @@ void RobotControlManager::RobotController() {
             break;
 
         case State::RUN: {
-            // 外側ループ: 速度PI（倒立点自動調整）
-            double wheel_velocity =
-                (axes_status_[kWheelR].velocity + axes_status_[kWheelL].velocity) / 2.0;
-            double velocity_error = 0.0 - wheel_velocity;
-            double angle_offset = velocity_pid_.Compute(velocity_error, 0.0, tick_sec_);
-            angle_offset = std::clamp(angle_offset, -kMaxAngleOffset, kMaxAngleOffset);
-
-            // 内側ループ: 角度PID
-            double effective_target = kTargetPitch + angle_offset;
-            double angle_error = pitch_ - effective_target;
-            double wheel_vel = angle_pid_.Compute(angle_error, -pitch_rate_, tick_sec_);
-            wheel_vel = std::clamp(wheel_vel, -kMaxWheelSpeed, kMaxWheelSpeed);
-
-            // 各軸に配分
+            // run_command をパススルー（安全管理付き）
             for (size_t i = 0; i < axes.size(); i++) {
-                if (commands_[i].motor_state == MotorState::VELOCITY) {
-                    commands_[i].ref_val = wheel_vel;
-                } else {
-                    commands_[i].ref_val = axes[i].initial_position;
+                const auto& ref = run_command_[i];
+
+                // SET_POSITION / OFF は RUN 中に許可しない
+                if (ref.motor_state == MotorState::SET_POSITION ||
+                    ref.motor_state == MotorState::OFF) {
+                    continue;
                 }
+
+                commands_[i].motor_state = ref.motor_state;
+                commands_[i].ref_val = ref.ref_val;
+                commands_[i].kp_scale = ref.kp_scale;
+                commands_[i].kv_scale = ref.kv_scale;
+
+                // limits をコンフィグ上限でクランプ（NaN の場合はもう一方を使用）
+                commands_[i].velocity_limit = std::isnan(ref.velocity_limit)
+                    ? axes[i].velocity_limit
+                    : (std::isnan(axes[i].velocity_limit)
+                        ? ref.velocity_limit
+                        : std::min(ref.velocity_limit, axes[i].velocity_limit));
+                commands_[i].accel_limit = std::isnan(ref.accel_limit)
+                    ? axes[i].accel_limit
+                    : (std::isnan(axes[i].accel_limit)
+                        ? ref.accel_limit
+                        : std::min(ref.accel_limit, axes[i].accel_limit));
+                commands_[i].torque_limit = std::isnan(ref.torque_limit)
+                    ? axes[i].torque_limit
+                    : std::min(ref.torque_limit, axes[i].torque_limit);
             }
+            // 毎tick リセット（未受信時は前回値維持）
+            run_command_received_ = false;
             break;
         }
     }

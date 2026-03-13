@@ -29,7 +29,9 @@ from dora import Node
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-MODEL_PATH = os.path.join(PROJECT_ROOT, "sim", "mimic_v2.xml")
+MODEL_PATH = os.path.join(
+    PROJECT_ROOT, "sim", os.environ.get("MUJOCO_MODEL", "mimic_v2.xml")
+)
 
 # ---------------------------------------------------------------------------
 # Binary formats (must match C++ structs in shm_data_format.hpp)
@@ -83,7 +85,7 @@ NUM_AXES = 6
 
 # Number of physics substeps per control tick.
 # Control tick = 3ms, physics timestep = 1ms → 3 substeps.
-SUBSTEPS = 6
+SUBSTEPS = 3
 
 # Base servo gains (matching moteus PID: kp=140 Nm/rev, kd=0.5 Nm/(rev/s))
 # Convert from Nm/rev to Nm/rad: divide by 2π

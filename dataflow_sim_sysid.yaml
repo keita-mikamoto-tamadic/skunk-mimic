@@ -1,24 +1,25 @@
+# MuJoCo simulation + SysID excitation.
+# Swaps stabilizer for sysid_controller via RCM passthrough.
 nodes:
 
   - id: robot_control_manager
     path: src/cpp/node/robot_control_manager/build/robot_control_manager
     inputs:
       tick: dora/timer/millis/3
-      state_command: dummy_input/state_command
+      state_command: sysid_controller/state_command
       motor_status: mujoco_node/motor_status
-      run_command: stabilizer/run_command
+      run_command: sysid_controller/run_command
     outputs:
       - motor_commands
       - state_status
 
-  - id: stabilizer
-    path: src/cpp/node/stabilizer/build/stabilizer
+  - id: sysid_controller
+    path: dynamic
     inputs:
       tick: dora/timer/millis/3
-      motor_status: mujoco_node/motor_status
-      imu_data: mujoco_node/imu_data
       state_status: robot_control_manager/state_status
     outputs:
+      - state_command
       - run_command
 
   - id: mujoco_node
@@ -28,11 +29,6 @@ nodes:
     outputs:
       - motor_status
       - imu_data
-
-  - id: dummy_input
-    path: dynamic
-    outputs:
-      - state_command
 
   - id: data_viewer
     path: dynamic

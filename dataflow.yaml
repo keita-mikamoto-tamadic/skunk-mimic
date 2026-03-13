@@ -6,10 +6,20 @@ nodes:
       tick: dora/timer/millis/3
       state_command: dummy_input/state_command
       motor_status: device_control_manager/motor_status
-      imu_data: imu_node/imu_data
+      run_command: stabilizer/run_command
     outputs:
       - motor_commands
       - state_status
+
+  - id: stabilizer
+    path: src/cpp/node/stabilizer/build/stabilizer
+    inputs:
+      tick: dora/timer/millis/3
+      motor_status: device_control_manager/motor_status
+      imu_data: imu_node/imu_data
+      state_status: robot_control_manager/state_status
+    outputs:
+      - run_command
 
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
