@@ -88,23 +88,25 @@
     <actuator>
         <!-- general actuators: gainprm/biasprm switched at runtime by mujoco_node
              for POSITION/VELOCITY/TORQUE/OFF modes.
-             Moteus PID: kp=140 Nm/rev, kd=0.5 Nm/(rev/s)
-             Converted: kp=22.28 Nm/rad, kd=0.0796 Nm/(rad/s)
+             Moteus Hip, Knee PID: kp=600 Nm/rev, kd=6.0 Nm/(rev/s)
+             Moteus Wheel PID: kp=140 Nm/rev, kd=0.5 Nm/(rev/s)
+             Converted Hip/Knee: kp=95.49 Nm/rad, kd=0.955 Nm/(rad/s)
+             Converted Wheel:    kp=22.28 Nm/rad, kd=0.0796 Nm/(rad/s)
              Force output = gainprm[0]*ctrl + biasprm[0] + biasprm[1]*qpos + biasprm[2]*qvel
                POSITION: gain=kp  bias=[0, -kp, -kv] → kp*(ctrl-qpos) - kv*qvel
                VELOCITY: gain=kv  bias=[0,   0, -kv] → kv*(ctrl-qvel)
                TORQUE:   gain=1   bias=[0,   0,   0] → ctrl
                OFF:      gain=0   bias=[0,   0,   0] → 0  -->
         <general joint="upper_link_R_joint" name="hip_pitch_r" gaintype="fixed" biastype="affine"
-                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="95.49 0 0" biasprm="0 -95.49 -0.955" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_R_joint" name="knee_r" gaintype="fixed" biastype="affine"
-                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="95.49 0 0" biasprm="0 -95.49 -0.955" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_R_joint" name="wheel_r" gaintype="fixed" biastype="affine"
                  gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
         <general joint="upper_link_L_joint" name="hip_pitch_l" gaintype="fixed" biastype="affine"
-                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="95.49 0 0" biasprm="0 -95.49 -0.955" forcelimited="true" forcerange="-15 15"/>
         <general joint="lower_link_L_joint" name="knee_l" gaintype="fixed" biastype="affine"
-                 gainprm="22.28 0 0" biasprm="0 -22.28 -0.0796" forcelimited="true" forcerange="-15 15"/>
+                 gainprm="95.49 0 0" biasprm="0 -95.49 -0.955" forcelimited="true" forcerange="-15 15"/>
         <general joint="wheel_L_joint" name="wheel_l" gaintype="fixed" biastype="affine"
                  gainprm="0.0796 0 0" biasprm="0 0 -0.0796" forcelimited="true" forcerange="-14 14"/>
     </actuator>
