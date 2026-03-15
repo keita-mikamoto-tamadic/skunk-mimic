@@ -19,4 +19,4 @@ dependencies = [
     "plotly>=6.6.0",
 ]
 [tool.uv.workspace]
-members = ["dummy_input", "data_viewer", "mujoco_node", "sysid_input", "data_recorder"]
+members = ["dummy_input", "data_viewer", "mujoco_node", "sysid_controller", "data_recorder"]

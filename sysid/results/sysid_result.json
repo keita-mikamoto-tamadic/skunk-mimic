@@ -1,15 +1,15 @@
 {
   "parameters": {
     "wheel_armature": {
-      "value": 0.008360664639140737,
+      "value": 0.04509236860155028,
       "nominal": 0.05
     },
     "wheel_damping": {
-      "value": 0.047420559746181826,
+      "value": 0.0,
       "nominal": 0.0
     },
     "wheel_frictionloss": {
-      "value": 0.0,
+      "value": 0.05533379239372611,
       "nominal": 0.0
     },
     "ground_friction": {

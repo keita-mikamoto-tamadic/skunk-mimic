@@ -1,0 +1,9 @@
+[project]
+name = "sysid-controller"
+version = "0.1.0"
+description = "SysID controller for RCM passthrough architecture"
+requires-python = ">=3.11"
+dependencies = [
+    "dora-rs==0.4.1",
+    "pyarrow>=23.0.1",
+]

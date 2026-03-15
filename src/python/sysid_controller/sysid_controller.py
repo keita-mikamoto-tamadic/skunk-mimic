@@ -3,6 +3,9 @@
 Sends state_command to drive RCM through OFF→STOP→READY→RUN,
 then sends run_command (AxisRef[]) with excitation patterns during RUN.
 
+Waits for recorder_ready from data_recorder before starting.
+Monitors motor_status for faults.
+
 Usage:
   uv run sysid_controller/sysid_controller.py [--axes wheel] [--pattern step+chirp]
                                                 [--startup-delay 3]
@@ -33,6 +36,9 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
 # ---------------------------------------------------------------------------
 AXIS_REF_FMT = "<B7xdddddd"
 AXIS_REF_SIZE = struct.calcsize(AXIS_REF_FMT)  # 56
+
+AXIS_ACT_FMT = "<dddB7x"
+AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
 
 # ---------------------------------------------------------------------------
 # Enums (must match C++ enum_def.hpp)
@@ -176,7 +182,8 @@ def main():
 
     node = Node("sysid_controller")
 
-    # Drive state machine: SERVO_ON → READY → (wait for RUN)
+    # Wait for recorder_ready before driving state machine
+    recorder_ready = False
     current_state = STATE_OFF
     sent_servo_on = False
     sent_ready = False
@@ -197,14 +204,30 @@ def main():
 
         eid = event["id"]
 
-        if eid == "state_status":
+        if eid == "recorder_ready":
+            recorder_ready = True
+            print("[sysid_ctrl] Recorder ready, starting state machine")
+
+        elif eid == "state_status":
             raw = bytes(event["value"].to_pylist())
             if len(raw) >= 1:
                 current_state = raw[0]
 
-        elif eid == "tick":
+        elif eid == "motor_status":
+            # motor_status 駆動: fault 監視 + 制御計算
+            raw = bytes(event["value"].to_pylist())
+            for i in range(min(len(raw) // AXIS_ACT_SIZE, NUM_AXES)):
+                _, _, _, fault = struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
+                if fault != 0:
+                    print(f"[sysid_ctrl] FAULT on axis {i}: {fault}")
+
             tick_count += 1
             now = time.monotonic()
+
+            if not recorder_ready:
+                if tick_count % 333 == 0:
+                    print("[sysid_ctrl] Waiting for data_recorder...")
+                continue
 
             # Drive state machine forward
             if current_state == STATE_OFF and not sent_servo_on:
