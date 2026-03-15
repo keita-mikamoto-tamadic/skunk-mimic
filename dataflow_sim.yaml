@@ -3,7 +3,7 @@ nodes:
   - id: robot_control_manager
     path: src/cpp/node/robot_control_manager/build/robot_control_manager
     inputs:
-      tick: dora/timer/millis/3
+      watchdog: dora/timer/millis/30
       state_command: dummy_input/state_command
       motor_status: mujoco_node/motor_status
       run_command: stabilizer/run_command
@@ -14,7 +14,6 @@ nodes:
   - id: stabilizer
     path: src/cpp/node/stabilizer/build/stabilizer
     inputs:
-      tick: dora/timer/millis/3
       motor_status: mujoco_node/motor_status
       imu_data: mujoco_node/imu_data
       state_status: robot_control_manager/state_status
@@ -24,6 +23,7 @@ nodes:
   - id: mujoco_node
     path: dynamic
     inputs:
+      tick: dora/timer/millis/3
       motor_commands: robot_control_manager/motor_commands
     outputs:
       - motor_status

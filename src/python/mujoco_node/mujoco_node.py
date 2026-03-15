@@ -292,23 +292,33 @@ def main():
     last_viewer_sync = 0.0
     VIEWER_SYNC_INTERVAL = 1.0 / 60.0  # 60 Hz max
 
+    # コマンドバッファ（tick 時に使用）
+    latest_commands = None
+    has_new_commands = False
+
     for event in node:
         if event["type"] == "INPUT":
             if event["id"] == "motor_commands":
+                # コマンドをバッファに保存（tick で処理）
                 raw = bytes(event["value"].to_pylist())
                 num_axes = len(raw) // AXIS_REF_SIZE
-
-                commands = []
+                latest_commands = []
                 for i in range(min(num_axes, NUM_AXES)):
                     cmd = struct.unpack_from(AXIS_REF_FMT, raw, i * AXIS_REF_SIZE)
-                    commands.append(cmd)
+                    latest_commands.append(cmd)
+                has_new_commands = True
 
-                # Apply commands; skip dynamics while frozen (pre-RUN)
-                should_step = sim.apply_commands(commands)
-                if should_step:
-                    sim.step()
+            elif event["id"] == "tick":
+                # tick 駆動: コマンド適用 → シミュレーション → ステータス出力
+                if has_new_commands and latest_commands is not None:
+                    should_step = sim.apply_commands(latest_commands)
+                    has_new_commands = False
+                    if should_step:
+                        sim.step()
+                    else:
+                        sim.forward()
                 else:
-                    # Update sensors without stepping dynamics
+                    # コマンドなし: 前回状態を維持してステップ
                     sim.forward()
 
                 # Send motor_status

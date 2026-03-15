@@ -19,6 +19,7 @@
 constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
 // 入出力ID
+constexpr const char* kInputTick          = "tick";
 constexpr const char* kInputMotorCommands = "motor_commands";
 constexpr const char* kOutputMotorStatus  = "motor_status";
 
@@ -77,6 +78,16 @@ int main() {
   MoteusConverter converter;
   const size_t axis_count = config.axes.size();
 
+  // コマンドバッファ（tick 時に使用）
+  std::vector<AxisRef> latest_commands(axis_count);
+  bool has_new_commands = false;
+
+  // expected_ids を事前構築
+  std::set<int> expected_ids;
+  for (const auto& ax : config.axes) {
+      expected_ids.insert(ax.device_id);
+  }
+
   while (true) {
       auto event = node.events->next();
       auto type = event_type(event);
@@ -113,31 +124,36 @@ int main() {
               import_result.ValueOrDie());
 
           if (id == kInputMotorCommands) {
-              // motor_commands → 全軸送受信 → motor_status 送信
-              auto refs = ReceiveStructArray<AxisRef>(arr, axis_count);
-              std::vector<AxisAct> acts(axis_count);
+              // コマンドをバッファに保存（tick で処理）
+              latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
+              has_new_commands = true;
+          }
+          else if (id == kInputTick) {
+              // tick 駆動: CAN 送受信 → motor_status 送信
               uint8_t buf[kMaxFrameSize];
               uint8_t rx[kMaxFrameSize];
               size_t rxlen;
 
-              // 1. まとめて送信
+              // 1. 送信: コマンドあり → コマンド+クエリ、なし → クエリのみ
               for (size_t i = 0; i < axis_count; i++) {
                   const auto& ax = config.axes[i];
-                  size_t len = converter.BuildCommandFrame(
-                      buf, refs[i], ax.motdir);
+                  size_t len;
+                  if (has_new_commands) {
+                      len = converter.BuildCommandFrame(
+                          buf, latest_commands[i], ax.motdir);
+                  } else {
+                      len = converter.BuildQueryFrame(buf);
+                  }
                   can->SendFrame(
                       converter.GetArbId(ax.device_id), buf, len);
               }
+              has_new_commands = false;
 
               // 2. まとめて受信
-              std::set<int> expected_ids;
-              for (const auto& ax : config.axes) {
-                  expected_ids.insert(ax.device_id);
-              }
-
+              std::vector<AxisAct> acts(axis_count);
               std::set<int> received_ids;
               auto deadline = std::chrono::steady_clock::now()
-                              + std::chrono::milliseconds(10);
+                              + std::chrono::milliseconds(2);
 
               while (received_ids.size() < expected_ids.size()) {
                   auto now = std::chrono::steady_clock::now();
@@ -149,7 +165,6 @@ int main() {
 
                   int device_id;
                   if (can->ReceiveAnyFrame(expected_ids, &device_id, rx, &rxlen, remaining_ms)) {
-                      // device_id から軸のインデックスを特定
                       for (size_t i = 0; i < axis_count; i++) {
                           if (config.axes[i].device_id == device_id) {
                               converter.ParseResponse(

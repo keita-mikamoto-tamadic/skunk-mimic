@@ -16,7 +16,6 @@
 constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
 // 入出力ID
-constexpr const char* kInputTick         = "tick";
 constexpr const char* kInputMotorStatus  = "motor_status";
 constexpr const char* kInputImuData      = "imu_data";
 constexpr const char* kInputStateStatus  = "state_status";
@@ -121,14 +120,9 @@ int main() {
                 prev_state = state;
             }
             else if (id == kInputMotorStatus) {
+                // motor_status 駆動: ステータス更新 → PID 計算 → run_command 出力
                 motor_status = ReceiveStructArray<AxisAct>(arr, axis_count);
-            }
-            else if (id == kInputImuData) {
-                auto imu = ReceiveStructArray<ImuData>(arr, 1);
-                pitch = imu[0].pitch;
-                pitch_rate = imu[0].gy;
-            }
-            else if (id == kInputTick) {
+
                 if (state != State::RUN) continue;
 
                 // 外側ループ: 速度PI（倒立点自動調整）
@@ -160,6 +154,11 @@ int main() {
                 }
 
                 SendStructArray(node, kOutputRunCommand, run_command);
+            }
+            else if (id == kInputImuData) {
+                auto imu = ReceiveStructArray<ImuData>(arr, 1);
+                pitch = imu[0].pitch;
+                pitch_rate = imu[0].gy;
             }
         }
     }

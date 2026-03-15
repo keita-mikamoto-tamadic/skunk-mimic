@@ -11,6 +11,9 @@ public:
     // motdir: モーター方向 (1 or -1)
     size_t BuildCommandFrame(uint8_t* buf, const AxisRef& ref, int motdir);
 
+    // クエリのみフレーム構築（コマンドなしでステータス取得）
+    size_t BuildQueryFrame(uint8_t* buf);
+
     // エンコーダ位置リセットフレーム構築
     // position_rad: rad 単位。内部で rad→rev 変換する。
     size_t BuildResetPosition(uint8_t* buf, double position_rad, int motdir);

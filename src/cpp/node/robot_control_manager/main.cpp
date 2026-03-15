@@ -11,7 +11,7 @@ constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
 // 入出力ID
 constexpr const char* kInputStateCommand  = "state_command";
-constexpr const char* kInputTick          = "tick";
+constexpr const char* kInputWatchdog      = "watchdog";
 constexpr const char* kInputMotorStatus   = "motor_status";
 constexpr const char* kInputRunCommand    = "run_command";
 constexpr const char* kOutputMotorCommands  = "motor_commands";
@@ -40,6 +40,8 @@ int main() {
 
     RobotControlManager sm;
     sm.Configure(config, makeMoteusFaultEvaluator(State::OFF));
+
+    bool motor_status_received = false;
 
     while (true) {
         auto event = node.events->next();
@@ -78,15 +80,34 @@ int main() {
                               << ": " << StateName(old_state)
                               << " -> " << StateName(sm.GetState()) << std::endl;
                 }
+
+                // 起動シーケンス: SERVO_ON 直後に初回 motor_commands を出力
+                // （DCM が motor_status を返す → 以降 motor_status 駆動ループ）
+                if (sm.GetState() == State::STOP) {
+                    sm.RobotController();
+                    SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
+                    SendValue(node, kOutputStateStatus, sm.GetState());
+                }
             }
-            else if (id == kInputTick) {
+            else if (id == kInputMotorStatus) {
+                // motor_status 駆動: ステータス更新 → 制御計算 → コマンド出力
+                auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
+                sm.UpdateMotorStatus(acts);
                 sm.RobotController();
                 SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
                 SendValue(node, kOutputStateStatus, sm.GetState());
+                motor_status_received = true;
             }
-            else if (id == kInputMotorStatus) {
-                auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
-                sm.UpdateMotorStatus(acts);
+            else if (id == kInputWatchdog) {
+                // ウォッチドッグ: motor_status 途絶検出
+                if (!motor_status_received && sm.GetState() != State::OFF) {
+                    std::cerr << "watchdog: motor_status timeout -> OFF"
+                              << std::endl;
+                    sm.HandleStateCommand(StateCommand::SERVO_OFF);
+                    SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
+                    SendValue(node, kOutputStateStatus, sm.GetState());
+                }
+                motor_status_received = false;
             }
             else if (id == kInputRunCommand) {
                 auto refs = ReceiveStructArray<AxisRef>(arr, sm.GetAxisCount());

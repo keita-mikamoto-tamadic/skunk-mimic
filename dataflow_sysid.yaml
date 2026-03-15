@@ -1,21 +1,34 @@
-# Dataflow for system identification data collection.
-# Bypasses robot_control_manager: sysid_input sends motor_commands directly.
-# Use with real hardware (device_control_manager + imu_node).
+# Dataflow for system identification data collection (real hardware).
+# sysid_controller drives RCM state machine, RCM sends motor_commands to device_control_manager.
+# data_recorder captures all data for offline sysid.
 nodes:
 
-  - id: sysid_input
-    path: dynamic
+  - id: robot_control_manager
+    path: src/cpp/node/robot_control_manager/build/robot_control_manager
     inputs:
-      tick: dora/timer/millis/3
+      watchdog: dora/timer/millis/30
+      state_command: sysid_controller/state_command
       motor_status: device_control_manager/motor_status
-      recorder_ready: data_recorder/recorder_ready
+      run_command: sysid_controller/run_command
     outputs:
       - motor_commands
+      - state_status
+
+  - id: sysid_controller
+    path: dynamic
+    inputs:
+      state_status: robot_control_manager/state_status
+      recorder_ready: data_recorder/recorder_ready
+      motor_status: device_control_manager/motor_status
+    outputs:
+      - state_command
+      - run_command
 
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
     inputs:
-      motor_commands: sysid_input/motor_commands
+      tick: dora/timer/millis/3
+      motor_commands: robot_control_manager/motor_commands
     outputs:
       - motor_status
 
@@ -29,7 +42,7 @@ nodes:
   - id: data_recorder
     path: dynamic
     inputs:
-      motor_commands: sysid_input/motor_commands
+      motor_commands: robot_control_manager/motor_commands
       motor_status: device_control_manager/motor_status
       imu_data: imu_node/imu_data
     outputs:

@@ -98,6 +98,19 @@ size_t MoteusConverter::BuildCommandFrame(
   return frame.size;
 }
 
+size_t MoteusConverter::BuildQueryFrame(uint8_t* buf) {
+  moteus::CanData frame;
+  moteus::WriteCanData writer(&frame);
+
+  // Query のみ（コマンドなし）
+  moteus::Query::Format qfmt;
+  qfmt.fault = moteus::Resolution::kInt8;
+  moteus::Query::Make(&writer, qfmt);
+
+  std::memcpy(buf, frame.data, frame.size);
+  return frame.size;
+}
+
 size_t MoteusConverter::BuildResetPosition(
         uint8_t* buf, double position_rad, int motdir) {
     // rad → rev 変換（方向あり）
