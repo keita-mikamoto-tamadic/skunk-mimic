@@ -87,11 +87,8 @@ NUM_AXES = 6
 # Control tick = 3ms, physics timestep = 1ms → 3 substeps.
 SUBSTEPS = 3
 
-# Base servo gains (matching moteus PID: kp=140 Nm/rev, kd=0.5 Nm/(rev/s))
-# Convert from Nm/rev to Nm/rad: divide by 2π
-MUJOCOSIM_GAIN_KP = 1.4
-BASE_KP = MUJOCOSIM_GAIN_KP * 140.0 / (2.0 * 3.141592653589793)   # ≈ 22.28 Nm/rad
-BASE_KV = 0.5 / (2.0 * 3.141592653589793)     # ≈ 0.0796 Nm/(rad/s)
+# Base servo gains are read from the MJCF model (per-actuator gainprm/biasprm).
+# See sim/mimic_v2.xml for the values and their derivation from moteus PID gains.
 
 
 def quat_to_euler(w, x, y, z):
@@ -132,6 +129,18 @@ class MuJoCoSim:
         # Initialize physics state (contacts, sensors) without stepping dynamics
         mujoco.mj_forward(self.model, self.data)
 
+        # Cache base gains from MJCF (per-actuator, set in XML)
+        # gainprm[0] = kp (POSITION) or kv (VELOCITY) depending on initial mode
+        # biasprm = [0, -kp, -kv] (POSITION) or [0, 0, -kv] (VELOCITY)
+        self.base_kp = []
+        self.base_kv = []
+        for i in range(NUM_AXES):
+            aid = self.actuator_ids[i]
+            bp = self.model.actuator_biasprm[aid]
+            # kp = -biasprm[1], kv = -biasprm[2]
+            self.base_kp.append(-float(bp[1]))
+            self.base_kv.append(-float(bp[2]))
+
         # Per-axis hold position (for STOP mode) — init from keyframe
         self.hold_positions = [
             self.data.qpos[self.qpos_addrs[i]] for i in range(NUM_AXES)
@@ -151,14 +160,16 @@ class MuJoCoSim:
         aid = self.actuator_ids[axis_idx]
         kp_s = kp_scale if kp_scale > 0 else 1.0
         kv_s = kv_scale if kv_scale > 0 else 1.0
+        base_kp = self.base_kp[axis_idx]
+        base_kv = self.base_kv[axis_idx]
 
         if motor_state == MOTOR_POSITION or motor_state == MOTOR_STOP:
-            kp = BASE_KP * kp_s
-            kv = BASE_KV * kv_s
+            kp = base_kp * kp_s
+            kv = base_kv * kv_s
             self.model.actuator_gainprm[aid, 0] = kp
             self.model.actuator_biasprm[aid, :3] = [0.0, -kp, -kv]
         elif motor_state == MOTOR_VELOCITY:
-            kv = BASE_KV * kv_s
+            kv = base_kv * kv_s
             self.model.actuator_gainprm[aid, 0] = kv
             self.model.actuator_biasprm[aid, :3] = [0.0, 0.0, -kv]
         elif motor_state == MOTOR_TORQUE:
