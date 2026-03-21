@@ -5,7 +5,7 @@ nodes:
     inputs:
       watchdog: dora/timer/millis/30
       state_command: dummy_input/state_command
-      motor_status: mujoco_node/motor_status
+      motor_status: dcm_frontend/motor_status
       run_command: stabilizer/run_command
     outputs:
       - motor_commands
@@ -14,20 +14,32 @@ nodes:
   - id: stabilizer
     path: src/cpp/node/stabilizer/build/stabilizer
     inputs:
-      motor_status: mujoco_node/motor_status
-      imu_data: mujoco_node/imu_data
+      motor_status: dcm_frontend/motor_status
+      imu_data: dcm_frontend/imu_data
       state_status: robot_control_manager/state_status
     outputs:
       - run_command
 
-  - id: mujoco_node
+  - id: dcm_frontend
+    path: src/cpp/node/dcm_frontend/build/dcm_frontend
+    inputs:
+      motor_commands: robot_control_manager/motor_commands
+      raw_status: dcm_backend/raw_status
+      raw_imu: dcm_backend/raw_imu
+      watchdog: dora/timer/millis/30
+    outputs:
+      - motor_status
+      - raw_commands
+      - imu_data
+
+  - id: dcm_backend
     path: dynamic
     inputs:
       tick: dora/timer/millis/3
-      motor_commands: robot_control_manager/motor_commands
+      raw_commands: dcm_frontend/raw_commands
     outputs:
-      - motor_status
-      - imu_data
+      - raw_status
+      - raw_imu
 
   - id: dummy_input
     path: dynamic
@@ -37,6 +49,6 @@ nodes:
   - id: data_viewer
     path: dynamic
     inputs:
-      motor_status: mujoco_node/motor_status
+      motor_status: dcm_frontend/motor_status
       state_status: robot_control_manager/state_status
-      imu_data: mujoco_node/imu_data
+      imu_data: dcm_frontend/imu_data

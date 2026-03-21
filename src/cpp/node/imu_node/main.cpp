@@ -5,7 +5,7 @@
 #include "../../lib/dora_helpers.hpp"
 #include <iostream>
 
-static constexpr const char* kOutputImuData = "imu_data";
+static constexpr const char* kOutputImuData = "raw_imu";
 
 int main() {
     auto node = init_dora_node();
