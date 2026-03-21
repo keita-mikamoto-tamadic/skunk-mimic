@@ -19,7 +19,8 @@ struct RobotConfig {
   std::string robot_name;
   int axis_count;
   double interpolation_time;
-  std::string transport;  // "socketcan" or "dummy"
+  std::string transport;    // "socketcan" or "dummy"
+  std::string controller;   // "angle_pid" etc. (default: "angle_pid")
   std::vector<AxisConfig> axes;
 };
 
