@@ -136,6 +136,24 @@ void SendValue(DoraNode& node, const char* output_id, T value)
 }
 
 // ---------------------------------------------------------------------------
+// ゼロコピー受信: Arrow バッファを直接参照（arr が有効な間だけ使用可能）
+// ---------------------------------------------------------------------------
+
+// 構造体配列を直接参照（コピーなし）
+template<typename T>
+const T* ZeroCopyReceiveStructArray(const std::shared_ptr<arrow::UInt8Array>& arr)
+{
+    return reinterpret_cast<const T*>(arr->raw_values());
+}
+
+// 単一構造体を直接参照（コピーなし）
+template<typename T>
+const T& ZeroCopyReceiveStruct(const std::shared_ptr<arrow::UInt8Array>& arr)
+{
+    return *reinterpret_cast<const T*>(arr->raw_values());
+}
+
+// ---------------------------------------------------------------------------
 // 受信（コピーあり）
 // ---------------------------------------------------------------------------
 
