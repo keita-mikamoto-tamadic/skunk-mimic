@@ -40,6 +40,20 @@ int main() {
     auto last_status_time = std::chrono::steady_clock::now();
     bool watchdog_tripped = false;
 
+    // レイテンシ計測
+    // CAN側: motor_commands 送信 → raw_status 受信
+    std::chrono::steady_clock::time_point cmd_send_time;
+    bool cmd_pending = false;
+    int can_count = 0;
+    long can_sum = 0;
+    long can_max = 0;
+    // 制御側: motor_status 送信 → motor_commands 受信
+    std::chrono::steady_clock::time_point status_send_time;
+    bool status_pending = false;
+    int ctrl_count = 0;
+    long ctrl_sum = 0;
+    long ctrl_max = 0;
+
     while (true) {
         auto event = node.events->next();
         auto type = event_type(event);
@@ -68,15 +82,45 @@ int main() {
                 continue;
             }
             if (id == kInputRawStatus) {
+                // CAN側計測: motor_commands送信→raw_status受信
+                if (cmd_pending) {
+                    long us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - cmd_send_time).count();
+                    cmd_pending = false;
+                    can_sum += us;
+                    if (us > can_max) can_max = us;
+                    can_count++;
+                }
+                // motor_status 送信 → 制御側計測の起点
                 send_arrow_output(
                     node.send_output, rust::String(kOutputMotorStatus),
                     reinterpret_cast<uint8_t*>(&c_array),
                     reinterpret_cast<uint8_t*>(&c_schema));
-                last_status_time = std::chrono::steady_clock::now();
+                status_send_time = std::chrono::steady_clock::now();
+                status_pending = true;
+                last_status_time = status_send_time;
                 watchdog_tripped = false;
                 continue;
             }
             if (id == kInputMotorCommands) {
+                // 制御側計測: motor_status送信→motor_commands受信
+                if (status_pending) {
+                    long us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - status_send_time).count();
+                    status_pending = false;
+                    ctrl_sum += us;
+                    if (us > ctrl_max) ctrl_max = us;
+                    ctrl_count++;
+                }
+                // ログ出力（1秒ごと）
+                if (can_count > 0 && can_count % 333 == 0) {
+                    std::cout << "[dcm_frontend] CAN: avg=" << (can_sum / can_count)
+                              << "us max=" << can_max << "us"
+                              << " | CTRL: avg=" << (ctrl_count > 0 ? ctrl_sum / ctrl_count : 0)
+                              << "us max=" << ctrl_max << "us" << std::endl;
+                }
+                cmd_send_time = std::chrono::steady_clock::now();
+                cmd_pending = true;
                 send_arrow_output(
                     node.send_output, rust::String(kOutputRawCommands),
                     reinterpret_cast<uint8_t*>(&c_array),
