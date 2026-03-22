@@ -9,6 +9,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ARROW REQUIRED arrow)
+find_package(Eigen3 REQUIRED)
 
 # Dora node api (built from ~/dora)
 set(DORA_ROOT "$ENV{HOME}/dora")
@@ -26,11 +27,14 @@ target_include_directories(stabilizer PRIVATE
   ${DORA_NODE_API_INC}
   ${ARROW_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/../..
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/vendor/OpenKF/src
+
 )
 
 target_link_libraries(stabilizer PRIVATE
   ${DORA_NODE_API_LIB}
   ${ARROW_LIBRARIES}
+  Eigen3::Eigen
   pthread
   dl
 )

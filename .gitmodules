@@ -1,0 +1,3 @@
+[submodule "src/cpp/lib/vendor/OpenKF"]
+	path = src/cpp/lib/vendor/OpenKF
+	url = https://github.com/Al-khwarizmi-780/OpenKF.git

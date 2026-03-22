@@ -2,6 +2,7 @@
 #include <vector>
 #include "controller.hpp"
 #include "../../lib/pid.hpp"
+#include "kalman_filter/kalman_filter.h"
 
 // 倒立振子 PID コントローラ
 // 外側ループ: 速度PI（倒立点自動調整）
