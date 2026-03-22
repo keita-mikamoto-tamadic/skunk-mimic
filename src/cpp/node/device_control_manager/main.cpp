@@ -1,12 +1,16 @@
 /**
- * can_backend: CAN バス通信 backend
+ * device_control_manager: CAN バス通信 + motor_status/imu_data 出力
  *
  * 責務:
- *   - raw_commands (AxisRef[]) を受信してバッファ
- *   - tick 駆動で CAN 送受信 → raw_status (AxisAct[]) を出力
+ *   - tick 駆動で CAN 送受信 → motor_status 出力
+ *   - motor_commands 受信 → コマンドバッファ更新
+ *   - imu_data 受信 → imu_data パススルー出力
  *   - SCHED_FIFO / CPU affinity 設定（リアルタイム）
  *
- * 既存 device_control_manager の CAN ロジックをそのまま移植。
+ * Communication インターフェースで transport を切り替え:
+ *   "socketcan" → SocketCanComm（CAN-FD）
+ *   "dummy"     → DummyComm（テスト用）
+ *   将来: "rs485" → Rs485Comm 等
  */
 #include <iostream>
 #include <memory>
@@ -14,6 +18,9 @@
 #include <set>
 #include <chrono>
 #include "dora-node-api.h"
+#include <pthread.h>
+#include <sched.h>
+
 #include "../../lib/robot_config.hpp"
 #include "../../lib/shm_data_format.hpp"
 #include "../../lib/dora_helpers.hpp"
@@ -25,21 +32,41 @@
 constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
 // 入出力ID
-constexpr const char* kInputTick        = "tick";
-constexpr const char* kInputRawCommands = "raw_commands";
-constexpr const char* kOutputRawStatus  = "raw_status";
+constexpr const char* kInputTick          = "tick";
+constexpr const char* kInputMotorCommands = "motor_commands";
+constexpr const char* kInputImuData       = "raw_imu";
+constexpr const char* kOutputMotorStatus  = "motor_status";
+constexpr const char* kOutputImuData      = "imu_data";
 
 constexpr size_t kMaxFrameSize = 64;
 
+static void SetCpuAffinity(uint32_t core, int32_t priority) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core, &cpuset);
+
+    pthread_t current_thread = pthread_self();
+    if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "[DCM] Warning: Failed to set CPU affinity" << std::endl;
+    }
+
+    struct sched_param param;
+    param.sched_priority = priority;
+    if (pthread_setschedparam(current_thread, SCHED_FIFO, &param) != 0) {
+        std::cerr << "[DCM] Warning: Failed to set RT Process priority" << std::endl;
+    }
+}
+
 int main() {
+    SetCpuAffinity(1, 80);
     auto node = init_dora_node();
-    std::cout << "[can_backend] started" << std::endl;
+    std::cout << "[DCM] started" << std::endl;
 
     auto config = robot_config::LoadFromFile(kConfigPath);
-    std::cout << "[can_backend] " << config.robot_name
+    std::cout << "[DCM] " << config.robot_name
               << " (" << config.axis_count << " axes)" << std::endl;
 
-    // 通信初期化
+    // 通信初期化（transport に応じて実装を切り替え）
     std::unique_ptr<Communication> can;
     if (config.transport == "dummy") {
         can = std::make_unique<DummyComm>();
@@ -48,10 +75,10 @@ int main() {
     }
     std::string device = (config.transport == "dummy") ? "dummy" : "can0";
     if (!can->Open(device)) {
-        std::cerr << "[can_backend] failed to open " << device << std::endl;
+        std::cerr << "[DCM] failed to open " << device << std::endl;
         return 1;
     }
-    std::cout << "[can_backend] " << config.transport << " opened" << std::endl;
+    std::cout << "[DCM] " << config.transport << " opened" << std::endl;
 
     MoteusConverter converter;
     const size_t axis_count = config.axes.size();
@@ -66,16 +93,15 @@ int main() {
         expected_ids.insert(ax.device_id);
     }
 
-    // CAN 送受信の純粋なレイテンシ計測
+    // レイテンシ計測
     int can_count = 0;
     long can_sum = 0;
     long can_max = 0;
-    // tick 待ち計測: raw_commands 受信 → 次の tick 受信
-    std::chrono::steady_clock::time_point cmd_recv_time;
-    bool cmd_recv_pending = false;
-    int wait_count = 0;
-    long wait_sum = 0;
-    long wait_max = 0;
+    std::chrono::steady_clock::time_point status_send_time;
+    bool status_pending = false;
+    int ctrl_count = 0;
+    long ctrl_sum = 0;
+    long ctrl_max = 0;
 
     while (true) {
         auto event = node.events->next();
@@ -94,7 +120,7 @@ int main() {
                 can->SendFrame(
                     converter.GetArbId(ax.device_id), buf, len);
             }
-            std::cout << "[can_backend] stopping (all axes OFF)" << std::endl;
+            std::cout << "[DCM] stopping (all axes OFF)" << std::endl;
             break;
         }
 
@@ -107,28 +133,35 @@ int main() {
                 reinterpret_cast<uint8_t*>(&c_schema));
             std::string id(info.id);
 
+            // IMU パススルー（ゼロコピー）
+            if (id == kInputImuData) {
+                send_arrow_output(
+                    node.send_output, rust::String(kOutputImuData),
+                    reinterpret_cast<uint8_t*>(&c_array),
+                    reinterpret_cast<uint8_t*>(&c_schema));
+                continue;
+            }
+
+            // 以下は Arrow Import が必要
             auto import_result = arrow::ImportArray(&c_array, &c_schema);
             if (!import_result.ok()) continue;
             auto arr = std::static_pointer_cast<arrow::UInt8Array>(
                 import_result.ValueOrDie());
 
-            if (id == kInputRawCommands) {
+            if (id == kInputMotorCommands) {
+                // 制御側計測: motor_status 送信 → motor_commands 受信
+                if (status_pending) {
+                    long us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - status_send_time).count();
+                    status_pending = false;
+                    ctrl_sum += us;
+                    if (us > ctrl_max) ctrl_max = us;
+                    ctrl_count++;
+                }
                 latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
                 has_new_commands = true;
-                cmd_recv_time = std::chrono::steady_clock::now();
-                cmd_recv_pending = true;
             }
             else if (id == kInputTick) {
-                // tick 待ち計測
-                if (cmd_recv_pending) {
-                    long us = std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - cmd_recv_time).count();
-                    cmd_recv_pending = false;
-                    wait_sum += us;
-                    if (us > wait_max) wait_max = us;
-                    wait_count++;
-                }
-
                 uint8_t buf[kMaxFrameSize];
                 uint8_t rx[kMaxFrameSize];
                 size_t rxlen;
@@ -176,18 +209,21 @@ int main() {
                     }
                 }
 
+                // CAN レイテンシ計測
                 long us = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - t0).count();
                 can_sum += us;
                 if (us > can_max) can_max = us;
                 if (++can_count % 333 == 0) {
-                    std::cout << "[can_backend] CAN: avg=" << (can_sum / can_count)
+                    std::cout << "[DCM] CAN: avg=" << (can_sum / can_count)
                               << "us max=" << can_max
-                              << "us | WAIT: avg=" << (wait_count > 0 ? wait_sum / wait_count : 0)
-                              << "us max=" << wait_max << "us" << std::endl;
+                              << "us | CTRL: avg=" << (ctrl_count > 0 ? ctrl_sum / ctrl_count : 0)
+                              << "us max=" << ctrl_max << "us" << std::endl;
                 }
 
-                SendStructArray(node, kOutputRawStatus, acts);
+                SendStructArray(node, kOutputMotorStatus, acts);
+                status_send_time = std::chrono::steady_clock::now();
+                status_pending = true;
             }
         }
     }

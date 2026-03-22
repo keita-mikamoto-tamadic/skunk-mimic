@@ -10,6 +10,8 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <pthread.h>
+#include <sched.h>
 #include "dora-node-api.h"
 
 #include "../../lib/robot_config.hpp"
@@ -21,13 +23,28 @@ constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 // 入出力ID
 constexpr const char* kInputMotorCommands = "motor_commands";
 constexpr const char* kInputRawStatus     = "raw_status";
-constexpr const char* kInputRawImu        = "raw_imu";
-constexpr const char* kInputWatchdog      = "watchdog";
 constexpr const char* kOutputMotorStatus  = "motor_status";
 constexpr const char* kOutputRawCommands  = "raw_commands";
-constexpr const char* kOutputImuData      = "imu_data";
+
+static void SetCpuAffinity(uint32_t core, int32_t priority) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core, &cpuset);
+
+    pthread_t current_thread = pthread_self();
+    if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "[dcm_frontend] Warning: Failed to set CPU affinity" << std::endl;
+    }
+
+    struct sched_param param;
+    param.sched_priority = priority;
+    if (pthread_setschedparam(current_thread, SCHED_FIFO, &param) != 0) {
+        std::cerr << "[dcm_frontend] Warning: Failed to set RT Process priority" << std::endl;
+    }
+}
 
 int main() {
+    SetCpuAffinity(1, 80);
     auto node = init_dora_node();
     std::cout << "[dcm_frontend] started" << std::endl;
 
@@ -35,10 +52,6 @@ int main() {
     const size_t axis_count = config.axes.size();
     std::cout << "[dcm_frontend] " << config.robot_name
               << " (" << axis_count << " axes)" << std::endl;
-
-    // ウォッチドッグ: raw_status の最終受信時刻
-    auto last_status_time = std::chrono::steady_clock::now();
-    bool watchdog_tripped = false;
 
     // レイテンシ計測
     // CAN側: motor_commands 送信 → raw_status 受信
@@ -74,13 +87,6 @@ int main() {
             std::string id(info.id);
 
             // パススルー経路: Import せず C ArrowArray を直接転送（ゼロコピー）
-            if (id == kInputRawImu) {
-                send_arrow_output(
-                    node.send_output, rust::String(kOutputImuData),
-                    reinterpret_cast<uint8_t*>(&c_array),
-                    reinterpret_cast<uint8_t*>(&c_schema));
-                continue;
-            }
             if (id == kInputRawStatus) {
                 // CAN側計測: motor_commands送信→raw_status受信
                 if (cmd_pending) {
@@ -98,8 +104,6 @@ int main() {
                     reinterpret_cast<uint8_t*>(&c_schema));
                 status_send_time = std::chrono::steady_clock::now();
                 status_pending = true;
-                last_status_time = status_send_time;
-                watchdog_tripped = false;
                 continue;
             }
             if (id == kInputMotorCommands) {
@@ -128,29 +132,6 @@ int main() {
                 continue;
             }
 
-            // ウォッチドッグ: Import が必要
-            if (id == kInputWatchdog) {
-                auto now = std::chrono::steady_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - last_status_time).count();
-
-                if (elapsed > 30 && !watchdog_tripped) {
-                    std::vector<AxisAct> error_status(axis_count);
-                    for (size_t i = 0; i < axis_count; i++) {
-                        error_status[i].position = 0.0;
-                        error_status[i].velocity = 0.0;
-                        error_status[i].torque = 0.0;
-                        error_status[i].fault = 1;
-                    }
-                    SendStructArray(node, kOutputMotorStatus, error_status);
-                    watchdog_tripped = true;
-                    std::cerr << "[dcm_frontend] watchdog timeout ("
-                              << elapsed << "ms)" << std::endl;
-                }
-                // watchdog の c_array は使わないので release
-                if (c_array.release) c_array.release(&c_array);
-                if (c_schema.release) c_schema.release(&c_schema);
-            }
         }
     }
 
