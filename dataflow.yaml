@@ -29,6 +29,7 @@ nodes:
     outputs:
       - motor_status
       - imu_data
+      - latency
 
   - id: imu_node
     path: src/cpp/node/imu_node/build/imu_node
@@ -48,3 +49,4 @@ nodes:
       motor_status: device_control_manager/motor_status
       state_status: robot_control_manager/state_status
       imu_data: device_control_manager/imu_data
+      latency: device_control_manager/latency

@@ -37,6 +37,7 @@ constexpr const char* kInputMotorCommands = "motor_commands";
 constexpr const char* kInputImuData       = "raw_imu";
 constexpr const char* kOutputMotorStatus  = "motor_status";
 constexpr const char* kOutputImuData      = "imu_data";
+constexpr const char* kOutputLatency      = "latency";
 
 constexpr size_t kMaxFrameSize = 64;
 
@@ -214,12 +215,15 @@ int main() {
                     std::chrono::steady_clock::now() - t0).count();
                 can_sum += us;
                 if (us > can_max) can_max = us;
-                if (++can_count % 333 == 0) {
-                    std::cout << "[DCM] CAN: avg=" << (can_sum / can_count)
-                              << "us max=" << can_max
-                              << "us | CTRL: avg=" << (ctrl_count > 0 ? ctrl_sum / ctrl_count : 0)
-                              << "us max=" << ctrl_max << "us" << std::endl;
-                }
+                can_count++;
+
+                // latency データ送信（毎 tick）
+                LatencyData latency;
+                latency.can_avg_us = (can_count > 0) ? static_cast<double>(can_sum) / can_count : 0;
+                latency.can_max_us = static_cast<double>(can_max);
+                latency.ctrl_avg_us = (ctrl_count > 0) ? static_cast<double>(ctrl_sum) / ctrl_count : 0;
+                latency.ctrl_max_us = static_cast<double>(ctrl_max);
+                SendStruct(node, kOutputLatency, latency);
 
                 SendStructArray(node, kOutputMotorStatus, acts);
                 status_send_time = std::chrono::steady_clock::now();

@@ -26,6 +26,10 @@ AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
 IMU_DATA_FMT = "<14d"  # little-endian
 IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
 
+# LatencyData: can_avg_us, can_max_us, ctrl_avg_us, ctrl_max_us
+LATENCY_FMT = "<4d"
+LATENCY_SIZE = struct.calcsize(LATENCY_FMT)  # 32
+
 # State enum with styles (C++ enum class State と対応)
 STATE_STYLES = {
 	0: ("OFF", "dim white"),
@@ -107,6 +111,31 @@ def build_imu_table(imu_data):
 	return table
 
 
+def build_latency_table(latency_data):
+	table = Table(show_header=True, title="Latency", title_style="magenta")
+	table.add_column("", justify="left", style="dim")
+	table.add_column("avg", justify="right")
+	table.add_column("max", justify="right")
+
+	if latency_data is not None:
+		can_avg, can_max, ctrl_avg, ctrl_max = latency_data
+		total_avg = can_avg + ctrl_avg
+
+		can_style = "green" if can_avg < 1500 else "yellow" if can_avg < 2500 else "red"
+		ctrl_style = "green" if ctrl_avg < 1500 else "yellow" if ctrl_avg < 2500 else "red"
+		total_style = "green" if total_avg < 2500 else "yellow" if total_avg < 3000 else "red"
+
+		table.add_row("CAN",   f"[{can_style}]{can_avg:.0f}us[/]",   f"{can_max:.0f}us")
+		table.add_row("CTRL",  f"[{ctrl_style}]{ctrl_avg:.0f}us[/]",  f"{ctrl_max:.0f}us")
+		table.add_section()
+		table.add_row("Total", f"[{total_style}]{total_avg:.0f}us[/]", "")
+	else:
+		table.add_row("CAN",  "-", "-")
+		table.add_row("CTRL", "-", "-")
+
+	return table
+
+
 node = Node("data_viewer")
 
 # Load robot configuration
@@ -115,13 +144,15 @@ print(f"Loaded config: {config.robot_name} ({config.axis_count} axes)")
 
 initial_display = Group(
 	build_motor_table([], config=config),
-	build_imu_table(None)
+	build_imu_table(None),
+	build_latency_table(None)
 )
 
 with Live(initial_display, refresh_per_second=30) as live:
 	start_time = time.time_ns()
 	current_state = None
 	current_imu_data = None
+	current_latency = None
 	for event in node:
 		if event["type"] == "INPUT":
 			if event["id"] == "state_status":
@@ -132,6 +163,10 @@ with Live(initial_display, refresh_per_second=30) as live:
 				raw = bytes(event["value"].to_pylist())
 				if len(raw) >= IMU_DATA_SIZE:
 					current_imu_data = struct.unpack(IMU_DATA_FMT, raw[:IMU_DATA_SIZE])
+			elif event["id"] == "latency":
+				raw = bytes(event["value"].to_pylist())
+				if len(raw) >= LATENCY_SIZE:
+					current_latency = struct.unpack(LATENCY_FMT, raw[:LATENCY_SIZE])
 			elif event["id"] == "motor_status":
 				raw = bytes(event["value"].to_pylist())
 				axis_count = len(raw) // AXIS_ACT_SIZE
@@ -148,4 +183,5 @@ with Live(initial_display, refresh_per_second=30) as live:
 				# 両方のテーブルを更新
 				motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
 				imu_table = build_imu_table(current_imu_data)
-				live.update(Group(motor_table, imu_table))
+				latency_table = build_latency_table(current_latency)
+				live.update(Group(motor_table, imu_table, latency_table))

@@ -21,6 +21,14 @@ struct AxisAct {
     uint8_t fault;         // 0=正常, それ以外=異常
 };
 
+// device_control_manager → data_viewer: レイテンシ計測結果
+struct LatencyData {
+    double can_avg_us;     // CAN 送受信の平均レイテンシ (us)
+    double can_max_us;     // CAN 送受信の最大レイテンシ (us)
+    double ctrl_avg_us;    // 制御側の平均レイテンシ (us)
+    double ctrl_max_us;    // 制御側の最大レイテンシ (us)
+};
+
 struct ImuData {
     double timestamp;
     double ax;
