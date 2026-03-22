@@ -42,7 +42,7 @@ int main() {
             if (id == "tick") {
                 // 最新の IMU データを取得して送信
                 ImuData data = imu.GetLatestData();
-                SendStruct(node, kOutputImuData, data);
+                ZeroCopySendStruct(node, kOutputImuData, data);
             }
         }
     }

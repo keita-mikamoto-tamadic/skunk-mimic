@@ -9,6 +9,68 @@
 #include <memory>
 
 // dora ノード用 Arrow データ送受信ヘルパー関数群
+//
+// ZeroCopySend*: 既存メモリを Arrow バッファとしてラップして送信（コピーなし）
+// ForwardOutput: 受信した Arrow データをそのまま別出力に転送（コピーなし）
+// Send*:         構造体データを Arrow バッファにコピーして送信
+// Receive*:      Arrow バッファから構造体にコピーして受信
+
+// ---------------------------------------------------------------------------
+// ゼロコピー送信: 既存メモリを直接 Arrow バッファとして送信
+// ---------------------------------------------------------------------------
+
+// 構造体配列をゼロコピー送信（vector のメモリを直接使用）
+template<typename T>
+void ZeroCopySendStructArray(DoraNode& node, const char* output_id,
+                             const std::vector<T>& data)
+{
+    const size_t total = data.size() * sizeof(T);
+    auto buf = arrow::Buffer::Wrap(
+        reinterpret_cast<const uint8_t*>(data.data()), total);
+    auto array = std::make_shared<arrow::UInt8Array>(total, buf);
+
+    struct ArrowArray c_array;
+    struct ArrowSchema c_schema;
+    if (!arrow::ExportArray(*array, &c_array, &c_schema).ok()) return;
+
+    send_arrow_output(
+        node.send_output, rust::String(output_id),
+        reinterpret_cast<uint8_t*>(&c_array),
+        reinterpret_cast<uint8_t*>(&c_schema));
+}
+
+// 単一構造体をゼロコピー送信
+template<typename T>
+void ZeroCopySendStruct(DoraNode& node, const char* output_id, const T& data)
+{
+    auto buf = arrow::Buffer::Wrap(
+        reinterpret_cast<const uint8_t*>(&data), sizeof(T));
+    auto array = std::make_shared<arrow::UInt8Array>(sizeof(T), buf);
+
+    struct ArrowArray c_array;
+    struct ArrowSchema c_schema;
+    if (!arrow::ExportArray(*array, &c_array, &c_schema).ok()) return;
+
+    send_arrow_output(
+        node.send_output, rust::String(output_id),
+        reinterpret_cast<uint8_t*>(&c_array),
+        reinterpret_cast<uint8_t*>(&c_schema));
+}
+
+// 受信した Arrow データをそのまま別出力に転送（パススルー）
+inline void ForwardOutput(DoraNode& node, const char* output_id,
+                          struct ArrowArray* c_array,
+                          struct ArrowSchema* c_schema)
+{
+    send_arrow_output(
+        node.send_output, rust::String(output_id),
+        reinterpret_cast<uint8_t*>(c_array),
+        reinterpret_cast<uint8_t*>(c_schema));
+}
+
+// ---------------------------------------------------------------------------
+// コピーあり送信（既存互換）
+// ---------------------------------------------------------------------------
 
 // 単一構造体を UInt8Array として送信
 template<typename T>
@@ -72,6 +134,10 @@ void SendValue(DoraNode& node, const char* output_id, T value)
         reinterpret_cast<uint8_t*>(&c_array),
         reinterpret_cast<uint8_t*>(&c_schema));
 }
+
+// ---------------------------------------------------------------------------
+// 受信（コピーあり）
+// ---------------------------------------------------------------------------
 
 // UInt8Array から構造体配列を受信
 template<typename T>

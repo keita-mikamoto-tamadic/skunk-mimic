@@ -85,8 +85,8 @@ int main() {
                 // （DCM が motor_status を返す → 以降 motor_status 駆動ループ）
                 if (sm.GetState() == State::STOP) {
                     sm.RobotController();
-                    SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
-                    SendValue(node, kOutputStateStatus, sm.GetState());
+                    ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
+                    ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
                 }
             }
             else if (id == kInputMotorStatus) {
@@ -94,8 +94,8 @@ int main() {
                 auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
                 sm.UpdateMotorStatus(acts);
                 sm.RobotController();
-                SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
-                SendValue(node, kOutputStateStatus, sm.GetState());
+                ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
+                ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
                 motor_status_received = true;
             }
             else if (id == kInputWatchdog) {
@@ -104,8 +104,8 @@ int main() {
                     std::cerr << "watchdog: motor_status timeout -> OFF"
                               << std::endl;
                     sm.HandleStateCommand(StateCommand::SERVO_OFF);
-                    SendStructArray(node, kOutputMotorCommands, sm.GetCommands());
-                    SendValue(node, kOutputStateStatus, sm.GetState());
+                    ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
+                    ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
                 }
                 motor_status_received = false;
             }

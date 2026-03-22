@@ -116,10 +116,7 @@ int main() {
 
             // IMU パススルー（ゼロコピー）
             if (id == kInputImuData) {
-                send_arrow_output(
-                    node.send_output, rust::String(kOutputImuData),
-                    reinterpret_cast<uint8_t*>(&c_array),
-                    reinterpret_cast<uint8_t*>(&c_schema));
+                ForwardOutput(node, kOutputImuData, &c_array, &c_schema);
                 continue;
             }
 
@@ -167,9 +164,9 @@ int main() {
                 latency.can_max_us = static_cast<double>(can_max);
                 latency.ctrl_avg_us = (ctrl_count > 0) ? static_cast<double>(ctrl_sum) / ctrl_count : 0;
                 latency.ctrl_max_us = static_cast<double>(ctrl_max);
-                SendStruct(node, kOutputLatency, latency);
+                ZeroCopySendStruct(node, kOutputLatency, latency);
 
-                SendStructArray(node, kOutputMotorStatus, acts);
+                ZeroCopySendStructArray(node, kOutputMotorStatus, acts);
                 status_send_time = std::chrono::steady_clock::now();
                 status_pending = true;
             }

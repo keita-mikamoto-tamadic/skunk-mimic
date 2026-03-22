@@ -92,7 +92,7 @@ int main() {
 
                 controller->Update(motor_status, imu_data);
                 auto run_command = controller->Compute(config);
-                SendStructArray(node, kOutputRunCommand, run_command);
+                ZeroCopySendStructArray(node, kOutputRunCommand, run_command);
             }
         }
     }
