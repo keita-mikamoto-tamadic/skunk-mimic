@@ -16,6 +16,9 @@ public:
                 const ImuData& imu_data) override;
     std::vector<AxisRef> Compute(const RobotConfig& config) override;
 
+    // ボディ並進速度推定 [m/s]
+    double EstBodyVel() const;
+
 private:
     // PID 定数
     static constexpr double kTargetPitch = 0.0465;
@@ -32,6 +35,10 @@ private:
     static constexpr double kMaxAngleOffset = 0.05;
     static constexpr double kMaxWheelSpeed = 30.0;
     static constexpr double kTickSec = 0.003;
+
+    // ボディ速度推定パラメータ（MuJoCo XMLから算出）
+    static constexpr double kWheelRadius = 0.05;  // TODO: XMLから正確な値を確認
+    static constexpr double kCoMHeight = 0.15;    // TODO: ホイール軸〜重心距離
 
     Pid angle_pid_;
     Pid velocity_pid_;

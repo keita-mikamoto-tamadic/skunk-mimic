@@ -7,7 +7,6 @@ members = [
     "data-recorder",
     "data-viewer",
     "dummy-input",
-    "mujoco-node",
     "python",
     "sysid-controller",
 ]
@@ -565,25 +564,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/cd/46/34b49e5cfcc6a25ad8af669e170c00b77cfaae99fca12c6586ed4e6cedb7/mujoco-3.5.0-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:7b591ed76e800713cd485dd38ec681b3065bde253b25350cfbe708e43a8a7bda", size = 6678488, upload-time = "2026-02-13T01:02:45.702Z" },
     { url = "https://files.pythonhosted.org/packages/16/47/93c7ac3a9630b49c55d76b0d02aa565543e2f62cecd885f8f574f5c745e7/mujoco-3.5.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a956520adb275ce8e878da29e2586eac3affc7b7ac772065ef01f2380a9e8784", size = 7171277, upload-time = "2026-02-13T01:02:47.59Z" },
     { url = "https://files.pythonhosted.org/packages/ab/53/54a0815d43c83e1074cfc7da98a3dea88d7dda48c03edfd225a387a3767b/mujoco-3.5.0-cp313-cp313-win_amd64.whl", hash = "sha256:646b26f545cfdd60ae65ee90d44f63f50fc7ea5b8242777964ef0148830e72df", size = 5721537, upload-time = "2026-02-13T01:02:49.636Z" },
-]
-
-[[package]]
-name = "mujoco-node"
-version = "0.1.0"
-source = { virtual = "mujoco_node" }
-dependencies = [
-    { name = "dora-rs" },
-    { name = "mujoco" },
-    { name = "numpy" },
-    { name = "pyarrow" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dora-rs", specifier = "==0.4.1" },
-    { name = "mujoco", specifier = ">=3.0.0" },
-    { name = "numpy" },
-    { name = "pyarrow", specifier = ">=23.0.1" },
 ]
 
 [[package]]

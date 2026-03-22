@@ -18,4 +18,7 @@ public:
 
     // run_command を計算して返す（motor_status 駆動）
     virtual std::vector<AxisRef> Compute(const RobotConfig& config) = 0;
+
+    // ボディ並進速度推定 [m/s]（具象クラスでオーバーライド）
+    virtual double EstBodyVel() const { return 0.0; }
 };

@@ -82,7 +82,7 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 	return table
 
 
-def build_imu_table(imu_data):
+def build_imu_table(imu_data, body_vel=None):
 	table = Table(show_header=True, title="IMU", title_style="cyan")
 	table.add_column("", justify="left", style="dim")
 	table.add_column("Roll", justify="right")
@@ -91,11 +91,13 @@ def build_imu_table(imu_data):
 	table.add_column("ax", justify="right")
 	table.add_column("ay", justify="right")
 	table.add_column("az", justify="right")
+	table.add_column("body_vel", justify="right")
 
 	if imu_data is not None:
 		# imu_data = (timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw)
 		roll, pitch, yaw = imu_data[11], imu_data[12], imu_data[13]
 		ax, ay, az = imu_data[1], imu_data[2], imu_data[3]
+		bv = f"[magenta]{body_vel:+.4f}[/]" if body_vel is not None else "-"
 		table.add_row(
 			"[dim]rad/m/s²[/]",
 			f"[cyan]{roll:+.3f}[/]",
@@ -104,9 +106,10 @@ def build_imu_table(imu_data):
 			f"{ax:+.2f}",
 			f"{ay:+.2f}",
 			f"{az:+.2f}",
+			bv,
 		)
 	else:
-		table.add_row("[dim]rad/m/s²[/]", "-", "-", "-", "-", "-", "-")
+		table.add_row("[dim]rad/m/s²[/]", "-", "-", "-", "-", "-", "-", "-")
 
 	return table
 
@@ -144,7 +147,7 @@ print(f"Loaded config: {config.robot_name} ({config.axis_count} axes)")
 
 initial_display = Group(
 	build_motor_table([], config=config),
-	build_imu_table(None),
+	build_imu_table(None, None),
 	build_latency_table(None)
 )
 
@@ -153,6 +156,7 @@ with Live(initial_display, refresh_per_second=30) as live:
 	current_state = None
 	current_imu_data = None
 	current_latency = None
+	current_body_vel = None
 	for event in node:
 		if event["type"] == "INPUT":
 			if event["id"] == "state_status":
@@ -167,6 +171,10 @@ with Live(initial_display, refresh_per_second=30) as live:
 				raw = bytes(event["value"].to_pylist())
 				if len(raw) >= LATENCY_SIZE:
 					current_latency = struct.unpack(LATENCY_FMT, raw[:LATENCY_SIZE])
+			elif event["id"] == "body_vel":
+				raw = bytes(event["value"].to_pylist())
+				if len(raw) >= 8:
+					current_body_vel = struct.unpack("<d", raw[:8])[0]
 			elif event["id"] == "motor_status":
 				raw = bytes(event["value"].to_pylist())
 				axis_count = len(raw) // AXIS_ACT_SIZE
@@ -182,6 +190,6 @@ with Live(initial_display, refresh_per_second=30) as live:
 
 				# 両方のテーブルを更新
 				motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
-				imu_table = build_imu_table(current_imu_data)
+				imu_table = build_imu_table(current_imu_data, current_body_vel)
 				latency_table = build_latency_table(current_latency)
 				live.update(Group(motor_table, imu_table, latency_table))
