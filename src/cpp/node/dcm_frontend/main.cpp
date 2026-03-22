@@ -59,54 +59,53 @@ int main() {
                 reinterpret_cast<uint8_t*>(&c_schema));
             std::string id(info.id);
 
-            auto import_result = arrow::ImportArray(&c_array, &c_schema);
-            if (!import_result.ok()) continue;
-            auto arr = std::static_pointer_cast<arrow::UInt8Array>(
-                import_result.ValueOrDie());
-
-            if (id == kInputMotorCommands) {
-                // motor_commands → raw_commands: 受信即転送
-                auto commands = ReceiveStructArray<AxisRef>(arr, axis_count);
-                SendStructArray(node, kOutputRawCommands, commands);
+            // パススルー経路: Import せず C ArrowArray を直接転送（ゼロコピー）
+            if (id == kInputRawImu) {
+                send_arrow_output(
+                    node.send_output, rust::String(kOutputImuData),
+                    reinterpret_cast<uint8_t*>(&c_array),
+                    reinterpret_cast<uint8_t*>(&c_schema));
+                continue;
             }
-            else if (id == kInputRawImu) {
-                // raw_imu → imu_data: パススルー
-                struct ArrowArray out_array;
-                struct ArrowSchema out_schema;
-                if (arrow::ExportArray(*arr, &out_array, &out_schema).ok()) {
-                    send_arrow_output(
-                        node.send_output, rust::String(kOutputImuData),
-                        reinterpret_cast<uint8_t*>(&out_array),
-                        reinterpret_cast<uint8_t*>(&out_schema));
-                }
-            }
-            else if (id == kInputRawStatus) {
-                // raw_status → motor_status: 転送 + ウォッチドッグリセット
-                auto status = ReceiveStructArray<AxisAct>(arr, axis_count);
-                SendStructArray(node, kOutputMotorStatus, status);
+            if (id == kInputRawStatus) {
+                send_arrow_output(
+                    node.send_output, rust::String(kOutputMotorStatus),
+                    reinterpret_cast<uint8_t*>(&c_array),
+                    reinterpret_cast<uint8_t*>(&c_schema));
                 last_status_time = std::chrono::steady_clock::now();
                 watchdog_tripped = false;
+                continue;
             }
-            else if (id == kInputWatchdog) {
-                // 30ms タイマー: タイムアウト判定
+            if (id == kInputMotorCommands) {
+                send_arrow_output(
+                    node.send_output, rust::String(kOutputRawCommands),
+                    reinterpret_cast<uint8_t*>(&c_array),
+                    reinterpret_cast<uint8_t*>(&c_schema));
+                continue;
+            }
+
+            // ウォッチドッグ: Import が必要
+            if (id == kInputWatchdog) {
                 auto now = std::chrono::steady_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                     now - last_status_time).count();
 
                 if (elapsed > 30 && !watchdog_tripped) {
-                    // タイムアウト: 全軸エラー AxisAct を合成して送信
                     std::vector<AxisAct> error_status(axis_count);
                     for (size_t i = 0; i < axis_count; i++) {
                         error_status[i].position = 0.0;
                         error_status[i].velocity = 0.0;
                         error_status[i].torque = 0.0;
-                        error_status[i].fault = 1;  // 異常
+                        error_status[i].fault = 1;
                     }
                     SendStructArray(node, kOutputMotorStatus, error_status);
                     watchdog_tripped = true;
                     std::cerr << "[dcm_frontend] watchdog timeout ("
                               << elapsed << "ms)" << std::endl;
                 }
+                // watchdog の c_array は使わないので release
+                if (c_array.release) c_array.release(&c_array);
+                if (c_schema.release) c_schema.release(&c_schema);
             }
         }
     }

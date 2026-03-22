@@ -25,7 +25,7 @@ private:
     static constexpr double kAngleDDeadZone = 0.1;
 
     static constexpr double kVelKp = 0.0001;
-    static constexpr double kVelKi = 0.05;
+    static constexpr double kVelKi = 0.005;
     static constexpr double kVelMaxIntegral = 0.5;
 
     static constexpr double kMaxAngleOffset = 0.05;
