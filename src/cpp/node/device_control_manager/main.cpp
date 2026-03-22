@@ -48,23 +48,23 @@ static void SetCpuAffinity(uint32_t core, int32_t priority) {
 
     pthread_t current_thread = pthread_self();
     if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
-        std::cerr << "[DCM] Warning: Failed to set CPU affinity" << std::endl;
+        std::cerr << "Warning: Failed to set CPU affinity" << std::endl;
     }
 
     struct sched_param param;
     param.sched_priority = priority;
     if (pthread_setschedparam(current_thread, SCHED_FIFO, &param) != 0) {
-        std::cerr << "[DCM] Warning: Failed to set RT Process priority" << std::endl;
+        std::cerr << "Warning: Failed to set RT Process priority" << std::endl;
     }
 }
 
 int main() {
     SetCpuAffinity(1, 80);
     auto node = init_dora_node();
-    std::cout << "[DCM] started" << std::endl;
+    std::cout << "started" << std::endl;
 
     auto config = robot_config::LoadFromFile(kConfigPath);
-    std::cout << "[DCM] " << config.robot_name
+    std::cout <<config.robot_name
               << " (" << config.axis_count << " axes)" << std::endl;
 
     // 通信初期化（transport に応じて実装を切り替え）
@@ -76,10 +76,10 @@ int main() {
     }
     std::string device = (config.transport == "dummy") ? "dummy" : "can0";
     if (!can->Open(device)) {
-        std::cerr << "[DCM] failed to open " << device << std::endl;
+        std::cerr << "failed to open " << device << std::endl;
         return 1;
     }
-    std::cout << "[DCM] " << config.transport << " opened" << std::endl;
+    std::cout <<config.transport << " opened" << std::endl;
 
     MoteusConverter converter;
     const size_t axis_count = config.axes.size();
@@ -121,7 +121,7 @@ int main() {
                 can->SendFrame(
                     converter.GetArbId(ax.device_id), buf, len);
             }
-            std::cout << "[DCM] stopping (all axes OFF)" << std::endl;
+            std::cout << "stopping (all axes OFF)" << std::endl;
             break;
         }
 

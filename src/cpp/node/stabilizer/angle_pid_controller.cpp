@@ -15,9 +15,9 @@ AnglePidController::AnglePidController(const RobotConfig& config)
         if (config.axes[i].name == "wheel_l") wheel_l_ = i;
     }
     if (wheel_r_ == SIZE_MAX || wheel_l_ == SIZE_MAX) {
-        std::cerr << "[AnglePidController] wheel axes not found" << std::endl;
+        std::cerr << "wheel axes not found" << std::endl;
     }
-    std::cout << "[AnglePidController] wheel_r=" << wheel_r_
+    std::cout << "wheel_r=" << wheel_r_
               << " wheel_l=" << wheel_l_ << std::endl;
 
     // run_command バッファ初期化

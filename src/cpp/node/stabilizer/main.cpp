@@ -27,22 +27,22 @@ static std::unique_ptr<Controller> CreateController(
     if (name == "angle_pid") {
         return std::make_unique<AnglePidController>(config);
     }
-    std::cerr << "[stabilizer] unknown controller: " << name
+    std::cerr << "unknown controller: " << name
               << ", falling back to angle_pid" << std::endl;
     return std::make_unique<AnglePidController>(config);
 }
 
 int main() {
     auto node = init_dora_node();
-    std::cout << "[stabilizer] started" << std::endl;
+    std::cout << "started" << std::endl;
 
     auto config = robot_config::LoadFromFile(kConfigPath);
     const size_t axis_count = config.axes.size();
-    std::cout << "[stabilizer] " << config.robot_name
+    std::cout << config.robot_name
               << " (" << axis_count << " axes)" << std::endl;
 
     auto controller = CreateController(config.controller, config);
-    std::cout << "[stabilizer] controller: " << config.controller << std::endl;
+    std::cout << "controller: " << config.controller << std::endl;
 
     // 状態
     State state = State::OFF;
@@ -55,7 +55,7 @@ int main() {
 
         if (type == DoraEventType::Stop ||
             type == DoraEventType::AllInputsClosed) {
-            std::cout << "[stabilizer] stopping" << std::endl;
+            std::cout << "stopping" << std::endl;
             break;
         }
 
@@ -77,7 +77,7 @@ int main() {
                 state = ReceiveValue<State>(arr);
                 if (state == State::RUN && prev_state != State::RUN) {
                     controller->Reset();
-                    std::cout << "[stabilizer] RUN: controller reset" << std::endl;
+                    std::cout << "RUN: controller reset" << std::endl;
                 }
                 prev_state = state;
             }
@@ -97,6 +97,6 @@ int main() {
         }
     }
 
-    std::cout << "[stabilizer] finished" << std::endl;
+    std::cout << "finished" << std::endl;
     return 0;
 }

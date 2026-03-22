@@ -8,7 +8,7 @@ nodes:
     inputs:
       watchdog: dora/timer/millis/30
       state_command: sysid_controller/state_command
-      motor_status: dcm_frontend/motor_status
+      motor_status: mujoco_backend/motor_status
       run_command: sysid_controller/run_command
     outputs:
       - motor_commands
@@ -19,44 +19,32 @@ nodes:
     inputs:
       state_status: robot_control_manager/state_status
       recorder_ready: data_recorder/recorder_ready
-      motor_status: dcm_frontend/motor_status
+      motor_status: mujoco_backend/motor_status
     outputs:
       - state_command
       - run_command
 
-  - id: dcm_frontend
-    path: src/cpp/node/dcm_frontend/build/dcm_frontend
-    inputs:
-      motor_commands: robot_control_manager/motor_commands
-      raw_status: dcm_backend/raw_status
-      raw_imu: dcm_backend/raw_imu
-      watchdog: dora/timer/millis/30
-    outputs:
-      - motor_status
-      - raw_commands
-      - imu_data
-
-  - id: dcm_backend
+  - id: mujoco_backend
     path: dynamic
     inputs:
       tick: dora/timer/millis/3
-      raw_commands: dcm_frontend/raw_commands
+      motor_commands: robot_control_manager/motor_commands
     outputs:
-      - raw_status
-      - raw_imu
+      - motor_status
+      - imu_data
 
   - id: data_recorder
     path: dynamic
     inputs:
       motor_commands: robot_control_manager/motor_commands
-      motor_status: dcm_frontend/motor_status
-      imu_data: dcm_frontend/imu_data
+      motor_status: mujoco_backend/motor_status
+      imu_data: mujoco_backend/imu_data
     outputs:
       - recorder_ready
 
   - id: data_viewer
     path: dynamic
     inputs:
-      motor_status: dcm_frontend/motor_status
+      motor_status: mujoco_backend/motor_status
       state_status: robot_control_manager/state_status
-      imu_data: dcm_frontend/imu_data
+      imu_data: mujoco_backend/imu_data

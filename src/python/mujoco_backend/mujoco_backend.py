@@ -1,7 +1,7 @@
-"""MuJoCo simulation backend for dcm_frontend.
+"""MuJoCo simulation backend.
 
-Receives raw_commands (AxisRef[]), runs physics step,
-outputs raw_status (AxisAct[]) + imu_data (ImuData).
+Receives motor_commands (AxisRef[]), runs physics step,
+outputs motor_status (AxisAct[]) + imu_data (ImuData).
 
 Reuses MuJoCoSim class from mujoco_node for simulation logic.
 """
@@ -104,7 +104,7 @@ class MuJoCoSim:
         key_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_KEY, "standing")
         if key_id >= 0:
             mujoco.mj_resetDataKeyframe(self.model, self.data, key_id)
-            print(f"[mujoco_backend] Loaded keyframe 'standing'")
+            print(f"Loaded keyframe 'standing'")
 
         mujoco.mj_forward(self.model, self.data)
 
@@ -125,7 +125,7 @@ class MuJoCoSim:
 
     def launch_viewer(self):
         self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
-        print("[mujoco_backend] Viewer launched")
+        print("Viewer launched")
 
     def _set_actuator_mode(self, axis_idx, motor_state, kp_scale, kv_scale, torque_limit):
         aid = self.actuator_ids[axis_idx]
@@ -237,14 +237,14 @@ class MuJoCoSim:
 
 
 def main():
-    print(f"[mujoco_backend] Loading model: {MODEL_PATH}")
+    print(f"Loading model: {MODEL_PATH}")
     sim = MuJoCoSim(MODEL_PATH)
-    print(f"[mujoco_backend] Model loaded (timestep={sim.model.opt.timestep}s)")
+    print(f"Model loaded (timestep={sim.model.opt.timestep}s)")
 
     if os.environ.get("MUJOCO_VIEWER", "0") == "1":
         sim.launch_viewer()
 
-    node = Node("dcm_backend")
+    node = Node("mujoco_backend")
 
     last_viewer_sync = 0.0
     VIEWER_SYNC_INTERVAL = 1.0 / 60.0
@@ -255,8 +255,8 @@ def main():
 
     for event in node:
         if event["type"] == "INPUT":
-            if event["id"] == "raw_commands":
-                # raw_commands (AxisRef[]) をバッファ
+            if event["id"] == "motor_commands":
+                # motor_commands (AxisRef[]) をバッファ
                 raw = bytes(event["value"].to_pylist())
                 num_axes = len(raw) // AXIS_REF_SIZE
                 latest_commands = []
@@ -266,7 +266,7 @@ def main():
                 has_new_commands = True
 
             elif event["id"] == "tick":
-                # tick 駆動: コマンド適用 → シミュレーション → raw_status 出力
+                # tick 駆動: コマンド適用 → シミュレーション → motor_status 出力
                 if has_new_commands and latest_commands is not None:
                     should_step = sim.apply_commands(latest_commands)
                     has_new_commands = False
@@ -277,17 +277,17 @@ def main():
                 else:
                     sim.forward()
 
-                # raw_status (AxisAct[])
+                # motor_status (AxisAct[])
                 motor_bytes = sim.get_motor_status()
                 node.send_output(
-                    "raw_status",
+                    "motor_status",
                     pa.array(list(motor_bytes), type=pa.uint8()),
                 )
 
                 # imu_data
                 imu_bytes = sim.get_imu_data()
                 node.send_output(
-                    "raw_imu",
+                    "imu_data",
                     pa.array(list(imu_bytes), type=pa.uint8()),
                 )
 
@@ -298,7 +298,7 @@ def main():
                         sim.sync_viewer()
                         last_viewer_sync = now
 
-    print("[mujoco_backend] Shutting down")
+    print("Shutting down")
 
 
 if __name__ == "__main__":
