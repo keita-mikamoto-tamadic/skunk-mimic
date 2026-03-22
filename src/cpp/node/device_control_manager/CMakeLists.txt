@@ -18,9 +18,10 @@ set(DORA_NODE_API_LIB "${DORA_ROOT}/target/release/libdora_node_api_cxx.a")
 add_executable(device_control_manager
   main.cpp
   ../../lib/robot_config.cpp
+  ../../driver/moteus_can_driver.cpp
   ../../driver/moteus_converter.cpp
   ../../driver/socket_can_comm.cpp
-  ../../driver/dummy_comm.cpp
+  ../../driver/dummy_driver.cpp
   ${DORA_NODE_API_INC}/dora-node-api.cc
 )
 

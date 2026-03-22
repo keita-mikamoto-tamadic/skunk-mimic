@@ -1,21 +1,19 @@
 /**
- * device_control_manager: CAN バス通信 + motor_status/imu_data 出力
+ * device_control_manager: モーター通信 + motor_status/imu_data 出力
  *
  * 責務:
- *   - tick 駆動で CAN 送受信 → motor_status 出力
+ *   - tick 駆動でモーター送受信 → motor_status 出力
  *   - motor_commands 受信 → コマンドバッファ更新
- *   - imu_data 受信 → imu_data パススルー出力
+ *   - raw_imu 受信 → imu_data パススルー出力
  *   - SCHED_FIFO / CPU affinity 設定（リアルタイム）
  *
- * Communication インターフェースで transport を切り替え:
- *   "socketcan" → SocketCanComm（CAN-FD）
- *   "dummy"     → DummyComm（テスト用）
- *   将来: "rs485" → Rs485Comm 等
+ * MotorDriver インターフェースで transport + protocol を切り替え:
+ *   "socketcan" → MoteusCanDriver（CAN-FD + moteus protocol）
+ *   "dummy"     → DummyDriver（テスト用）
  */
 #include <iostream>
 #include <memory>
 #include <vector>
-#include <set>
 #include <chrono>
 #include "dora-node-api.h"
 #include <pthread.h>
@@ -24,10 +22,9 @@
 #include "../../lib/robot_config.hpp"
 #include "../../lib/shm_data_format.hpp"
 #include "../../lib/dora_helpers.hpp"
-#include "../../interface/communication.hpp"
-#include "../../driver/socket_can_comm.hpp"
-#include "../../driver/dummy_comm.hpp"
-#include "../../driver/moteus_converter.hpp"
+#include "../../interface/motor_driver.hpp"
+#include "../../driver/moteus_can_driver.hpp"
+#include "../../driver/dummy_driver.hpp"
 
 constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
@@ -38,8 +35,6 @@ constexpr const char* kInputImuData       = "raw_imu";
 constexpr const char* kOutputMotorStatus  = "motor_status";
 constexpr const char* kOutputImuData      = "imu_data";
 constexpr const char* kOutputLatency      = "latency";
-
-constexpr size_t kMaxFrameSize = 64;
 
 static void SetCpuAffinity(uint32_t core, int32_t priority) {
     cpu_set_t cpuset;
@@ -58,41 +53,36 @@ static void SetCpuAffinity(uint32_t core, int32_t priority) {
     }
 }
 
+static std::unique_ptr<MotorDriver> CreateDriver(const std::string& transport) {
+    if (transport == "dummy") {
+        return std::make_unique<DummyDriver>();
+    }
+    return std::make_unique<MoteusCanDriver>();
+}
+
 int main() {
     SetCpuAffinity(1, 80);
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
 
     auto config = robot_config::LoadFromFile(kConfigPath);
-    std::cout <<config.robot_name
+    std::cout << config.robot_name
               << " (" << config.axis_count << " axes)" << std::endl;
 
-    // 通信初期化（transport に応じて実装を切り替え）
-    std::unique_ptr<Communication> can;
-    if (config.transport == "dummy") {
-        can = std::make_unique<DummyComm>();
-    } else {
-        can = std::make_unique<SocketCanComm>();
-    }
+    // ドライバ初期化
+    auto driver = CreateDriver(config.transport);
     std::string device = (config.transport == "dummy") ? "dummy" : "can0";
-    if (!can->Open(device)) {
+    if (!driver->Open(device)) {
         std::cerr << "failed to open " << device << std::endl;
         return 1;
     }
-    std::cout <<config.transport << " opened" << std::endl;
+    std::cout << config.transport << " opened" << std::endl;
 
-    MoteusConverter converter;
     const size_t axis_count = config.axes.size();
 
     // コマンドバッファ
     std::vector<AxisRef> latest_commands(axis_count);
     bool has_new_commands = false;
-
-    // expected_ids を事前構築
-    std::set<int> expected_ids;
-    for (const auto& ax : config.axes) {
-        expected_ids.insert(ax.device_id);
-    }
 
     // レイテンシ計測
     int can_count = 0;
@@ -110,17 +100,7 @@ int main() {
 
         if (type == DoraEventType::Stop ||
             type == DoraEventType::AllInputsClosed) {
-            // 全軸 OFF 送信
-            uint8_t buf[kMaxFrameSize];
-            AxisRef off_ref = {};
-            off_ref.motor_state = MotorState::OFF;
-            for (size_t i = 0; i < axis_count; i++) {
-                const auto& ax = config.axes[i];
-                size_t len = converter.BuildCommandFrame(
-                    buf, off_ref, ax.motdir);
-                can->SendFrame(
-                    converter.GetArbId(ax.device_id), buf, len);
-            }
+            driver->SendAllOff(config.axes);
             std::cout << "stopping (all axes OFF)" << std::endl;
             break;
         }
@@ -163,52 +143,16 @@ int main() {
                 has_new_commands = true;
             }
             else if (id == kInputTick) {
-                uint8_t buf[kMaxFrameSize];
-                uint8_t rx[kMaxFrameSize];
-                size_t rxlen;
                 auto t0 = std::chrono::steady_clock::now();
 
-                // 送信
-                for (size_t i = 0; i < axis_count; i++) {
-                    const auto& ax = config.axes[i];
-                    size_t len;
-                    if (has_new_commands) {
-                        len = converter.BuildCommandFrame(
-                            buf, latest_commands[i], ax.motdir);
-                    } else {
-                        len = converter.BuildQueryFrame(buf);
-                    }
-                    can->SendFrame(
-                        converter.GetArbId(ax.device_id), buf, len);
+                // 送受信
+                if (has_new_commands) {
+                    driver->SendCommands(latest_commands, config.axes);
+                    has_new_commands = false;
+                } else {
+                    driver->SendQueries(config.axes);
                 }
-                has_new_commands = false;
-
-                // 受信
-                std::vector<AxisAct> acts(axis_count);
-                std::set<int> received_ids;
-                auto deadline = std::chrono::steady_clock::now()
-                                + std::chrono::milliseconds(2);
-
-                while (received_ids.size() < expected_ids.size()) {
-                    auto now = std::chrono::steady_clock::now();
-                    if (now >= deadline) break;
-
-                    int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        deadline - now).count();
-                    if (remaining_ms <= 0) break;
-
-                    int device_id;
-                    if (can->ReceiveAnyFrame(expected_ids, &device_id, rx, &rxlen, remaining_ms)) {
-                        for (size_t i = 0; i < axis_count; i++) {
-                            if (config.axes[i].device_id == device_id) {
-                                converter.ParseResponse(
-                                    rx, rxlen, acts[i], config.axes[i].motdir);
-                                received_ids.insert(device_id);
-                                break;
-                            }
-                        }
-                    }
-                }
+                auto acts = driver->ReceiveStatus(config.axes, 2);
 
                 // CAN レイテンシ計測
                 long us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -217,7 +161,7 @@ int main() {
                 if (us > can_max) can_max = us;
                 can_count++;
 
-                // latency データ送信（毎 tick）
+                // latency データ送信
                 LatencyData latency;
                 latency.can_avg_us = (can_count > 0) ? static_cast<double>(can_sum) / can_count : 0;
                 latency.can_max_us = static_cast<double>(can_max);
