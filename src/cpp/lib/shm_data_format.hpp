@@ -48,3 +48,9 @@ struct ImuData {
     double pitch;  // rad (Y軸回転)
     double yaw;    // rad (Z軸回転)
 };
+
+struct EstimatedState {
+    double velocity;    // ṡ [m/s] ボディ前進速度
+    double yaw;         // α [rad] ヨー角
+    double yaw_rate;    // α̇ [rad/s] ヨーレート
+};

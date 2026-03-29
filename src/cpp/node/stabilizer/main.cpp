@@ -21,7 +21,7 @@ constexpr const char* kInputMotorStatus  = "motor_status";
 constexpr const char* kInputImuData      = "imu_data";
 constexpr const char* kInputStateStatus  = "state_status";
 constexpr const char* kOutputRunCommand  = "run_command";
-constexpr const char* kOutputBodyVel     = "body_vel";
+constexpr const char* kOutputEstState    = "estimated_state";
 
 // コントローラ生成
 static std::unique_ptr<Controller> CreateController(
@@ -99,8 +99,8 @@ int main() {
                 auto run_command = controller->Compute(config);
                 ZeroCopySendStructArray(node, kOutputRunCommand, run_command);
 
-                double body_vel = controller->EstBodyVel();
-                SendStruct(node, kOutputBodyVel, body_vel);
+                auto est_state = controller->EstState();
+                SendStruct(node, kOutputEstState, est_state);
             }
         }
     }

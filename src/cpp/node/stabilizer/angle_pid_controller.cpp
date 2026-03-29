@@ -78,8 +78,9 @@ std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
     return run_command_;
 }
 
-double AnglePidController::EstBodyVel() const {
+EstimatedState AnglePidController::EstState() const {
     double wheel_vel_avg =
         (motor_status_[wheel_r_].velocity + motor_status_[wheel_l_].velocity) / 2.0;
-    return wheel_vel_avg * kWheelRadius + kCoMHeight * std::cos(pitch_) * pitch_rate_;
+    double vel = wheel_vel_avg * kWheelRadius + kCoMHeight * std::cos(pitch_) * pitch_rate_;
+    return {vel, 0.0, 0.0};
 }

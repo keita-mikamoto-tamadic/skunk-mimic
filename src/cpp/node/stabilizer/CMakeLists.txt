@@ -20,6 +20,7 @@ add_executable(stabilizer
   main.cpp
   angle_pid_controller.cpp
   lqr_controller.cpp
+  body_state_ekf.cpp
   ../../lib/robot_config.cpp
   ${DORA_NODE_API_INC}/dora-node-api.cc
 )

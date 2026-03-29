@@ -26,6 +26,10 @@ AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
 IMU_DATA_FMT = "<14d"  # little-endian
 IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
 
+# EstimatedState: velocity, yaw, yaw_rate (3 doubles = 24 bytes)
+EST_STATE_FMT = "<3d"
+EST_STATE_SIZE = struct.calcsize(EST_STATE_FMT)  # 24
+
 # LatencyData: can_avg_us, can_max_us, ctrl_avg_us, ctrl_max_us
 LATENCY_FMT = "<4d"
 LATENCY_SIZE = struct.calcsize(LATENCY_FMT)  # 32
@@ -82,34 +86,43 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 	return table
 
 
-def build_imu_table(imu_data, body_vel=None):
-	table = Table(show_header=True, title="IMU", title_style="cyan")
+def build_imu_table(imu_data, est_state=None):
+	table = Table(show_header=True, title="IMU / EKF", title_style="cyan")
 	table.add_column("", justify="left", style="dim")
-	table.add_column("Roll", justify="right")
-	table.add_column("Pitch", justify="right")
-	table.add_column("Yaw", justify="right")
+	table.add_column("Roll / est_vel", justify="right")
+	table.add_column("Pitch / est_yaw", justify="right")
+	table.add_column("Yaw / est_yaw_rate", justify="right")
 	table.add_column("ax", justify="right")
 	table.add_column("ay", justify="right")
 	table.add_column("az", justify="right")
-	table.add_column("body_vel", justify="right")
 
 	if imu_data is not None:
-		# imu_data = (timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw)
 		roll, pitch, yaw = imu_data[11], imu_data[12], imu_data[13]
 		ax, ay, az = imu_data[1], imu_data[2], imu_data[3]
-		bv = f"[magenta]{body_vel:+.4f}[/]" if body_vel is not None else "-"
 		table.add_row(
-			"[dim]rad/m/s²[/]",
+			"[dim]IMU[/]",
 			f"[cyan]{roll:+.3f}[/]",
 			f"[cyan]{pitch:+.3f}[/]",
 			f"[cyan]{yaw:+.3f}[/]",
 			f"{ax:+.2f}",
 			f"{ay:+.2f}",
 			f"{az:+.2f}",
-			bv,
 		)
 	else:
-		table.add_row("[dim]rad/m/s²[/]", "-", "-", "-", "-", "-", "-", "-")
+		table.add_row("[dim]IMU[/]", "-", "-", "-", "-", "-", "-")
+
+	# EKF推定状態（同じカラム構造の2行目）
+	if est_state is not None:
+		vel, yaw_est, yaw_rate = est_state
+		table.add_row(
+			"[dim]EKF[/]",
+			f"[magenta]{vel:+.4f}[/]",
+			f"[magenta]{yaw_est:+.3f}[/]",
+			f"[magenta]{yaw_rate:+.3f}[/]",
+			"", "", "",
+		)
+	else:
+		table.add_row("[dim]EKF[/]", "-", "-", "-", "", "", "")
 
 	return table
 
@@ -156,7 +169,7 @@ with Live(initial_display, refresh_per_second=30) as live:
 	current_state = None
 	current_imu_data = None
 	current_latency = None
-	current_body_vel = None
+	current_est_state = None
 	for event in node:
 		if event["type"] == "INPUT":
 			if event["id"] == "state_status":
@@ -171,10 +184,10 @@ with Live(initial_display, refresh_per_second=30) as live:
 				raw = bytes(event["value"].to_pylist())
 				if len(raw) >= LATENCY_SIZE:
 					current_latency = struct.unpack(LATENCY_FMT, raw[:LATENCY_SIZE])
-			elif event["id"] == "body_vel":
+			elif event["id"] == "estimated_state":
 				raw = bytes(event["value"].to_pylist())
-				if len(raw) >= 8:
-					current_body_vel = struct.unpack("<d", raw[:8])[0]
+				if len(raw) >= EST_STATE_SIZE:
+					current_est_state = struct.unpack(EST_STATE_FMT, raw[:EST_STATE_SIZE])
 			elif event["id"] == "motor_status":
 				raw = bytes(event["value"].to_pylist())
 				axis_count = len(raw) // AXIS_ACT_SIZE
@@ -190,6 +203,6 @@ with Live(initial_display, refresh_per_second=30) as live:
 
 				# 両方のテーブルを更新
 				motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
-				imu_table = build_imu_table(current_imu_data, current_body_vel)
+				imu_table = build_imu_table(current_imu_data, current_est_state)
 				latency_table = build_latency_table(current_latency)
 				live.update(Group(motor_table, imu_table, latency_table))

@@ -16,8 +16,7 @@ public:
                 const ImuData& imu_data) override;
     std::vector<AxisRef> Compute(const RobotConfig& config) override;
 
-    // ボディ並進速度推定 [m/s]
-    double EstBodyVel() const;
+    EstimatedState EstState() const override;
 
 private:
     // PID 定数

@@ -1,9 +1,13 @@
 """A,B行列のCSVからLQRゲインを計算し、CSV出力する。
 
-入力: A.csv, B.csv（calc_ab_matrixの出力）
-出力: lqrGain.csv（1行: [K_1, K_2, ..., K_n]）
+2DOF (3状態1入力) と 3DOF (4状態2入力) の両方に対応。
+A,B行列のサイズから自動判定する。
+
+入力: A.csv / A_3dof.csv, B.csv / B_3dof.csv（calc_ab_matrixの出力）
+出力: lqrGain.csv
 """
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -33,12 +37,23 @@ def solve_lqr(A, B, Q, R):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", choices=["2dof", "3dof"], default="3dof",
+                        help="モデル選択: 2dof (3状態1入力) or 3dof (4状態2入力)")
+    args = parser.parse_args()
+
     np.set_printoptions(precision=4, suppress=True)
 
     # 0. calc_ab_matrix を先に実行
     import subprocess, sys
-    ab_script = AB_DIR / "main.py"
-    print("=== calc_ab_matrix 実行 ===")
+    if args.model == "2dof":
+        ab_script = AB_DIR / "calc_model_2dof_lagrange.py"
+        a_file, b_file = "A.csv", "B.csv"
+    else:
+        ab_script = AB_DIR / "calc_model_3dof_lagrange.py"
+        a_file, b_file = "A_3dof.csv", "B_3dof.csv"
+
+    print(f"=== calc_ab_matrix 実行 ({args.model}) ===")
     ret = subprocess.run([sys.executable, str(ab_script)], cwd=str(AB_DIR))
     if ret.returncode != 0:
         print("calc_ab_matrix 失敗")
@@ -46,8 +61,8 @@ def main():
     print()
 
     # 1. A,B行列読み込み
-    A = load_matrix(AB_DIR / "A.csv")
-    B = load_matrix(AB_DIR / "B.csv")
+    A = load_matrix(AB_DIR / a_file)
+    B = load_matrix(AB_DIR / b_file)
     if B.ndim == 1:
         B = B.reshape(-1, 1)
 
@@ -63,10 +78,19 @@ def main():
     # 3. 可制御性
     check_controllability(A, B)
 
-    # 4. LQR設計
-    #            ẋb     φ     φ̇
-    Q = np.diag([10.0, 1.0, 10.0][:n])
-    R = np.atleast_2d(10.0)
+    # 4. LQR設計（モデルに応じたQ,R）
+    if n == 3 and m == 1:
+        #            ṡ      φ      φ̇
+        Q = np.diag([50.0, 0.01, 10.0])
+        R = np.atleast_2d(10.0)
+    elif n == 4 and m == 2:
+        #            ṡ      φ      φ̇     α̇
+        Q = np.diag([50.0, 0.01, 5.0, 40.0])
+        #            T_φ    T_α
+        R = np.diag([10.0, 10.0])
+    else:
+        print(f"未対応の次元: n={n}, m={m}")
+        sys.exit(1)
 
     K = solve_lqr(A, B, Q, R)
     print(f"\nQ = diag{list(np.diag(Q))}")

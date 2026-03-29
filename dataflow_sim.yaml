@@ -19,7 +19,7 @@ nodes:
       state_status: robot_control_manager/state_status
     outputs:
       - run_command
-      - body_vel
+      - estimated_state
 
   - id: mujoco_backend
     path: dynamic
@@ -41,4 +41,4 @@ nodes:
       motor_status: mujoco_backend/motor_status
       state_status: robot_control_manager/state_status
       imu_data: mujoco_backend/imu_data
-      body_vel: stabilizer/body_vel
+      estimated_state: stabilizer/estimated_state
