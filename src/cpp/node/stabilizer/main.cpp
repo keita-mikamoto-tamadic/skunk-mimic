@@ -12,6 +12,7 @@
 #include "../../lib/dora_helpers.hpp"
 #include "controller.hpp"
 #include "angle_pid_controller.hpp"
+#include "lqr_controller.hpp"
 
 constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
@@ -27,6 +28,9 @@ static std::unique_ptr<Controller> CreateController(
     const std::string& name, const RobotConfig& config) {
     if (name == "angle_pid") {
         return std::make_unique<AnglePidController>(config);
+    }
+    if (name == "lqr") {
+        return std::make_unique<LqrController>(config);
     }
     std::cerr << "unknown controller: " << name
               << ", falling back to angle_pid" << std::endl;
