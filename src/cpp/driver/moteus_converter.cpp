@@ -86,12 +86,14 @@ size_t MoteusConverter::BuildCommandFrame(
         // トルク制御: kp=0, kv=0, feedforward_torqueでトルク指令
         cmd.position = std::numeric_limits<double>::quiet_NaN();
         cmd.velocity = 0.0;
-        cmd.feedforward_torque = ref.ref_val;  // [Nm] 単位変換不要
+        cmd.feedforward_torque = ref.ref_val * motdir;  // [Nm] motdir適用
         cmd.maximum_torque = ref.torque_limit;
         cmd.kp_scale = 0.0;
         cmd.kd_scale = 0.0;
         cmd.velocity_limit = std::numeric_limits<double>::quiet_NaN();
         cmd.accel_limit = std::numeric_limits<double>::quiet_NaN();
+        fmt.feedforward_torque = moteus::Resolution::kFloat;
+        fmt.maximum_torque = moteus::Resolution::kFloat;
         fmt.kp_scale = moteus::Resolution::kFloat;
         fmt.kd_scale = moteus::Resolution::kFloat;
         break;

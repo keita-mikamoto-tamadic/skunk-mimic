@@ -19,6 +19,7 @@ nodes:
       state_status: robot_control_manager/state_status
     outputs:
       - run_command
+      - estimated_state
 
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
@@ -50,3 +51,4 @@ nodes:
       state_status: robot_control_manager/state_status
       imu_data: device_control_manager/imu_data
       latency: device_control_manager/latency
+      estimated_state: stabilizer/estimated_state
