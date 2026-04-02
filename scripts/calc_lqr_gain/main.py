@@ -85,9 +85,9 @@ def main():
         R = np.atleast_2d(10.0)
     elif n == 4 and m == 2:
         #            ṡ      φ      φ̇     α̇
-        Q = np.diag([50.0, 0.01, 5.0, 40.0])
+        Q = np.diag([300.0, 0.01, 15.0, 40.0])
         #            T_φ    T_α
-        R = np.diag([10.0, 10.0])
+        R = np.diag([50.0, 50.0])
     else:
         print(f"未対応の次元: n={n}, m={m}")
         sys.exit(1)
