@@ -13,6 +13,7 @@
 #include "controller.hpp"
 #include "angle_pid_controller.hpp"
 #include "lqr_controller.hpp"
+#include "body_state_ekf.hpp"
 
 constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 
@@ -54,6 +55,20 @@ int main() {
     State prev_state = State::OFF;
     ImuData imu_data = {};
 
+    // EKF: コントローラ非依存のボディ状態推定
+    BodyStateEkf ekf;
+    ekf.Init();
+    constexpr double kWheelRadius = 0.07795;
+    constexpr double kCoMHeight = 0.2484;
+    constexpr double kTickSec = 0.003;
+
+    // ホイール軸インデックス
+    size_t wheel_r = SIZE_MAX, wheel_l = SIZE_MAX;
+    for (size_t i = 0; i < axis_count; i++) {
+        if (config.axes[i].name == "wheel_r") wheel_r = i;
+        if (config.axes[i].name == "wheel_l") wheel_l = i;
+    }
+
     while (true) {
         auto event = node.events->next();
         auto type = event_type(event);
@@ -93,14 +108,33 @@ int main() {
             else if (id == kInputMotorStatus) {
                 auto motor_status = ReceiveStructArray<AxisAct>(arr, axis_count);
 
+                // READY以降: EKF更新（コントローラ非依存）
+                if (state >= State::READY && wheel_r != SIZE_MAX) {
+                    double pitch = imu_data.pitch;
+                    double pitch_rate = imu_data.gy;
+                    double ax_forward = imu_data.ax * std::cos(pitch)
+                                      + imu_data.az * std::sin(pitch);
+                    ekf.Predict(static_cast<float>(kTickSec),
+                                static_cast<float>(ax_forward));
+
+                    double wheel_vel_avg =
+                        (motor_status[wheel_r].velocity + motor_status[wheel_l].velocity) / 2.0;
+                    double v_body = kWheelRadius * wheel_vel_avg
+                                  + kCoMHeight * std::cos(pitch) * pitch_rate;
+                    ekf.Correct(static_cast<float>(v_body));
+                }
+
+                // EstimatedState は常に送信
+                EstimatedState est_state = {
+                    static_cast<double>(ekf.est_velocity()), 0.0, 0.0};
+                SendStruct(node, kOutputEstState, est_state);
+
+                // RUNのみ: 制御出力
                 if (state != State::RUN) continue;
 
-                controller->Update(motor_status, imu_data);
+                controller->Update(motor_status, imu_data, ekf);
                 auto run_command = controller->Compute(config);
                 ZeroCopySendStructArray(node, kOutputRunCommand, run_command);
-
-                auto est_state = controller->EstState();
-                SendStruct(node, kOutputEstState, est_state);
             }
         }
     }

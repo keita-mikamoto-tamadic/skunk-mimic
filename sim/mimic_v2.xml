@@ -75,8 +75,8 @@
         </body>
     </worldbody>
     <sensor>
-        <gyro site="imu" name="gyro"/>
-        <accelerometer site="imu" name="accel"/>
+        <gyro name="gyro" site="imu"/>
+        <accelerometer name="accel" site="imu"/>
         <velocimeter site="imu" name="linvel"/>
         <framepos objtype="site" objname="imu" name="imu_pos"/>
         <framequat objtype="site" objname="imu" name="imu_quat"/>

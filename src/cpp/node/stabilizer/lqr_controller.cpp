@@ -41,8 +41,6 @@ LqrController::LqrController(const RobotConfig& config) {
                   << K_[0] << ", " << K_[1] << ", " << K_[2] << "]" << std::endl;
     }
 
-    ekf_.Init();
-
     run_command_.resize(axis_count);
     for (size_t i = 0; i < axis_count; i++) {
         run_command_[i].motor_state = MotorState::OFF;
@@ -56,36 +54,21 @@ LqrController::LqrController(const RobotConfig& config) {
 }
 
 void LqrController::Reset() {
-    ekf_.Init();
+    est_velocity_ = 0.0;
 }
 
 void LqrController::Update(const std::vector<AxisAct>& motor_status,
-                            const ImuData& imu_data) {
+                            const ImuData& imu_data,
+                            const BodyStateEkf& ekf) {
     motor_status_ = motor_status;
     pitch_ = imu_data.pitch;
     pitch_rate_ = imu_data.gy;
-
-    // EKF predict: 重力除去済み前方加速度
-    double ax_forward = imu_data.ax * std::cos(pitch_)
-                      + imu_data.az * std::sin(pitch_);
-    ekf_.Predict(static_cast<float>(kTickSec),
-                 static_cast<float>(ax_forward));
-
-    // EKF correct: ボディ速度観測
-    double wheel_vel_avg =
-        (motor_status[wheel_r_].velocity + motor_status[wheel_l_].velocity) / 2.0;
-    double v_body = kWheelRadius * wheel_vel_avg
-                  + kCoMHeight * std::cos(pitch_) * pitch_rate_;
-    ekf_.Correct(static_cast<float>(v_body));
+    est_velocity_ = static_cast<double>(ekf.est_velocity());
 }
 
 std::vector<AxisRef> LqrController::Compute(const RobotConfig& config) {
     // 状態ベクトル X = [ṡ, φ, φ̇]
-    double X[kNumStates] = {
-        static_cast<double>(ekf_.est_velocity()),
-        pitch_ - kPitchOffset,
-        pitch_rate_,
-    };
+    double X[kNumStates] = {est_velocity_, pitch_ - kPitchOffset, pitch_rate_};
 
     // T_φ = -K · X
     double t_phi = 0.0;
@@ -93,11 +76,8 @@ std::vector<AxisRef> LqrController::Compute(const RobotConfig& config) {
         t_phi += -K_[j] * X[j];
     }
 
-    // 各ホイールに均等配分 → トルクを速度指令に変換
-    double torque_per_wheel = t_phi / 2.0;
-    torque_per_wheel = std::clamp(torque_per_wheel, -kMaxTorque, kMaxTorque);
-
-    // v_cmd = v_actual + T / (kv_scale * base_kv)
+    // トルク→速度変換: v_cmd = v_actual + T / (kv_scale * base_kv)
+    double torque_per_wheel = std::clamp(t_phi / 2.0, -kMaxTorque, kMaxTorque);
     double effective_kv = kKvScale * kBaseKv;
     double vel_l = motor_status_[wheel_l_].velocity + torque_per_wheel / effective_kv;
     double vel_r = motor_status_[wheel_r_].velocity + torque_per_wheel / effective_kv;
@@ -123,12 +103,4 @@ std::vector<AxisRef> LqrController::Compute(const RobotConfig& config) {
     }
 
     return run_command_;
-}
-
-EstimatedState LqrController::EstState() const {
-    return {
-        static_cast<double>(ekf_.est_velocity()),
-        0.0,
-        0.0,
-    };
 }

@@ -7,7 +7,7 @@ void BodyStateEkf::Init() {
     // プロセスノイズ Q
     //          p      v
     matQ_ << 0.01F, 0.0F,
-             0.0F,  0.1F;
+             0.0F,  0.4F;
 
     // 観測ノイズ R
     matR_ << 0.01F;

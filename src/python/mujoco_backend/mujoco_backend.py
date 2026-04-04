@@ -120,6 +120,10 @@ class MuJoCoSim:
             self.data.qpos[self.qpos_addrs[i]] for i in range(NUM_AXES)
         ]
 
+        # IMUセンサーノイズ標準偏差（実機測定後に更新）
+        self.accel_noise_std = 0.1   # [m/s²]
+        self.gyro_noise_std = 0.02   # [rad/s]
+
         self.viewer = None
         self._viewer_lock = threading.Lock()
 
@@ -215,6 +219,10 @@ class MuJoCoSim:
 
         accel = sensor.get("accel", np.zeros(3))
         gyro = sensor.get("gyro", np.zeros(3))
+
+        # センサーノイズ（MuJoCo XMLのnoise属性が効かないため手動加算）
+        accel = accel + np.random.normal(0.0, self.accel_noise_std, 3)
+        gyro = gyro + np.random.normal(0.0, self.gyro_noise_std, 3)
         quat = sensor.get("imu_quat", np.array([1.0, 0.0, 0.0, 0.0]))
 
         w, x, y, z = quat

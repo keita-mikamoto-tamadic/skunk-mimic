@@ -13,10 +13,9 @@ public:
 
     void Reset() override;
     void Update(const std::vector<AxisAct>& motor_status,
-                const ImuData& imu_data) override;
+                const ImuData& imu_data,
+                const BodyStateEkf& ekf) override;
     std::vector<AxisRef> Compute(const RobotConfig& config) override;
-
-    EstimatedState EstState() const override;
 
 private:
     // PID 定数

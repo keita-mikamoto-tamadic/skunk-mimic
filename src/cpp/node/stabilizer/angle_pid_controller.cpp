@@ -39,7 +39,8 @@ void AnglePidController::Reset() {
 }
 
 void AnglePidController::Update(const std::vector<AxisAct>& motor_status,
-                                const ImuData& imu_data) {
+                                const ImuData& imu_data,
+                                const BodyStateEkf& /* ekf */) {
     motor_status_ = motor_status;
     pitch_ = imu_data.pitch;
     pitch_rate_ = imu_data.gy;
@@ -78,9 +79,3 @@ std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
     return run_command_;
 }
 
-EstimatedState AnglePidController::EstState() const {
-    double wheel_vel_avg =
-        (motor_status_[wheel_r_].velocity + motor_status_[wheel_l_].velocity) / 2.0;
-    double vel = wheel_vel_avg * kWheelRadius + kCoMHeight * std::cos(pitch_) * pitch_rate_;
-    return {vel, 0.0, 0.0};
-}
