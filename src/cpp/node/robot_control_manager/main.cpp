@@ -1,5 +1,8 @@
 #include <iostream>
 #include <vector>
+#include <chrono>
+#include <pthread.h>
+#include <sched.h>
 #include "dora-node-api.h"
 #include "robot_control_manager.hpp"
 #include "../../lib/robot_config.hpp"
@@ -28,7 +31,16 @@ static const char* StateName(State s) {
     return "?";
 }
 
+static void SetRtPriority(int32_t priority) {
+    struct sched_param param;
+    param.sched_priority = priority;
+    if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+        std::cerr << "Warning: Failed to set RT Process priority" << std::endl;
+    }
+}
+
 int main() {
+    SetRtPriority(79);
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
 
@@ -42,6 +54,8 @@ int main() {
     sm.Configure(config, makeMoteusFaultEvaluator(State::OFF));
 
     bool motor_status_received = false;
+    auto last_motor_status_time = std::chrono::steady_clock::now();
+    int motor_status_count = 0;
 
     while (true) {
         auto event = node.events->next();
@@ -90,13 +104,35 @@ int main() {
                 }
             }
             else if (id == kInputMotorStatus) {
-                // motor_status 駆動: ステータス更新 → 制御計算 → コマンド出力
+                auto t0 = std::chrono::steady_clock::now();
+                motor_status_count++;
+                if (motor_status_count > 100) {
+                    long interval_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        t0 - last_motor_status_time).count();
+                    if (interval_us > 10000) {
+                        std::cerr << "motor_status gap: " << interval_us << "us" << std::endl;
+                    }
+                }
+                last_motor_status_time = t0;
                 auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
                 sm.UpdateMotorStatus(acts);
                 sm.RobotController();
+                auto t1 = std::chrono::steady_clock::now();
                 ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
+                auto t2 = std::chrono::steady_clock::now();
                 ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
+                auto t3 = std::chrono::steady_clock::now();
                 motor_status_received = true;
+                long calc_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+                long send_cmd_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+                long send_st_us = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
+                long total_us = calc_us + send_cmd_us + send_st_us;
+                if (total_us > 5000) {
+                    std::cerr << "RCM slow: " << total_us << "us"
+                              << " (calc=" << calc_us
+                              << " send_cmd=" << send_cmd_us
+                              << " send_st=" << send_st_us << ")" << std::endl;
+                }
             }
             else if (id == kInputWatchdog) {
                 // ウォッチドッグ: motor_status 途絶検出

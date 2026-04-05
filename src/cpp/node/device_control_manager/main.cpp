@@ -84,7 +84,9 @@ int main() {
     std::vector<AxisRef> latest_commands(axis_count);
     bool has_new_commands = false;
 
-    // レイテンシ計測
+    // レイテンシ計測（最初の kWarmupCycles 回はスキップ）
+    constexpr int kWarmupCycles = 100;
+    int tick_count = 0;
     int can_count = 0;
     long can_sum = 0;
     long can_max = 0;
@@ -129,12 +131,14 @@ int main() {
             if (id == kInputMotorCommands) {
                 // 制御側計測: motor_status 送信 → motor_commands 受信
                 if (status_pending) {
-                    long us = std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - status_send_time).count();
                     status_pending = false;
-                    ctrl_sum += us;
-                    if (us > ctrl_max) ctrl_max = us;
-                    ctrl_count++;
+                    if (tick_count > kWarmupCycles) {
+                        long us = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now() - status_send_time).count();
+                        ctrl_sum += us;
+                        if (us > ctrl_max) ctrl_max = us;
+                        ctrl_count++;
+                    }
                 }
                 latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
                 has_new_commands = true;
@@ -151,12 +155,15 @@ int main() {
                 }
                 auto acts = driver->ReceiveStatus(config.axes, 2);
 
-                // CAN レイテンシ計測
-                long us = std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - t0).count();
-                can_sum += us;
-                if (us > can_max) can_max = us;
-                can_count++;
+                // CAN レイテンシ計測（ウォームアップ後のみ）
+                tick_count++;
+                if (tick_count > kWarmupCycles) {
+                    long us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - t0).count();
+                    can_sum += us;
+                    if (us > can_max) can_max = us;
+                    can_count++;
+                }
 
                 // latency データ送信
                 LatencyData latency;

@@ -80,6 +80,32 @@ dora --version
 # dora-rs (Python): not found
 ```
 
+### dora メトリクス収集の無効化（リアルタイム制御時に必須）
+
+dora daemon は2秒ごとにプロセスメトリクス（CPU, メモリ等）を収集しますが、この処理がイベントループをブロックし、メッセージ配信に ~20ms の遅延を引き起こします。リアルタイム制御で使用する場合は以下を適用してください。
+
+`~/dora/binaries/daemon/src/lib.rs` の `Event::MetricsInterval` ハンドラをコメントアウト：
+
+```rust
+// 変更前
+Event::MetricsInterval => {
+    self.collect_and_send_metrics().await?;
+}
+
+// 変更後
+Event::MetricsInterval => {
+    // self.collect_and_send_metrics().await?;
+}
+```
+
+リビルド：
+```bash
+cd ~/dora
+cargo build --release -p dora-cli
+```
+
+> **Note**: dora をバージョンアップした場合はこのパッチを再適用してください。
+
 ### dora をバージョンアップする場合
 
 既存の dora を新しいバージョンに更新する手順：
