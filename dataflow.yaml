@@ -38,8 +38,19 @@ nodes:
   - id: data_viewer
     path: dynamic
     inputs:
-      motor_status: device_control_manager/motor_status
-      state_status: robot_control_manager/state_status
-      imu_data: device_control_manager/imu_data
-      latency: device_control_manager/latency
-      estimated_state: robot_control_manager/estimated_state
+      tick: dora/timer/millis/100
+      motor_status:
+        source: device_control_manager/motor_status
+        queue_size: 1
+      state_status:
+        source: robot_control_manager/state_status
+        queue_size: 1
+      imu_data:
+        source: device_control_manager/imu_data
+        queue_size: 1
+      latency:
+        source: device_control_manager/latency
+        queue_size: 1
+      estimated_state:
+        source: robot_control_manager/estimated_state
+        queue_size: 1
