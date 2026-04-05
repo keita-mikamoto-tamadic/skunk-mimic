@@ -229,6 +229,15 @@ set(DORA_NODE_API_LIB "${DORA_ROOT}/target/release/libdora_node_api_cxx.a")
 cd src/cpp && mkdir -p build && cd build && cmake .. && make
 ```
 
+# 7. setcap
+'''bash
+sudo setcap cap_sys_nice+ep src/cpp/node/device_control_manager/build/device_control_manager
+'''
+
+'''bash
+sudo setcap cap_sys_nice+ep src/cpp/node/robot_control_manager/build/robot_control_manager
+'''
+
 # 7. 通信モードの切り替え
 
 robot_config JSON ファイルの `transport` フィールドで通信方式を切り替えられます。

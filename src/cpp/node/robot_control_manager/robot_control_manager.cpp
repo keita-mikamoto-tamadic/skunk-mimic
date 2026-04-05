@@ -1,10 +1,22 @@
 #include "robot_control_manager.hpp"
+#include "../../controller/angle_pid_controller.hpp"
+#include "../../controller/lqr_controller.hpp"
 #include <cmath>
 #include <iostream>
 #include <algorithm>
 
-constexpr size_t kWheelR = 2;
-constexpr size_t kWheelL = 5;
+static std::unique_ptr<Controller> CreateController(
+    const std::string& name, const RobotConfig& config) {
+    if (name == "angle_pid") {
+        return std::make_unique<AnglePidController>(config);
+    }
+    if (name == "lqr") {
+        return std::make_unique<LqrController>(config);
+    }
+    std::cerr << "unknown controller: " << name
+              << ", falling back to angle_pid" << std::endl;
+    return std::make_unique<AnglePidController>(config);
+}
 
 RobotControlManager::RobotControlManager()
     : state_(State::OFF), interp_progress_(0.0), tick_sec_(0.003),
@@ -33,6 +45,17 @@ void RobotControlManager::Configure(
     }
 
     run_command_.resize(config.axes.size());
+
+    // Controller + EKF 初期化
+    controller_ = CreateController(config.controller, config);
+    std::cout << "controller: " << config.controller << std::endl;
+    ekf_.Init();
+
+    // ホイール軸インデックス解決
+    for (size_t i = 0; i < config.axes.size(); i++) {
+        if (config.axes[i].name == "wheel_r") wheel_r_ = i;
+        if (config.axes[i].name == "wheel_l") wheel_l_ = i;
+    }
 }
 
 void RobotControlManager::HandleStateCommand(StateCommand cmd) {
@@ -74,7 +97,8 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
                 }
                 state_ = State::READY;
                 for (size_t i = 0; i < commands_.size(); i++) {
-                    if (i != kWheelR && i != kWheelL) {
+                    if (config_.axes[i].name != "wheel_r" &&
+                        config_.axes[i].name != "wheel_l") {
                         commands_[i].motor_state = MotorState::POSITION;
                         commands_[i].kp_scale = 1.0;
                         commands_[i].kv_scale = 1.0;
@@ -89,6 +113,8 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
         case StateCommand::RUN:
             if (state_ == State::READY) {
                 state_ = State::RUN;
+                controller_->Reset();
+                std::cout << "RUN: controller reset" << std::endl;
             }
             break;
         case StateCommand::INIT_POSITION_RESET:
@@ -134,6 +160,26 @@ void RobotControlManager::UpdateMotorStatus(const std::vector<AxisAct>& status) 
             torque_limit_count_[i] = 0;
         }
     }
+
+    // EKF 更新（READY 以降）
+    if (state_ >= State::READY && wheel_r_ != SIZE_MAX) {
+        double pitch = imu_data_.pitch;
+        double pitch_rate = imu_data_.gy;
+        double ax_forward = imu_data_.ax * std::cos(pitch)
+                          + imu_data_.az * std::sin(pitch);
+        ekf_.Predict(static_cast<float>(tick_sec_),
+                     static_cast<float>(ax_forward));
+
+        double wheel_vel_avg =
+            (axes_status_[wheel_r_].velocity + axes_status_[wheel_l_].velocity) / 2.0;
+        double v_body = kWheelRadius * wheel_vel_avg
+                      + kCoMHeight * std::cos(pitch) * pitch_rate;
+        ekf_.Correct(static_cast<float>(v_body));
+    }
+}
+
+void RobotControlManager::UpdateImuData(const ImuData& imu) {
+    imu_data_ = imu;
 }
 
 void RobotControlManager::UpdateRunCommand(const std::vector<AxisRef>& run_command) {
@@ -150,6 +196,10 @@ const std::vector<AxisRef>& RobotControlManager::GetCommands() const {
 
 bool RobotControlManager::IsReadyComplete() const {
     return interp_progress_ >= 1.0;
+}
+
+EstimatedState RobotControlManager::GetEstimatedState() const {
+    return {static_cast<double>(ekf_.est_velocity()), 0.0, 0.0};
 }
 
 void RobotControlManager::RobotController() {
@@ -179,7 +229,6 @@ void RobotControlManager::RobotController() {
                 } else {
                     double target;
                     if (interp_progress_ < 1.0) {
-                        // lib の補間関数を呼ぶ（将来）。今は線形補間
                         target = start_positions_[i]
                             + (axes[i].initial_position - start_positions_[i])
                             * interp_progress_;
@@ -197,11 +246,14 @@ void RobotControlManager::RobotController() {
             break;
 
         case State::RUN: {
-            // run_command をパススルー（安全管理付き）
-            for (size_t i = 0; i < axes.size(); i++) {
-                const auto& ref = run_command_[i];
+            // Controller で制御計算
+            controller_->Update(axes_status_, imu_data_, ekf_);
+            auto ctrl_commands = controller_->Compute(config_);
 
-                // SET_POSITION / OFF は RUN 中に許可しない
+            // 制御出力を commands_ に反映（安全管理付き）
+            for (size_t i = 0; i < axes.size(); i++) {
+                const auto& ref = ctrl_commands[i];
+
                 if (ref.motor_state == MotorState::SET_POSITION ||
                     ref.motor_state == MotorState::OFF) {
                     continue;
@@ -212,7 +264,7 @@ void RobotControlManager::RobotController() {
                 commands_[i].kp_scale = ref.kp_scale;
                 commands_[i].kv_scale = ref.kv_scale;
 
-                // limits をコンフィグ上限でクランプ（NaN の場合はもう一方を使用）
+                // limits をコンフィグ上限でクランプ
                 commands_[i].velocity_limit = std::isnan(ref.velocity_limit)
                     ? axes[i].velocity_limit
                     : (std::isnan(axes[i].velocity_limit)
@@ -227,8 +279,6 @@ void RobotControlManager::RobotController() {
                     ? axes[i].torque_limit
                     : std::min(ref.torque_limit, axes[i].torque_limit);
             }
-            // 毎tick リセット（未受信時は前回値維持）
-            run_command_received_ = false;
             break;
         }
     }

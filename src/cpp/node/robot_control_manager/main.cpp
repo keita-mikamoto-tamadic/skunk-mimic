@@ -16,9 +16,11 @@ constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
 constexpr const char* kInputStateCommand  = "state_command";
 constexpr const char* kInputWatchdog      = "watchdog";
 constexpr const char* kInputMotorStatus   = "motor_status";
+constexpr const char* kInputImuData       = "imu_data";
 constexpr const char* kInputRunCommand    = "run_command";
 constexpr const char* kOutputMotorCommands  = "motor_commands";
 constexpr const char* kOutputStateStatus    = "state_status";
+constexpr const char* kOutputEstState       = "estimated_state";
 
 
 static const char* StateName(State s) {
@@ -54,8 +56,6 @@ int main() {
     sm.Configure(config, makeMoteusFaultEvaluator(State::OFF));
 
     bool motor_status_received = false;
-    auto last_motor_status_time = std::chrono::steady_clock::now();
-    int motor_status_count = 0;
 
     while (true) {
         auto event = node.events->next();
@@ -75,6 +75,17 @@ int main() {
                 reinterpret_cast<uint8_t*>(&c_array),
                 reinterpret_cast<uint8_t*>(&c_schema));
             std::string id(info.id);
+
+            // IMU パススルー（ゼロコピー — Arrow Import 不要）
+            if (id == kInputImuData) {
+                auto import_result = arrow::ImportArray(&c_array, &c_schema);
+                if (!import_result.ok()) continue;
+                auto arr = std::static_pointer_cast<arrow::UInt8Array>(
+                    import_result.ValueOrDie());
+                auto imu_vec = ReceiveStructArray<ImuData>(arr, 1);
+                sm.UpdateImuData(imu_vec[0]);
+                continue;
+            }
 
             auto import_result = arrow::ImportArray(&c_array, &c_schema);
             if (!import_result.ok()) continue;
@@ -96,7 +107,6 @@ int main() {
                 }
 
                 // 起動シーケンス: SERVO_ON 直後に初回 motor_commands を出力
-                // （DCM が motor_status を返す → 以降 motor_status 駆動ループ）
                 if (sm.GetState() == State::STOP) {
                     sm.RobotController();
                     ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
@@ -104,38 +114,15 @@ int main() {
                 }
             }
             else if (id == kInputMotorStatus) {
-                auto t0 = std::chrono::steady_clock::now();
-                motor_status_count++;
-                if (motor_status_count > 100) {
-                    long interval_us = std::chrono::duration_cast<std::chrono::microseconds>(
-                        t0 - last_motor_status_time).count();
-                    if (interval_us > 10000) {
-                        std::cerr << "motor_status gap: " << interval_us << "us" << std::endl;
-                    }
-                }
-                last_motor_status_time = t0;
                 auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
                 sm.UpdateMotorStatus(acts);
                 sm.RobotController();
-                auto t1 = std::chrono::steady_clock::now();
                 ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
-                auto t2 = std::chrono::steady_clock::now();
                 ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
-                auto t3 = std::chrono::steady_clock::now();
+                SendStruct(node, kOutputEstState, sm.GetEstimatedState());
                 motor_status_received = true;
-                long calc_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-                long send_cmd_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-                long send_st_us = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
-                long total_us = calc_us + send_cmd_us + send_st_us;
-                if (total_us > 5000) {
-                    std::cerr << "RCM slow: " << total_us << "us"
-                              << " (calc=" << calc_us
-                              << " send_cmd=" << send_cmd_us
-                              << " send_st=" << send_st_us << ")" << std::endl;
-                }
             }
             else if (id == kInputWatchdog) {
-                // ウォッチドッグ: motor_status 途絶検出
                 if (!motor_status_received && sm.GetState() != State::OFF) {
                     std::cerr << "watchdog: motor_status timeout -> OFF"
                               << std::endl;

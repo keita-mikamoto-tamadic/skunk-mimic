@@ -6,19 +6,10 @@ nodes:
       watchdog: dora/timer/millis/30
       state_command: dummy_input/state_command
       motor_status: device_control_manager/motor_status
-      run_command: stabilizer/run_command
+      imu_data: device_control_manager/imu_data
     outputs:
       - motor_commands
       - state_status
-
-  - id: stabilizer
-    path: src/cpp/node/stabilizer/build/stabilizer
-    inputs:
-      motor_status: device_control_manager/motor_status
-      imu_data: device_control_manager/imu_data
-      state_status: robot_control_manager/state_status
-    outputs:
-      - run_command
       - estimated_state
 
   - id: device_control_manager
@@ -51,4 +42,4 @@ nodes:
       state_status: robot_control_manager/state_status
       imu_data: device_control_manager/imu_data
       latency: device_control_manager/latency
-      estimated_state: stabilizer/estimated_state
+      estimated_state: robot_control_manager/estimated_state
