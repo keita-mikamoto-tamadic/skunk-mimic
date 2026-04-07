@@ -1,7 +1,7 @@
 """A,B行列のCSVからLQRゲインを計算し、CSV出力する。
 
+連続時間A,Bを離散化（dt=3ms）し、離散時間LQR（DARE）でゲインを求める。
 2DOF (3状態1入力) と 3DOF (4状態2入力) の両方に対応。
-A,B行列のサイズから自動判定する。
 
 入力: A.csv / A_3dof.csv, B.csv / B_3dof.csv（calc_ab_matrixの出力）
 出力: lqrGain.csv
@@ -11,9 +11,11 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-from scipy.linalg import solve_continuous_are
+from scipy.linalg import solve_discrete_are
+from scipy.signal import cont2discrete
 
 AB_DIR = Path(__file__).resolve().parents[1] / "calc_ab_matrix"
+DT = 0.003  # 制御周期 [s]
 
 
 def load_matrix(path: Path) -> np.ndarray:
@@ -30,9 +32,10 @@ def check_controllability(A, B):
     return rank == n
 
 
-def solve_lqr(A, B, Q, R):
-    P = solve_continuous_are(A, B, Q, R)
-    K = np.linalg.solve(R, B.T @ P)
+def solve_dlqr(Ad, Bd, Q, R):
+    """離散時間LQR: x(k+1) = Ad x(k) + Bd u(k), u = -K x"""
+    P = solve_discrete_are(Ad, Bd, Q, R)
+    K = np.linalg.solve(R + Bd.T @ P @ Bd, Bd.T @ P @ Ad)
     return K
 
 
@@ -60,23 +63,33 @@ def main():
         sys.exit(1)
     print()
 
-    # 1. A,B行列読み込み
-    A = load_matrix(AB_DIR / a_file)
-    B = load_matrix(AB_DIR / b_file)
-    if B.ndim == 1:
-        B = B.reshape(-1, 1)
+    # 1. 連続時間A,B行列読み込み
+    Ac = load_matrix(AB_DIR / a_file)
+    Bc = load_matrix(AB_DIR / b_file)
+    if Bc.ndim == 1:
+        Bc = Bc.reshape(-1, 1)
 
-    n = A.shape[0]
-    m = B.shape[1]
-    print(f"A ({n}×{n}):\n{A}")
-    print(f"\nB ({n}×{m}):\n{B}")
+    n = Ac.shape[0]
+    m = Bc.shape[1]
+    print(f"連続時間 Ac ({n}×{n}):\n{Ac}")
+    print(f"\n連続時間 Bc ({n}×{m}):\n{Bc}")
 
-    # 2. 開ループ固有値
-    eigs = np.linalg.eigvals(A)
-    print(f"\n開ループ固有値: {np.sort(eigs.real)}")
+    eigs_c = np.linalg.eigvals(Ac)
+    print(f"\n連続時間 開ループ固有値: {np.sort(eigs_c.real)}")
 
-    # 3. 可制御性
-    check_controllability(A, B)
+    # 2. 離散化（ZOH）
+    Cc = np.eye(n)
+    Dc = np.zeros((n, m))
+    (Ad, Bd, _, _, _) = cont2discrete((Ac, Bc, Cc, Dc), DT, method='zoh')
+
+    print(f"\n離散時間 Ad ({n}×{n}), dt={DT*1000:.0f}ms:\n{Ad}")
+    print(f"\n離散時間 Bd ({n}×{m}):\n{Bd}")
+
+    eigs_d = np.linalg.eigvals(Ad)
+    print(f"\n離散時間 開ループ固有値 (|λ|): {np.sort(np.abs(eigs_d))}")
+
+    # 3. 可制御性（離散時間）
+    check_controllability(Ad, Bd)
 
     # 4. LQR設計（モデルに応じたQ,R）
     if n == 3 and m == 1:
@@ -92,16 +105,17 @@ def main():
         print(f"未対応の次元: n={n}, m={m}")
         sys.exit(1)
 
-    K = solve_lqr(A, B, Q, R)
+    K = solve_dlqr(Ad, Bd, Q, R)
     print(f"\nQ = diag{list(np.diag(Q))}")
     print(f"R = diag{list(np.diag(R))}")
     print(f"K ({m}×{n}):\n{K}")
 
-    # 5. 閉ループ安定性
-    A_cl = A - B @ K
+    # 5. 閉ループ安定性（離散時間: |λ| < 1 で安定）
+    A_cl = Ad - Bd @ K
     cl_eigs = np.linalg.eigvals(A_cl)
-    print(f"\n閉ループ固有値: {np.sort(cl_eigs.real)}")
-    stable = np.all(cl_eigs.real < 0)
+    print(f"\n閉ループ固有値: {cl_eigs}")
+    print(f"閉ループ |λ|: {np.sort(np.abs(cl_eigs))}")
+    stable = np.all(np.abs(cl_eigs) < 1.0)
     print(f"安定性: {'OK' if stable else 'NG'}")
 
     # 6. CSV出力
