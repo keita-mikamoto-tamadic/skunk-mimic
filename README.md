@@ -230,13 +230,13 @@ cd src/cpp && mkdir -p build && cd build && cmake .. && make
 ```
 
 # 7. setcap
-'''bash
+```bash
 sudo setcap cap_sys_nice+ep src/cpp/node/device_control_manager/build/device_control_manager
-'''
+```
 
-'''bash
+```bash
 sudo setcap cap_sys_nice+ep src/cpp/node/robot_control_manager/build/robot_control_manager
-'''
+```
 
 # 7. 通信モードの切り替え
 
