@@ -64,10 +64,8 @@ void LqrController::Update(const std::vector<AxisAct>& motor_status,
     pitch_ = imu_data.pitch;
     pitch_rate_ = imu_data.gy;
 
-    // ボディ速度: ホイール速度 + 振子成分（EKF不使用）
-    double wheel_vel_avg =
-        (motor_status[wheel_r_].velocity + motor_status[wheel_l_].velocity) / 2.0;
-    est_velocity_ = kWheelRadius * wheel_vel_avg + kCoMHeight * std::cos(pitch_) * pitch_rate_;
+    // ボディ速度: EKF推定値
+    est_velocity_ = static_cast<double>(ekf.est_velocity());
 }
 
 std::vector<AxisRef> LqrController::Compute(const RobotConfig& config) {

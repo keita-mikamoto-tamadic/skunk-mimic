@@ -165,7 +165,7 @@ void RobotControlManager::UpdateMotorStatus(const std::vector<AxisAct>& status) 
     if (state_ >= State::READY && wheel_r_ != SIZE_MAX) {
         double pitch = imu_data_.pitch;
         double pitch_rate = imu_data_.gy;
-        double ax_forward = imu_data_.ax * std::cos(pitch)
+        double ax_forward = imu_data_.ay * std::cos(pitch)
                           + imu_data_.az * std::sin(pitch);
         ekf_.Predict(static_cast<float>(tick_sec_),
                      static_cast<float>(ax_forward));
