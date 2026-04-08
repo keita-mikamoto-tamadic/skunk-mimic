@@ -72,28 +72,22 @@ std::vector<AxisRef> LqrController::Compute(const RobotConfig& config) {
     // 状態ベクトル X = [ṡ, φ, φ̇]
     double X[kNumStates] = {est_velocity_, pitch_ - kPitchOffset, pitch_rate_};
 
-    // T_φ = -K · X
-    double t_phi = 0.0;
+    // v_cmd = -K · X（B行列がkv-scaledなので直接速度出力）
+    double v_cmd = 0.0;
     for (int j = 0; j < kNumStates; j++) {
-        t_phi += -K_[j] * X[j];
+        v_cmd += -K_[j] * X[j];
     }
-
-    // トルク→速度変換: v_cmd = v_actual + T / (kv_scale * base_kv)
-    double torque_per_wheel = std::clamp(t_phi / 2.0, -kMaxTorque, kMaxTorque);
-    double effective_kv = kKvScale * kBaseKv;
-    double vel_l = motor_status_[wheel_l_].velocity + torque_per_wheel / effective_kv;
-    double vel_r = motor_status_[wheel_r_].velocity + torque_per_wheel / effective_kv;
 
     const size_t axis_count = config.axes.size();
     for (size_t i = 0; i < axis_count; i++) {
         if (i == wheel_l_) {
             run_command_[i].motor_state = MotorState::VELOCITY;
-            run_command_[i].ref_val = vel_l;
+            run_command_[i].ref_val = v_cmd;
             run_command_[i].kp_scale = 0.0;
             run_command_[i].kv_scale = kKvScale;
         } else if (i == wheel_r_) {
             run_command_[i].motor_state = MotorState::VELOCITY;
-            run_command_[i].ref_val = vel_r;
+            run_command_[i].ref_val = v_cmd;
             run_command_[i].kp_scale = 0.0;
             run_command_[i].kv_scale = kKvScale;
         } else {
