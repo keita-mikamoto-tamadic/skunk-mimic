@@ -1,0 +1,21 @@
+nodes:
+
+  - id: device_control_manager
+    path: src/cpp/node/device_control_manager/build/device_control_manager
+    inputs:
+      tick: dora/timer/millis/3
+      raw_imu: imu_node/raw_imu
+    outputs:
+      - imu_data
+
+  - id: imu_node
+    path: src/cpp/node/imu_node/build/imu_node
+    inputs:
+      tick: dora/timer/millis/3
+    outputs:
+      - raw_imu
+
+  - id: imu_noise_meas
+    path: dynamic
+    inputs:
+      imu_data: device_control_manager/imu_data

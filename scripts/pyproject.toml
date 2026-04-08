@@ -10,4 +10,5 @@ dependencies = ["mujoco", "numpy"]
 members = [
     "calc_lqr_gain",
     "calc_ab_matrix",
+    "imu_noise_meas",
 ]
