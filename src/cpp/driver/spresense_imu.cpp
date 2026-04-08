@@ -263,14 +263,14 @@ bool SpresenseImu::ParsePacket(const uint8_t* packet, size_t len)
     std::memcpy(&az, &packet[38], sizeof(float));
 
     // shm_data_format.hpp の ImuData にマッピング
-    // Z軸周りに+90°回転（QuaternionToEulerと同じ座標変換）
-    // IMU X → Robot Y, IMU Y → Robot -X, IMU Z → Robot Z
+    // Z軸周りに-90°回転（QuaternionToEulerと同じ座標変換）
+    // IMU X → Robot -Y, IMU Y → Robot X, IMU Z → Robot Z
     data.timestamp = GetNowSec();
-    data.ax = static_cast<double>(-ay);
-    data.ay = static_cast<double>(ax);
+    data.ax = static_cast<double>(ay);
+    data.ay = static_cast<double>(-ax);
     data.az = static_cast<double>(az);
-    data.gx = static_cast<double>(-gy);
-    data.gy = static_cast<double>(gx);
+    data.gx = static_cast<double>(gy);
+    data.gy = static_cast<double>(-gx);
     data.gz = static_cast<double>(gz);
     data.q0 = static_cast<double>(q0);  // w
     data.q1 = static_cast<double>(q1);  // x
