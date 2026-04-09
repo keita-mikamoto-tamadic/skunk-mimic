@@ -54,3 +54,22 @@ nodes:
       estimated_state:
         source: robot_control_manager/estimated_state
         queue_size: 1
+
+  - id: rerun_logger
+    path: dynamic
+    inputs:
+      motor_status:
+        source: device_control_manager/motor_status
+        queue_size: 1
+      motor_commands:
+        source: robot_control_manager/motor_commands
+        queue_size: 1
+      imu_data:
+        source: device_control_manager/imu_data
+        queue_size: 1
+      estimated_state:
+        source: robot_control_manager/estimated_state
+        queue_size: 1
+      state_status:
+        source: robot_control_manager/state_status
+        queue_size: 1

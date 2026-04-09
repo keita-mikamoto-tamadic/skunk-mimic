@@ -6,6 +6,7 @@
 #include "../../lib/robot_config.hpp"
 #include "../../interface/controller.hpp"
 #include "../../controller/body_state_ekf.hpp"
+#include "../../lib/lpf.hpp"
 
 class RobotControlManager {
 public:
@@ -65,4 +66,9 @@ private:
 
     static constexpr double kWheelRadius = 0.07795;
     static constexpr double kCoMHeight = 0.2484;
+
+    // LPF（100Hz @ 333Hzサンプリング）
+    LowPassFilter lpf_ax_{100.0, 0.003};
+    LowPassFilter lpf_az_{100.0, 0.003};
+    LowPassFilter lpf_wheel_vel_{100.0, 0.003};
 };

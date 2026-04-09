@@ -197,19 +197,7 @@ def main():
     eigs = np.linalg.eigvals(A)
     print(f"\n開ループ固有値: {np.sort(eigs.real)}")
 
-    # 4. CSV出力
-    # B行列をスケーリング: 入力をトルク→速度指令に変換
-    # τ = kv * v_cmd なので B_vel = B_torque * kv
-    # LQRの出力 u = -K × X が直接 v_cmd [rad/s] になる
-    kv_scale = 20.0
-    base_kv = 0.5 / (2.0 * np.pi)
-    kv = kv_scale * base_kv
-    B_vel = B * kv
-
-    print(f"\n=== 速度入力スケーリング ===")
-    print(f"  kv = {kv_scale} × {base_kv:.4f} = {kv:.4f} [Nm/(rad/s)]")
-    print(f"  B_vel (3×1) = B_torque × kv:\n{B_vel}")
-
+    # 4. CSV出力（トルク入力のA,B行列をそのまま出力）
     import csv
     out_dir = Path(__file__).parent
     with open(out_dir / "A.csv", "w", newline="") as f:
@@ -219,10 +207,10 @@ def main():
 
     with open(out_dir / "B.csv", "w", newline="") as f:
         writer = csv.writer(f)
-        for row in B_vel:
+        for row in B:
             writer.writerow([f"{v:.8f}" for v in row])
 
-    print(f"\nCSV出力: {out_dir}/A.csv, {out_dir}/B.csv (B is velocity-scaled)")
+    print(f"\nCSV出力: {out_dir}/A.csv, {out_dir}/B.csv (torque input)")
 
 
 if __name__ == "__main__":

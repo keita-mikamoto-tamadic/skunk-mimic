@@ -94,8 +94,8 @@ def main():
     # 4. LQR設計（モデルに応じたQ,R）
     if n == 3 and m == 1:
         #            ṡ      φ      φ̇
-        Q = np.diag([10.0, 1.0, 1.0])
-        R = np.atleast_2d(1.0)
+        Q = np.diag([50.0, 0.01, 10.0])
+        R = np.atleast_2d(10.0)
     elif n == 4 and m == 2:
         #            ṡ      φ      φ̇     α̇
         Q = np.diag([300.0, 0.01, 15.0, 40.0])

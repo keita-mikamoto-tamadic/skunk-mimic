@@ -72,11 +72,18 @@ std::vector<AxisRef> LqrController::Compute(const RobotConfig& config) {
     // 状態ベクトル X = [ṡ, φ, φ̇]
     double X[kNumStates] = {est_velocity_, pitch_ - kPitchOffset, pitch_rate_};
 
-    // v_cmd = -K · X（B行列がkv-scaledなので直接速度出力）
-    double v_cmd = 0.0;
+    // T_φ = -K · X（トルク出力）
+    double t_phi = 0.0;
     for (int j = 0; j < kNumStates; j++) {
-        v_cmd += -K_[j] * X[j];
+        t_phi += -K_[j] * X[j];
     }
+    t_phi = std::clamp(t_phi, -kMaxTorque, kMaxTorque);
+
+    // トルク→速度変換: v_cmd = v_actual + T_φ / (kv_scale × base_kv)
+    double wheel_vel_avg =
+        (motor_status_[wheel_r_].velocity + motor_status_[wheel_l_].velocity) / 2.0;
+    double kv = kKvScale * kBaseKv;
+    double v_cmd = wheel_vel_avg + t_phi / kv;
 
     const size_t axis_count = config.axes.size();
     for (size_t i = 0; i < axis_count; i++) {

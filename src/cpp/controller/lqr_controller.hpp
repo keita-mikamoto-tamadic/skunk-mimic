@@ -6,7 +6,7 @@
 
 // 3状態1入力LQRバランスコントローラ（2DOFモデル）
 // 状態: X = [ṡ, φ, φ̇]
-// 制御: T_φ = TL + TR → 速度指令に変換して送信
+// 制御: T_φ = -K·X → v_cmd = v_actual + T_φ/(kv_scale×base_kv) で速度送信
 // ṡ はmain.cppのEKFから受け取る、φ/φ̇ はIMU直読み
 class LqrController : public Controller {
 public:
