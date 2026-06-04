@@ -10,7 +10,7 @@ sudo ip link set can0 down
 # 参考: https://mjbots.github.io/moteus/platforms/socketcan/
 sudo ip link set can0 type can \
   bitrate 1000000 dbitrate 5000000 \
-  sample-point 0.65 dsample-point 0.8 \
+  sample-point 0.8 dsample-point 0.8 \
   restart-ms 100 fd on
 
 # 3. txqueuelenを設定

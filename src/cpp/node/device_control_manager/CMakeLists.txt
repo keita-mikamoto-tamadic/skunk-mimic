@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(device_control_manager CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 出力先を自分のbuildディレクトリに固定
@@ -20,6 +20,7 @@ add_executable(device_control_manager
   ../../lib/robot_config.cpp
   ../../driver/moteus_can_driver.cpp
   ../../driver/moteus_converter.cpp
+  ../../driver/foctive_can_driver.cpp
   ../../driver/socket_can_comm.cpp
   ../../driver/dummy_driver.cpp
   ${DORA_NODE_API_INC}/dora-node-api.cc

@@ -10,7 +10,10 @@ enum class MotorState : uint8_t {
     POSITION = 2,      // 位置制御
     VELOCITY = 3,      // 速度制御
     TORQUE = 4,        // トルク制御
-    SET_POSITION = 5   // エンコーダ位置リセット（OFF時のみ）
+    SET_POSITION = 5,  // エンコーダ位置リセット（OFF時のみ）
+    CURRENT = 6,       // 電流制御
+    VOLTAGE = 7,       // 電圧制御
+    POSITION_PD = 8    // 位置/速度PDゲイン+FFトルク（インピーダンス制御）
 };
 
 // ステートマシンの状態

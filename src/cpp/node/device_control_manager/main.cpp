@@ -8,13 +8,15 @@
  *   - SCHED_FIFO / CPU affinity 設定（リアルタイム）
  *
  * MotorDriver インターフェースで transport + protocol を切り替え:
- *   "socketcan" → MoteusCanDriver（CAN-FD + moteus protocol）
- *   "dummy"     → DummyDriver（テスト用）
+ *   transport="dummy"                    → DummyDriver（テスト用）
+ *   transport="socketcan", protocol="moteus"  → MoteusCanDriver（CAN-FD + moteus）
+ *   transport="socketcan", protocol="foctive" → FoctiveCanDriver（CAN-FD + FOCTIVE）
  */
 #include <iostream>
 #include <memory>
 #include <vector>
 #include <chrono>
+#include <cstdlib>
 #include "dora-node-api.h"
 #include <pthread.h>
 #include <sched.h>
@@ -24,9 +26,17 @@
 #include "../../lib/dora_helpers.hpp"
 #include "../../interface/motor_driver.hpp"
 #include "../../driver/moteus_can_driver.hpp"
+#include "../../driver/foctive_can_driver.hpp"
 #include "../../driver/dummy_driver.hpp"
 
-constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
+// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)
+// dataflow yaml の env: ROBOT_CONFIG で切り替える
+constexpr const char* kDefaultConfigPath = "robot_config/mimic_v2.json";
+
+static std::string ResolveConfigPath() {
+    const char* env = std::getenv("ROBOT_CONFIG");
+    return (env && *env) ? env : kDefaultConfigPath;
+}
 
 // 入出力ID
 constexpr const char* kInputTick          = "tick";
@@ -53,9 +63,13 @@ static void SetCpuAffinity(uint32_t core, int32_t priority) {
     }
 }
 
-static std::unique_ptr<MotorDriver> CreateDriver(const std::string& transport) {
+static std::unique_ptr<MotorDriver> CreateDriver(const std::string& transport,
+                                                 const std::string& protocol) {
     if (transport == "dummy") {
         return std::make_unique<DummyDriver>();
+    }
+    if (protocol == "foctive") {
+        return std::make_unique<FoctiveCanDriver>();
     }
     return std::make_unique<MoteusCanDriver>();
 }
@@ -65,12 +79,12 @@ int main() {
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
 
-    auto config = robot_config::LoadFromFile(kConfigPath);
+    auto config = robot_config::LoadFromFile(ResolveConfigPath());
     std::cout << config.robot_name
               << " (" << config.axis_count << " axes)" << std::endl;
 
     // ドライバ初期化
-    auto driver = CreateDriver(config.transport);
+    auto driver = CreateDriver(config.transport, config.protocol);
     std::string device = (config.transport == "dummy") ? "dummy" : "can0";
     if (!driver->Open(device)) {
         std::cerr << "failed to open " << device << std::endl;

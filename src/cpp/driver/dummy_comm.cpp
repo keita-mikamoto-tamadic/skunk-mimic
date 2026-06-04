@@ -18,9 +18,10 @@ bool DummyComm::IsOpen() const {
     return is_open_;
 }
 
-bool DummyComm::SendFrame(uint32_t arb_id,
-                           const uint8_t* /*data*/, size_t /*len*/) {
-    pending_device_ids_.push(static_cast<int>(arb_id & 0x7F));
+bool DummyComm::SendFrame(uint32_t can_id,
+                           const uint8_t* /*data*/, size_t /*len*/, bool /*extended*/) {
+    // moteus 互換ダミー: 宛先 device_id は arb_id の下位 7bit
+    pending_device_ids_.push(static_cast<int>(can_id & 0x7F));
     return true;
 }
 
@@ -80,26 +81,24 @@ size_t DummyComm::BuildDummyResponse(
 }
 
 bool DummyComm::ReceiveAnyFrame(
-    const std::set<int>& expected_device_ids,
-    int* device_id_out,
+    uint32_t* can_id_out,
     uint8_t* data,
     size_t* len,
     int /*timeout_ms*/)
 {
     if (!is_open_) return false;
+    if (pending_device_ids_.empty()) return false;
 
-    // キューから期待される device_id を探して返す
-    while (!pending_device_ids_.empty()) {
-        int id = pending_device_ids_.front();
-        pending_device_ids_.pop();
-        if (expected_device_ids.count(id)) {
-            *device_id_out = id;
-            dummy_pos_ = std::fmod(dummy_pos_ + 0.001, 10.0);
-            dummy_vel_ = std::fmod(dummy_vel_ + 0.01, 10.0);
-            dummy_torq_ = 0.0F;
-            *len = BuildDummyResponse(data, dummy_pos_, dummy_vel_, dummy_torq_, 0);
-            return true;
-        }
-    }
-    return false;
+    int id = pending_device_ids_.front();
+    pending_device_ids_.pop();
+
+    // moteus 互換: 返信フレームは device_id を bits 8-15(source)に持つ。
+    // ドライバ側が (can_id >> 8) & 0x7f で device を抽出する。
+    *can_id_out = static_cast<uint32_t>(id) << 8;
+
+    dummy_pos_ = std::fmod(dummy_pos_ + 0.001, 10.0);
+    dummy_vel_ = std::fmod(dummy_vel_ + 0.01, 10.0);
+    dummy_torq_ = 0.0F;
+    *len = BuildDummyResponse(data, dummy_pos_, dummy_vel_, dummy_torq_, 0);
+    return true;
 }

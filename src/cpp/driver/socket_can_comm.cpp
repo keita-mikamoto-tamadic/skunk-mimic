@@ -63,11 +63,12 @@ bool SocketCanComm::IsOpen() const {
   return socket_fd_ >= 0;
 }
 
-bool SocketCanComm::SendFrame(uint32_t arb_id, const uint8_t* data, size_t len) {
+bool SocketCanComm::SendFrame(uint32_t can_id, const uint8_t* data, size_t len, bool extended) {
   if (!IsOpen()) return false;
-  
+
   struct canfd_frame frame{};
-  frame.can_id = arb_id | CAN_EFF_FLAG;
+  // extended: 29bit 拡張ID(EFFフラグ付与) / それ以外: 11bit 標準ID
+  frame.can_id = extended ? (can_id | CAN_EFF_FLAG) : (can_id & CAN_SFF_MASK);
   frame.len = len;
   frame.flags = CANFD_BRS;
   std::memcpy(frame.data, data, len);
@@ -106,8 +107,7 @@ bool SocketCanComm::ReceiveFrame(int device_id, uint8_t* data, size_t* len, int 
 }
 
 bool SocketCanComm::ReceiveAnyFrame(
-    const std::set<int>& expected_device_ids,
-    int* device_id_out,
+    uint32_t* can_id_out,
     uint8_t* data,
     size_t* len,
     int timeout_ms)
@@ -131,16 +131,9 @@ bool SocketCanComm::ReceiveAnyFrame(
     ssize_t n = ::read(socket_fd_, &frame, sizeof(frame));
     if (n <= 0) return false;
 
-    // device_id を抽出（arb_id の上位バイト）
-    int device_id = (frame.can_id >> 8) & 0xFF;
-
-    // 期待する device_id かチェック
-    if (expected_device_ids.count(device_id) == 0) {
-      continue;  // 期待しない ID はスキップ
-    }
-
-    // 一致したら返す
-    *device_id_out = device_id;
+    // 生の arbitration id をそのまま返す(フラグ除去のみ)。
+    // device_id 抽出・フィルタは呼び側ドライバの責務。
+    *can_id_out = frame.can_id & CAN_EFF_MASK;
     *len = frame.len;
     std::memcpy(data, frame.data, frame.len);
     return true;

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <cstdlib>
 #include "dora-node-api.h"
 #include "../../lib/shm_data_format.hpp"
 #include "../../lib/enum_def.hpp"
@@ -15,7 +16,13 @@
 #include "lqr_controller.hpp"
 #include "body_state_ekf.hpp"
 
-constexpr const char* kConfigPath = "robot_config/mimic_v2.json";
+// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)
+constexpr const char* kDefaultConfigPath = "robot_config/mimic_v2.json";
+
+static std::string ResolveConfigPath() {
+    const char* env = std::getenv("ROBOT_CONFIG");
+    return (env && *env) ? env : kDefaultConfigPath;
+}
 
 // 入出力ID
 constexpr const char* kInputMotorStatus  = "motor_status";
@@ -42,7 +49,7 @@ int main() {
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
 
-    auto config = robot_config::LoadFromFile(kConfigPath);
+    auto config = robot_config::LoadFromFile(ResolveConfigPath());
     const size_t axis_count = config.axes.size();
     std::cout << config.robot_name
               << " (" << axis_count << " axes)" << std::endl;

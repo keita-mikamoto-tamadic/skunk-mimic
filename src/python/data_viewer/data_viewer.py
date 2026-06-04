@@ -10,16 +10,22 @@ import os
 # lib を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib import robot_config
+from lib.data_format import AXIS_ACT_FMT, AXIS_ACT_SIZE  # 自動生成(axis_data.json 正本)
 
-# Config file path (absolute path computed from script location)
+# Config file path: 環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
+# dynamic ノードなので dataflow yaml の env は届かない → 起動シェルで
+#   export ROBOT_CONFIG=robot_config/foctive_motor_test.json
+# 相対パスはプロジェクトルート基準で解決。
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
+_env_config = os.environ.get("ROBOT_CONFIG")
+if _env_config:
+    CONFIG_PATH = _env_config if os.path.isabs(_env_config) \
+        else os.path.join(PROJECT_ROOT, _env_config)
+else:
+    CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
 
-# AxisAct: double position, double velocity, double torque, uint8_t fault (+7 padding)
-# sizeof(AxisAct) = 32
-AXIS_ACT_FMT = "<dddB7x"  # little-endian
-AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
+# AxisAct (position/velocity/torque/fault) は lib.data_format から import(上)
 
 # ImuData: timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw
 # sizeof(ImuData) = 14 * sizeof(double) = 112

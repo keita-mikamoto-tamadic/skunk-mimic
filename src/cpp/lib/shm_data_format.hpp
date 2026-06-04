@@ -2,24 +2,9 @@
 #include <cstdint>
 #include "enum_def.hpp"
 
-// robot_control_manager → motor_comm: 1軸分の指令値
-struct AxisRef {
-    MotorState motor_state;
-    double ref_val;        // 目標値: position(rad) or velocity(rad/s)
-    double kp_scale;       // 位置ゲインスケール
-    double kv_scale;       // 速度ゲインスケール (= moteus の kd_scale)
-    double velocity_limit; // rad/s
-    double accel_limit;    // rad/s²
-    double torque_limit;   // Nm
-};
-
-// motor_comm → robot_control_manager: 1軸分の現在値
-struct AxisAct {
-    double position;       // rad
-    double velocity;       // rad/s
-    double torque;         // Nm
-    uint8_t fault;         // 0=正常, それ以外=異常
-};
+// AxisRef / AxisAct は src/data_format/axis_data.json を正本に自動生成
+// (tools/gen_data_format.py / CMake configure 時に再生成)
+#include "data_format_generated.hpp"
 
 // device_control_manager → data_viewer: レイテンシ計測結果
 struct LatencyData {

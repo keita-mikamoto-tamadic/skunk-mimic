@@ -20,6 +20,7 @@ struct RobotConfig {
   int axis_count;
   double interpolation_time;
   std::string transport;    // "socketcan" or "dummy"
+  std::string protocol;     // "moteus" or "foctive" (default: "moteus")
   std::string controller;   // "angle_pid" etc. (default: "angle_pid")
   std::vector<AxisConfig> axes;
 };

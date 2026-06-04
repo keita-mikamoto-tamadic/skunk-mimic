@@ -34,11 +34,10 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
 # ---------------------------------------------------------------------------
 # Binary formats (must match C++ structs)
 # ---------------------------------------------------------------------------
-AXIS_REF_FMT = "<B7xdddddd"
-AXIS_REF_SIZE = struct.calcsize(AXIS_REF_FMT)  # 56
-
-AXIS_ACT_FMT = "<dddB7x"
-AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
+from lib.data_format import (  # noqa: E402
+    AXIS_REF_FMT, AXIS_REF_SIZE, AXIS_ACT_FMT, AXIS_ACT_SIZE,
+    AxisRef, pack_axis_ref as _pack_axis_ref,
+)
 
 # ---------------------------------------------------------------------------
 # Enums (must match C++ enum_def.hpp)
@@ -137,11 +136,14 @@ def build_pattern(pattern_str: str):
 
 def pack_axis_ref(motor_state, ref_val, kp_scale, kv_scale,
                   velocity_limit, accel_limit, torque_limit):
-    return struct.pack(
-        AXIS_REF_FMT,
-        motor_state, ref_val, kp_scale, kv_scale,
-        velocity_limit, accel_limit, torque_limit,
-    )
+    # ref_val_1 / ref_val_2 は FOCTIVE 多値モード用。sysid では未使用なので 0。
+    return _pack_axis_ref(AxisRef(
+        motor_state=motor_state, ref_val=ref_val,
+        ref_val_1=0.0, ref_val_2=0.0,
+        kp_scale=kp_scale, kv_scale=kv_scale,
+        velocity_limit=velocity_limit, accel_limit=accel_limit,
+        torque_limit=torque_limit,
+    ))
 
 
 def send_state_command(node, cmd):

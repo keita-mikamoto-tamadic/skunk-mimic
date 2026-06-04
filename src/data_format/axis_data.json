@@ -1,0 +1,34 @@
+{
+  "_comment": "dora で C++↔Python 間を生バイト列で交換するアプリ内部構造体の単一正本。tools/gen_data_format.py が C++ヘッダと Python モジュールを生成する(CMake configure 時に自動)。これは FOCTIVE の CAN フレーム(float)ではなく dora/shm の構造体(double)。CAN の float 変換はドライバ側で行う。",
+  "types": {
+    "double": {"cpp": "double", "size": 8, "align": 8, "py": "d"},
+    "uint8": {"cpp": "uint8_t", "size": 1, "align": 1, "py": "B"}
+  },
+  "structs": [
+    {
+      "name": "AxisRef",
+      "doc": "robot_control_manager → motor_comm: 1軸分の指令値",
+      "fields": [
+        {"name": "motor_state", "type": "uint8", "cpp_type": "MotorState", "doc": "制御モード"},
+        {"name": "ref_val", "type": "double", "doc": "第1値: pos/vel/torq, または volt_d/cur_d"},
+        {"name": "ref_val_1", "type": "double", "doc": "第2値: volt_q/cur_q, またはインピーダンスvel"},
+        {"name": "ref_val_2", "type": "double", "doc": "第3値: vir_ang_freq, またはインピーダンスtorq"},
+        {"name": "kp_scale", "type": "double", "doc": "位置ゲインスケール"},
+        {"name": "kv_scale", "type": "double", "doc": "速度ゲインスケール (= moteus の kd_scale)"},
+        {"name": "velocity_limit", "type": "double", "doc": "rad/s"},
+        {"name": "accel_limit", "type": "double", "doc": "rad/s^2"},
+        {"name": "torque_limit", "type": "double", "doc": "Nm"}
+      ]
+    },
+    {
+      "name": "AxisAct",
+      "doc": "motor_comm → robot_control_manager: 1軸分の現在値",
+      "fields": [
+        {"name": "position", "type": "double", "doc": "rad"},
+        {"name": "velocity", "type": "double", "doc": "rad/s"},
+        {"name": "torque", "type": "double", "doc": "Nm"},
+        {"name": "fault", "type": "uint8", "doc": "0=正常, それ以外=異常"}
+      ]
+    }
+  ]
+}

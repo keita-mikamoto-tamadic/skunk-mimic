@@ -20,16 +20,21 @@ public:
     virtual bool IsOpen() const = 0;
 
     // -- CAN Frame I/O --
-    virtual bool SendFrame(uint32_t arb_id,
-                           const uint8_t* data, size_t len) = 0;
+    // can_id: 送信する生 arbitration id。extended=true で 29bit 拡張フレーム、
+    //         false で 11bit 標準フレーム。device/mode 等のビット配置は呼び側の責務
+    //         (通信層はプロトコルの ID レイアウトを知らない)。
+    virtual bool SendFrame(uint32_t can_id,
+                           const uint8_t* data, size_t len,
+                           bool extended) = 0;
     virtual bool ReceiveFrame(int device_id,
                               uint8_t* data, size_t* len,
                               int timeout_ms) = 0;
 
     // -- Multiple device receive --
+    // 次に届いたフレームの生 arbitration id を can_id_out に返す。
+    // device_id の抽出・フィルタは呼び側(各ドライバ)がプロトコルに従って行う。
     virtual bool ReceiveAnyFrame(
-        const std::set<int>& expected_device_ids,
-        int* device_id_out,
+        uint32_t* can_id_out,
         uint8_t* data,
         size_t* len,
         int timeout_ms) = 0;

@@ -1,0 +1,42 @@
+# FOCTIVE モータ単体テスト用 dataflow (can0)
+#
+# foctive_controller(数値入力で電圧制御/サーボOFF) → motor_commands → device_control_manager → can0
+#   電圧制御は state machine 不要なので RCM をバイパスし motor_commands を直接送る。
+#
+# 前提:
+#   - can0 が UP (bash can_setup.bash)
+#   - device_control_manager は foctive_motor_test.json / can0 にハードコード済み
+#
+# config パス: 環境変数 ROBOT_CONFIG で指定。
+#   - device_control_manager は下の env: で設定(dora が spawn するので効く)
+#   - data_viewer は dynamic ノードなので yaml env が届かない → 起動シェルで export する
+#
+# 起動:
+#   dora start dataflow_foctive_control.yaml
+#   (別ターミナル) .venv/bin/python src/python/foctive_controller/foctive_controller.py
+#   (別ターミナル) ROBOT_CONFIG=robot_config/foctive_motor_test.json \
+#                  .venv/bin/python src/python/data_viewer/data_viewer.py
+nodes:
+
+  - id: foctive_controller
+    path: dynamic
+    outputs:
+      - motor_commands
+
+  - id: device_control_manager
+    path: src/cpp/node/device_control_manager/build/device_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/foctive_motor_test.json
+    inputs:
+      tick: dora/timer/millis/3
+      motor_commands: foctive_controller/motor_commands
+    outputs:
+      - motor_status
+      - imu_data
+      - latency
+
+  - id: data_viewer
+    path: dynamic
+    inputs:
+      motor_status: device_control_manager/motor_status
+      latency: device_control_manager/latency

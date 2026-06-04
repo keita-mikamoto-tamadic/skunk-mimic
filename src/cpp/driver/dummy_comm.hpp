@@ -17,15 +17,14 @@ public:
     void Close() override;
     bool IsOpen() const override;
 
-    bool SendFrame(uint32_t arb_id,
-                   const uint8_t* data, size_t len) override;
+    bool SendFrame(uint32_t can_id,
+                   const uint8_t* data, size_t len, bool extended) override;
     bool ReceiveFrame(int device_id,
                       uint8_t* data, size_t* len,
                       int timeout_ms) override;
 
     bool ReceiveAnyFrame(
-        const std::set<int>& expected_device_ids,
-        int* device_id_out,
+        uint32_t* can_id_out,
         uint8_t* data,
         size_t* len,
         int timeout_ms) override;

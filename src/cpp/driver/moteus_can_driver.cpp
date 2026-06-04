@@ -16,7 +16,7 @@ void MoteusCanDriver::SendCommands(const std::vector<AxisRef>& commands,
     uint8_t buf[kMaxFrameSize];
     for (size_t i = 0; i < axes.size(); i++) {
         size_t len = converter_.BuildCommandFrame(buf, commands[i], axes[i].motdir);
-        comm_.SendFrame(converter_.GetArbId(axes[i].device_id), buf, len);
+        comm_.SendFrame(converter_.GetArbId(axes[i].device_id), buf, len, /*extended=*/true);
     }
 }
 
@@ -24,7 +24,7 @@ void MoteusCanDriver::SendQueries(const std::vector<AxisConfig>& axes) {
     uint8_t buf[kMaxFrameSize];
     size_t len = converter_.BuildQueryFrame(buf);
     for (const auto& ax : axes) {
-        comm_.SendFrame(converter_.GetArbId(ax.device_id), buf, len);
+        comm_.SendFrame(converter_.GetArbId(ax.device_id), buf, len, /*extended=*/true);
     }
 }
 
@@ -53,8 +53,11 @@ std::vector<AxisAct> MoteusCanDriver::ReceiveStatus(
             deadline - now).count();
         if (remaining_ms <= 0) break;
 
-        int device_id;
-        if (comm_.ReceiveAnyFrame(expected_ids_, &device_id, rx, &rxlen, remaining_ms)) {
+        uint32_t can_id;
+        if (comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) {
+            // moteus 返信: source(=モータID)は bits 8-15
+            int device_id = (can_id >> 8) & 0x7f;
+            if (expected_ids_.count(device_id) == 0) continue;
             for (size_t i = 0; i < axes.size(); i++) {
                 if (axes[i].device_id == device_id) {
                     converter_.ParseResponse(rx, rxlen, acts[i], axes[i].motdir);
@@ -74,6 +77,6 @@ void MoteusCanDriver::SendAllOff(const std::vector<AxisConfig>& axes) {
     off_ref.motor_state = MotorState::OFF;
     for (const auto& ax : axes) {
         size_t len = converter_.BuildCommandFrame(buf, off_ref, ax.motdir);
-        comm_.SendFrame(converter_.GetArbId(ax.device_id), buf, len);
+        comm_.SendFrame(converter_.GetArbId(ax.device_id), buf, len, /*extended=*/true);
     }
 }

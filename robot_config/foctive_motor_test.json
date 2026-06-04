@@ -1,0 +1,20 @@
+{
+  "robot_name": "foctive_motor_test",
+  "transport": "socketcan",
+  "protocol": "foctive",
+  "axis_count": 1,
+  "interpolation_time": 3.0,
+  "axes": [
+    {
+      "index": 0,
+      "name": "motor_1",
+      "device_id": 1,
+      "motdir": 1,
+      "initial_position": 1.2,
+      "reset_position": 0.0,
+      "velocity_limit": 10.0,
+      "accel_limit": 50.0,
+      "torque_limit": 2.0
+    }
+  ]
+}
