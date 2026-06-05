@@ -26,6 +26,7 @@ SETTINGS_CMD = {
     "save": 100,     # 全パラメータセーブ (未配線)
     "load": 101,     # 全パラメータ初期値で設定 (未配線)
     "calib": 1,      # 電気角キャリブ (モータが回り数秒)
+    "setpos": 110,   # 現在位置を任意の値として設定
 }
 
 # uint32 として解釈するパラメータ index (それ以外は float)。index 8 は LUT(scalar外)
@@ -243,6 +244,32 @@ while True:
                     print(f"calibration DONE (pos={pos:g})")
                 else:
                     print("calibration FAILED (timeout/error)")
+            else:
+                print("no reply (timeout)")
+        elif sub == "setpos":
+            if len(parts) != 3:
+                print("usage: setting setpos <value>  "
+                      "(現在位置をこの値として設定。例: setting setpos 0)")
+                continue
+            try:
+                target = float(parts[2])
+            except ValueError:
+                print("数値で入力してください")
+                continue
+            # 設定したい値を float ビットで value に載せる
+            raw = struct.unpack("<I", struct.pack("<f", target))[0]
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=0, value=raw)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            ev = node.next(timeout=0.5)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
+                res = unpack_settings_result(bytes(ev["value"].to_pylist()))
+                if res.ok:
+                    offset = struct.unpack("<f", struct.pack("<I", res.value))[0]
+                    print(f"setpos: 現在位置 -> {target:g} (offset={offset:g})")
+                else:
+                    print("setpos FAILED (timeout/error)")
             else:
                 print("no reply (timeout)")
         else:

@@ -28,7 +28,7 @@ namespace Foctive {
     kParamReadAll     = 102,  // 全パラメータ現在値読み出し (マルチフレーム返信)
     kParamSet         = 103,  // 個別パラメータ設定
     kParamRead        = 104,  // 個別パラメータ読み出し
-    kSetPosOffset     = 110,  // 現在位置で任意の値を設定
+    kZeroPosOffset    = 110,  // 現在位置を任意の値として設定
     kError            = 255,  // エラー応答 (param_num 不一致 / LUT 書込禁止 等)
   };
 
@@ -167,6 +167,14 @@ namespace Foctive {
     out.size += 4;
   }
 
+  // cmd=110 現在位置設定要求: [cmd, float target_pos]
+  // 現在の機械角を target_pos として読ませる(ファームが offset を計算・保持)。
+  inline void MakeZeroPosOffset(uint8_t device_id, float target_pos, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kZeroPosOffset, device_id, out);
+    std::memcpy(&out.data[out.size], &target_pos, 4);
+    out.size += 4;
+  }
+
   // cmd=104 個別パラメータ読み出し要求: [cmd, param_index]
   inline void MakeReadParam(uint8_t device_id, ParamIndex index, CanFdFrame& out) {
     StartSettingsFrame(SettingsCmd::kParamRead, device_id, out);
@@ -250,6 +258,11 @@ namespace Foctive {
       case SettingsCmd::kCalibration:     // 1: [cmd, done, pos(float)] (done=1 で完了)
         r.ok = (data[1] != 0);
         std::memcpy(&r.pos, &data[2], 4);
+        break;
+
+      case SettingsCmd::kZeroPosOffset:   // 110: [cmd, offset(float)] (適用 offset)
+        std::memcpy(r.value, &data[1], 4);
+        r.ok = true;
         break;
 
       case SettingsCmd::kParamSaveAll:    // 100: [cmd, done] (done=1 で完了)

@@ -207,6 +207,17 @@ int main() {
                         std::memcpy(&res.value, &pos, 4);  // 完了時の機械角
                         break;
                     }
+                    case 110: {  // 現在位置を任意の値として設定
+                        // target_pos は req.value に float ビットで載っている
+                        float target;
+                        std::memcpy(&target, &req.value, 4);
+                        float offset = 0;
+                        bool ok = driver->ZeroPosOffset(
+                            req.device_id, target, &offset, 50);
+                        res.ok = ok ? 1 : 0;
+                        std::memcpy(&res.value, &offset, 4);  // 適用 offset
+                        break;
+                    }
                     case 104: {  // 個別パラメータ読み出し
                         uint8_t val[4] = {0};
                         bool ok = driver->ReadParam(

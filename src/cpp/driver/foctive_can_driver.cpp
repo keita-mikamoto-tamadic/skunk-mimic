@@ -432,3 +432,42 @@ bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
   }
   return false;  // タイムアウト
 }
+
+bool FoctiveCanDriver::ZeroPosOffset(int device_id, float target_pos,
+                                     float* out_offset, int timeout_ms) {
+  // 1. cmd=110 現在位置設定要求 [110, float target_pos]
+  Foctive::CanFdFrame tx;
+  Foctive::MakeZeroPosOffset(static_cast<uint8_t>(device_id), target_pos, tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  // 2. 返信 [110, offset(float)] を待つ(即返信・単フレーム)
+  uint8_t rx[kMaxFrameSize];
+  size_t rxlen;
+  auto deadline = std::chrono::steady_clock::now()
+                  + std::chrono::milliseconds(timeout_ms);
+
+  while (true) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) break;
+    int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - now).count();
+    if (remaining_ms <= 0) break;
+
+    uint32_t can_id;
+    if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
+    if (Foctive::ParseDevId(static_cast<uint16_t>(can_id)) != device_id) continue;
+    if (Foctive::ParseMsgBit(static_cast<uint16_t>(can_id)) != Foctive::MsgBit::kSettings)
+      continue;
+
+    Foctive::CanFdFrame frame;
+    frame.canid_ = static_cast<uint16_t>(can_id);
+    std::memcpy(frame.data, rx, rxlen);
+    frame.size = static_cast<uint8_t>(rxlen);
+    Foctive::MotParam dummy;  // ゼロ点応答は MotParam を書き換えない
+    Foctive::SettingsReply reply = Foctive::ParseSettings(frame, dummy);
+    if (reply.cmd != Foctive::SettingsCmd::kZeroPosOffset) continue;
+    if (out_offset) std::memcpy(out_offset, reply.value, 4);  // 適用 offset(float)
+    return reply.ok;
+  }
+  return false;  // タイムアウト
+}

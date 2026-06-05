@@ -27,6 +27,7 @@ public:
     bool SaveAllParams(int, int) override { return false; }
     bool LoadDefaultParams(int, uint8_t*, int) override { return false; }
     bool Calibrate(int, float, float*, int) override { return false; }
+    bool ZeroPosOffset(int, float, float*, int) override { return false; }
 
 private:
     SocketCanComm comm_;
