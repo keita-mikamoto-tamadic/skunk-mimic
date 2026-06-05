@@ -392,3 +392,43 @@ bool FoctiveCanDriver::SaveAllParams(int device_id, int timeout_ms) {
   }
   return false;  // タイムアウト
 }
+
+bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
+                                 float* out_pos, int timeout_ms) {
+  // 1. cmd=1 電気角キャリブ要求 [1, float volt_d]
+  Foctive::CanFdFrame tx;
+  Foctive::MakeCalibrate(static_cast<uint8_t>(device_id), volt_d, tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  // 2. 完了通知 [1, done, pos(float)] を待つ。モータが実際に回り数秒かかるため
+  //    timeout は長め。キャリブ中は status 返信が来ないが、混入に備え cmd=1 を確認。
+  uint8_t rx[kMaxFrameSize];
+  size_t rxlen;
+  auto deadline = std::chrono::steady_clock::now()
+                  + std::chrono::milliseconds(timeout_ms);
+
+  while (true) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) break;
+    int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - now).count();
+    if (remaining_ms <= 0) break;
+
+    uint32_t can_id;
+    if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
+    if (Foctive::ParseDevId(static_cast<uint16_t>(can_id)) != device_id) continue;
+    if (Foctive::ParseMsgBit(static_cast<uint16_t>(can_id)) != Foctive::MsgBit::kSettings)
+      continue;
+
+    Foctive::CanFdFrame frame;
+    frame.canid_ = static_cast<uint16_t>(can_id);
+    std::memcpy(frame.data, rx, rxlen);
+    frame.size = static_cast<uint8_t>(rxlen);
+    Foctive::MotParam dummy;  // キャリブ応答は MotParam を書き換えない
+    Foctive::SettingsReply reply = Foctive::ParseSettings(frame, dummy);
+    if (reply.cmd != Foctive::SettingsCmd::kCalibration) continue;  // 別の設定応答
+    if (out_pos) *out_pos = reply.pos;
+    return reply.ok;  // done=1 で true
+  }
+  return false;  // タイムアウト
+}

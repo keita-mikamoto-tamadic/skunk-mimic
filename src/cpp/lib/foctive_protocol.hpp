@@ -67,6 +67,7 @@ namespace Foctive {
     uint8_t     warning    = 0;                    // cmd=255 のとき
     uint8_t     value[4]   = {0};                  // 104: 読み値 / 103: new 値
     uint8_t     old_value[4] = {0};                // 103: old 値
+    float       pos        = 0;                     // 1: キャリブ完了時の機械角
   };
 
   // MotorState(名前) → FOCTIVE message bit(ワイヤ番号)
@@ -158,6 +159,14 @@ namespace Foctive {
     out.size = 1;
   }
 
+  // cmd=1 電気角キャリブ要求: [cmd, float volt_d]
+  // volt_d はロックベクトル印加電圧。モータが実際に回り、完了まで数秒かかる。
+  inline void MakeCalibrate(uint8_t device_id, float volt_d, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kCalibration, device_id, out);
+    std::memcpy(&out.data[out.size], &volt_d, 4);
+    out.size += 4;
+  }
+
   // cmd=104 個別パラメータ読み出し要求: [cmd, param_index]
   inline void MakeReadParam(uint8_t device_id, ParamIndex index, CanFdFrame& out) {
     StartSettingsFrame(SettingsCmd::kParamRead, device_id, out);
@@ -236,6 +245,11 @@ namespace Foctive {
       case SettingsCmd::kError:           // 255
         r.warning = data[1];
         r.ok = false;
+        break;
+
+      case SettingsCmd::kCalibration:     // 1: [cmd, done, pos(float)] (done=1 で完了)
+        r.ok = (data[1] != 0);
+        std::memcpy(&r.pos, &data[2], 4);
         break;
 
       case SettingsCmd::kParamSaveAll:    // 100: [cmd, done] (done=1 で完了)

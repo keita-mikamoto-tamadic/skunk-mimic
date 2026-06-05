@@ -25,7 +25,7 @@ SETTINGS_CMD = {
     "readall": 102,  # 全パラメータ読み出し (未配線, マルチフレーム)
     "save": 100,     # 全パラメータセーブ (未配線)
     "load": 101,     # 全パラメータ初期値で設定 (未配線)
-    "calib": 1,      # 電気角キャリブ (未配線)
+    "calib": 1,      # 電気角キャリブ (モータが回り数秒)
 }
 
 # uint32 として解釈するパラメータ index (それ以外は float)。index 8 は LUT(scalar外)
@@ -216,6 +216,33 @@ while True:
                 node.next(timeout=0.2)  # settings_result を drain
             elif ev is not None and ev["id"] == "settings_result":
                 print("load FAILED (timeout/error on CAN)")
+            else:
+                print("no reply (timeout)")
+        elif sub == "calib":
+            if len(parts) != 3:
+                print("usage: setting calib <volt_d>  (例: setting calib 1.0)")
+                continue
+            try:
+                volt_d = float(parts[2])
+            except ValueError:
+                print("数値で入力してください")
+                continue
+            # volt_d を float ビットで value に載せる
+            raw = struct.unpack("<I", struct.pack("<f", volt_d))[0]
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=0, value=raw)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            print(f"calibrating (volt_d={volt_d}) ... モータが回ります。完了まで数秒")
+            # ファーム側 timeout(10s)より長く待つ
+            ev = node.next(timeout=12.0)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
+                res = unpack_settings_result(bytes(ev["value"].to_pylist()))
+                if res.ok:
+                    pos = struct.unpack("<f", struct.pack("<I", res.value))[0]
+                    print(f"calibration DONE (pos={pos:g})")
+                else:
+                    print("calibration FAILED (timeout/error)")
             else:
                 print("no reply (timeout)")
         else:

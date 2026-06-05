@@ -37,6 +37,9 @@ public:
   bool SaveAllParams(int device_id, int timeout_ms) override;
   // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalars(360byte)へ。
   bool LoadDefaultParams(int device_id, uint8_t* out_dump, int timeout_ms) override;
+  // 電気角キャリブ(cmd=1)。volt_d 印加でモータが回り、完了(done=1)まで数秒。
+  // 完了時の機械角を out_pos に書き、true を返す。timeout_ms は長めに(数秒)。
+  bool Calibrate(int device_id, float volt_d, float* out_pos, int timeout_ms) override;
   // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
   const Foctive::MotParam& Params(int device_id);
 

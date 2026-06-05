@@ -50,6 +50,12 @@ public:
     virtual bool LoadDefaultParams(int device_id, uint8_t* out_dump,
                                    int timeout_ms) = 0;
 
+    // 電気角キャリブ(cmd=1)。volt_d 印加でモータが回り、完了(done=1)まで数秒。
+    // 完了時の機械角を out_pos へ書く。timeout_ms は長めに(数秒)。
+    // パラメータ機能を持たないドライバ(moteus/dummy)は false。
+    virtual bool Calibrate(int device_id, float volt_d,
+                           float* out_pos, int timeout_ms) = 0;
+
 protected:
     MotorDriver() = default;
 };

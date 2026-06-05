@@ -196,6 +196,17 @@ int main() {
                 res.param_index = req.param_index;
 
                 switch (req.cmd) {
+                    case 1: {  // 電気角キャリブ(モータが回り数秒かかる)
+                        // volt_d は req.value に float ビットで載っている
+                        float volt_d;
+                        std::memcpy(&volt_d, &req.value, 4);
+                        float pos = 0;
+                        bool ok = driver->Calibrate(
+                            req.device_id, volt_d, &pos, 10000);
+                        res.ok = ok ? 1 : 0;
+                        std::memcpy(&res.value, &pos, 4);  // 完了時の機械角
+                        break;
+                    }
                     case 104: {  // 個別パラメータ読み出し
                         uint8_t val[4] = {0};
                         bool ok = driver->ReadParam(

@@ -26,6 +26,7 @@ public:
     bool WriteParam(int, int, const uint8_t*, uint8_t*, uint8_t*, int) override { return false; }
     bool SaveAllParams(int, int) override { return false; }
     bool LoadDefaultParams(int, uint8_t*, int) override { return false; }
+    bool Calibrate(int, float, float*, int) override { return false; }
 
 private:
     SocketCanComm comm_;
