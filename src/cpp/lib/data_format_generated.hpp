@@ -59,13 +59,15 @@ struct SettingsResult {
     uint8_t cmd;  // 実行した SettingsCmd
     uint8_t param_index;  // ParamIndex
     uint8_t ok;  // 1=成功, 0=失敗/タイムアウト/非対応
-    uint32_t value;  // 4byte 生値(読出結果。indexで float/uint32 解釈)
+    uint32_t value;  // 4byte 生値(104:読出値 / 103:new 値)
+    uint32_t old_value;  // 4byte 生値(103:old 値。それ以外0)
 };
-static_assert(sizeof(SettingsResult) == 8, "SettingsResult size mismatch vs axis_data.json");
+static_assert(sizeof(SettingsResult) == 12, "SettingsResult size mismatch vs axis_data.json");
 static_assert(offsetof(SettingsResult, cmd) == 0, "SettingsResult.cmd offset mismatch vs axis_data.json");
 static_assert(offsetof(SettingsResult, param_index) == 1, "SettingsResult.param_index offset mismatch vs axis_data.json");
 static_assert(offsetof(SettingsResult, ok) == 2, "SettingsResult.ok offset mismatch vs axis_data.json");
 static_assert(offsetof(SettingsResult, value) == 4, "SettingsResult.value offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsResult, old_value) == 8, "SettingsResult.old_value offset mismatch vs axis_data.json");
 
 // device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。idx 0-6 は uint32, 7 以降は float。LUT(idx 8)は含まない
 struct ParamScalars {

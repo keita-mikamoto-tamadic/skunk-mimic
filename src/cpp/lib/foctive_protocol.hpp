@@ -61,10 +61,12 @@ namespace Foctive {
 
   // 設定モード返信のデコード結果(単フレーム)
   struct SettingsReply {
-    SettingsCmd cmd     = SettingsCmd::kError;  // 返ってきた cmd
-    ParamIndex  index   = kInvalid;             // cmd=103/104 で有効
-    bool        ok      = false;                // 正常に処理できたか
-    uint8_t     warning = 0;                    // cmd=255 のとき
+    SettingsCmd cmd        = SettingsCmd::kError;  // 返ってきた cmd
+    ParamIndex  index      = kInvalid;             // cmd=103/104 で有効
+    bool        ok         = false;                // 正常に処理できたか
+    uint8_t     warning    = 0;                    // cmd=255 のとき
+    uint8_t     value[4]   = {0};                  // 104: 読み値 / 103: new 値
+    uint8_t     old_value[4] = {0};                // 103: old 値
   };
 
   // MotorState(名前) → FOCTIVE message bit(ワイヤ番号)
@@ -229,6 +231,7 @@ namespace Foctive {
         ParamIndex idx = static_cast<ParamIndex>(data[1]);
         r.index = idx;
         if (idx == kElecAngleOfs) { r.ok = false; break; }  // LUT はマルチフレーム
+        std::memcpy(r.value, &data[2], 4);                  // 読み値
         WriteParam(param, idx, &data[2]);
         r.ok = true;
         break;
@@ -237,7 +240,9 @@ namespace Foctive {
       case SettingsCmd::kParamSet: {       // 103: [cmd, index, old4, new4]
         ParamIndex idx = static_cast<ParamIndex>(data[1]);
         r.index = idx;
-        WriteParam(param, idx, &data[6]);  // new 値(offset 6)を反映
+        std::memcpy(r.old_value, &data[2], 4);  // old 値(offset 2)
+        std::memcpy(r.value, &data[6], 4);      // new 値(offset 6)
+        WriteParam(param, idx, &data[6]);        // MotParam は new で更新
         r.ok = true;
         break;
       }

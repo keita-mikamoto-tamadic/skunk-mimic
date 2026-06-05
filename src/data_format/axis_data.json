@@ -48,7 +48,8 @@
         {"name": "cmd", "type": "uint8", "doc": "実行した SettingsCmd"},
         {"name": "param_index", "type": "uint8", "doc": "ParamIndex"},
         {"name": "ok", "type": "uint8", "doc": "1=成功, 0=失敗/タイムアウト/非対応"},
-        {"name": "value", "type": "uint32", "doc": "4byte 生値(読出結果。indexで float/uint32 解釈)"}
+        {"name": "value", "type": "uint32", "doc": "4byte 生値(104:読出値 / 103:new 値)"},
+        {"name": "old_value", "type": "uint32", "doc": "4byte 生値(103:old 値。それ以外0)"}
       ]
     },
     {

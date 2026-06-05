@@ -30,6 +30,9 @@ public:
   // 全パラメータ読み出し(cmd=102, マルチフレーム)。連結 → 保持 MotParam に反映し、
   // 26 scalar の生値(ParamScalars, 104byte)を out_scalars に書き出す。
   bool ReadAllParams(int device_id, uint8_t* out_dump, int timeout_ms) override;
+  // 個別パラメータ設定(cmd=103)。書込→返信(old/new)→MotParam 更新 + old/new を返す。
+  bool WriteParam(int device_id, int param_index, const uint8_t* value4,
+                  uint8_t* out_old4, uint8_t* out_new4, int timeout_ms) override;
   // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
   const Foctive::MotParam& Params(int device_id);
 

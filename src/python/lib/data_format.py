@@ -41,11 +41,11 @@ def pack_settings_request(rec):
 def unpack_settings_request(buf, offset=0):
     return SettingsRequest(*struct.unpack_from(SETTINGS_REQUEST_FMT, buf, offset))
 
-SETTINGS_RESULT_FMT = "<BBB1xI"
-SETTINGS_RESULT_SIZE = struct.calcsize(SETTINGS_RESULT_FMT)  # 8
-SETTINGS_RESULT_FIELDS = ['cmd', 'param_index', 'ok', 'value']
+SETTINGS_RESULT_FMT = "<BBB1xII"
+SETTINGS_RESULT_SIZE = struct.calcsize(SETTINGS_RESULT_FMT)  # 12
+SETTINGS_RESULT_FIELDS = ['cmd', 'param_index', 'ok', 'value', 'old_value']
 SettingsResult = namedtuple("SettingsResult", SETTINGS_RESULT_FIELDS)
-SettingsResult.__new__.__defaults__ = (0, 0, 0, 0,)
+SettingsResult.__new__.__defaults__ = (0, 0, 0, 0, 0,)
 
 def pack_settings_result(rec):
     return struct.pack(SETTINGS_RESULT_FMT, *rec)

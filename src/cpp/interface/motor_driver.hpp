@@ -36,6 +36,11 @@ public:
     virtual bool ReadAllParams(int device_id, uint8_t* out_dump,
                                int timeout_ms) = 0;
 
+    // 個別パラメータ設定(cmd=103)。value4 を書き、返信の old/new 値を out_old4/out_new4 へ。
+    // パラメータ機能を持たないドライバ(moteus/dummy)は false。
+    virtual bool WriteParam(int device_id, int param_index, const uint8_t* value4,
+                            uint8_t* out_old4, uint8_t* out_new4, int timeout_ms) = 0;
+
 protected:
     MotorDriver() = default;
 };

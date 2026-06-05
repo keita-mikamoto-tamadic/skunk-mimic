@@ -154,6 +154,39 @@ while True:
                 print("readall FAILED (timeout/error on CAN)")
             else:
                 print("no reply (timeout)")
+        elif sub == "pwrite":
+            if len(parts) != 4:
+                print("usage: setting pwrite <param_index> <value>")
+                continue
+            try:
+                index = int(parts[2])
+            except ValueError:
+                print("param_index は整数で")
+                continue
+            # 値 → 生 4byte (index 0-6 は uint32, それ以外は float ビット)
+            try:
+                if index in INT_PARAM_INDICES:
+                    raw = int(float(parts[3])) & 0xFFFFFFFF
+                else:
+                    raw = struct.unpack("<I", struct.pack("<f", float(parts[3])))[0]
+            except ValueError:
+                print("数値で入力してください")
+                continue
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=index, value=raw)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            ev = node.next(timeout=0.5)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
+                res = unpack_settings_result(bytes(ev["value"].to_pylist()))
+                if res.ok:
+                    before = interpret_param(res.param_index, res.old_value)
+                    after = interpret_param(res.param_index, res.value)
+                    print(f"param[{res.param_index}] {before} -> {after}")
+                else:
+                    print(f"param[{index}] write FAILED (timeout/error/LUT不可)")
+            else:
+                print("no reply (timeout)")
         else:
             print(f"setting {sub} (cmd={scmd}) は未配線です")
     else:

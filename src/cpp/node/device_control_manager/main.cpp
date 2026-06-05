@@ -213,7 +213,18 @@ int main() {
                         if (ok) ZeroCopySendStruct(node, kOutputParamDump, dump);
                         break;
                     }
-                    // TODO: case 103 個別設定 を今後追加
+                    case 103: {  // 個別パラメータ設定(書き込み)
+                        uint8_t oldval[4] = {0};
+                        uint8_t newval[4] = {0};
+                        bool ok = driver->WriteParam(
+                            req.device_id, req.param_index,
+                            reinterpret_cast<const uint8_t*>(&req.value),
+                            oldval, newval, 10);
+                        res.ok = ok ? 1 : 0;
+                        std::memcpy(&res.value, newval, 4);      // after (new)
+                        std::memcpy(&res.old_value, oldval, 4);  // before (old)
+                        break;
+                    }
                     default:
                         res.ok = 0;  // 未対応 cmd
                         break;
