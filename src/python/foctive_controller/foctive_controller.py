@@ -60,6 +60,9 @@ def print_param_dump(ps, title):
 
 # MotorState (enum_def.hpp と一致)
 MOTOR_OFF = 0
+MOTOR_POSITION = 2
+MOTOR_VELOCITY = 3
+MOTOR_CURRENT = 6
 MOTOR_VOLTAGE = 7
 
 
@@ -74,6 +77,9 @@ DEVICE_ID = 1  # 単軸テスト用
 
 print("[foctive_controller] Commands:")
 print("  v <volt_d> <volt_q> <vir_ang_freq> : 電圧制御 (例: v 0 1.0 20)")
+print("  c <cur_d> <cur_q>                  : 電流制御 (例: c 0 0.5)")
+print("  vel <vel>                          : 速度制御 (例: vel 5.0) [rad/s]")
+print("  p <pos>                            : 位置制御 (例: p 1.57) [rad]")
 print("  setting pread <param_index>        : パラメータ読み出し (cmd=104, サーボOFFで)")
 print("  f : SERVO OFF")
 print("  q : QUIT")
@@ -113,6 +119,49 @@ while True:
         node.send_output("motor_commands", axis_ref_bytes(rec))
         print(f"sent: VOLTAGE volt_d={volt_d} volt_q={volt_q} "
               f"vir_ang_freq={vir_ang_freq}")
+    elif cmd == "c":
+        if len(parts) != 3:
+            print("usage: c <cur_d> <cur_q>")
+            continue
+        try:
+            cur_d, cur_q = float(parts[1]), float(parts[2])
+        except ValueError:
+            print("数値で入力してください")
+            continue
+        # CURRENT: ref_val=cur_d, ref_val_1=cur_q (ToCommand のマッピングに一致)
+        rec = AxisRef(motor_state=MOTOR_CURRENT,
+                      ref_val=cur_d, ref_val_1=cur_q,
+                      kp_scale=1.0, kv_scale=1.0)
+        node.send_output("motor_commands", axis_ref_bytes(rec))
+        print(f"sent: CURRENT cur_d={cur_d} cur_q={cur_q}")
+    elif cmd == "vel":
+        if len(parts) != 2:
+            print("usage: vel <vel>  [rad/s]")
+            continue
+        try:
+            vel = float(parts[1])
+        except ValueError:
+            print("数値で入力してください")
+            continue
+        # VELOCITY: ref_val=vel (ToCommand のマッピングに一致)
+        rec = AxisRef(motor_state=MOTOR_VELOCITY, ref_val=vel,
+                      kp_scale=1.0, kv_scale=1.0)
+        node.send_output("motor_commands", axis_ref_bytes(rec))
+        print(f"sent: VELOCITY vel={vel}")
+    elif cmd == "p":
+        if len(parts) != 2:
+            print("usage: p <pos>  [rad]")
+            continue
+        try:
+            pos = float(parts[1])
+        except ValueError:
+            print("数値で入力してください")
+            continue
+        # POSITION: ref_val=pos (ToCommand のマッピングに一致)
+        rec = AxisRef(motor_state=MOTOR_POSITION, ref_val=pos,
+                      kp_scale=1.0, kv_scale=1.0)
+        node.send_output("motor_commands", axis_ref_bytes(rec))
+        print(f"sent: POSITION pos={pos}")
     elif cmd == "setting":
         if len(parts) < 2 or parts[1].lower() not in SETTINGS_CMD:
             print("usage: setting <" + "|".join(SETTINGS_CMD) + "> [args]")
