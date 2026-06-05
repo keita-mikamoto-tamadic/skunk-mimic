@@ -170,6 +170,12 @@ namespace Foctive {
     out.data[out.size++] = kParamNum;
   }
 
+  // cmd=100 全パラメータセーブ(EEPROM)要求: [cmd, param_num]
+  inline void MakeSaveAll(uint8_t device_id, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kParamSaveAll, device_id, out);
+    out.data[out.size++] = kParamNum;
+  }
+
   // cmd=103 個別パラメータ設定要求: [cmd, param_index, 4byte data]
   // (LUT index=8 は不可。呼び出し側で弾く)
   inline void MakeWriteParam(uint8_t device_id, ParamIndex index,
@@ -225,6 +231,10 @@ namespace Foctive {
       case SettingsCmd::kError:           // 255
         r.warning = data[1];
         r.ok = false;
+        break;
+
+      case SettingsCmd::kParamSaveAll:    // 100: [cmd, done] (done=1 で完了)
+        r.ok = (data[1] != 0);
         break;
 
       case SettingsCmd::kParamRead: {     // 104: [cmd, index, 4byte]

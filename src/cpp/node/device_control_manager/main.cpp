@@ -225,6 +225,12 @@ int main() {
                         std::memcpy(&res.old_value, oldval, 4);  // before (old)
                         break;
                     }
+                    case 100: {  // 全パラメータセーブ(EEPROM)
+                        // EEPROM 書込で時間がかかるので長めの timeout
+                        bool ok = driver->SaveAllParams(req.device_id, 200);
+                        res.ok = ok ? 1 : 0;
+                        break;
+                    }
                     default:
                         res.ok = 0;  // 未対応 cmd
                         break;

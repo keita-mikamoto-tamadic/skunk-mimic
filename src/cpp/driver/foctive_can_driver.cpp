@@ -339,3 +339,39 @@ bool FoctiveCanDriver::WriteParam(int device_id, int param_index,
   }
   return false;  // タイムアウト
 }
+
+bool FoctiveCanDriver::SaveAllParams(int device_id, int timeout_ms) {
+  // 1. cmd=100 全セーブ要求 [100, param_num]
+  Foctive::CanFdFrame tx;
+  Foctive::MakeSaveAll(static_cast<uint8_t>(device_id), tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  // 2. 同 device の設定モード返信 [100, done] を待つ(EEPROM 書込で時間がかかる)
+  uint8_t rx[kMaxFrameSize];
+  size_t rxlen;
+  auto deadline = std::chrono::steady_clock::now()
+                  + std::chrono::milliseconds(timeout_ms);
+
+  while (true) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) break;
+    int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - now).count();
+    if (remaining_ms <= 0) break;
+
+    uint32_t can_id;
+    if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
+    if (Foctive::ParseDevId(static_cast<uint16_t>(can_id)) != device_id) continue;
+    if (Foctive::ParseMsgBit(static_cast<uint16_t>(can_id)) != Foctive::MsgBit::kSettings)
+      continue;
+
+    Foctive::CanFdFrame frame;
+    frame.canid_ = static_cast<uint16_t>(can_id);
+    std::memcpy(frame.data, rx, rxlen);
+    frame.size = static_cast<uint8_t>(rxlen);
+    Foctive::MotParam dummy;  // セーブ応答は MotParam を書き換えない
+    Foctive::SettingsReply reply = Foctive::ParseSettings(frame, dummy);
+    return reply.ok;  // done=1 で true
+  }
+  return false;  // タイムアウト
+}

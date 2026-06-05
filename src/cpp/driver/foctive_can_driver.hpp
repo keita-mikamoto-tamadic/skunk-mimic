@@ -33,6 +33,8 @@ public:
   // 個別パラメータ設定(cmd=103)。書込→返信(old/new)→MotParam 更新 + old/new を返す。
   bool WriteParam(int device_id, int param_index, const uint8_t* value4,
                   uint8_t* out_old4, uint8_t* out_new4, int timeout_ms) override;
+  // 全パラメータセーブ(cmd=100, EEPROM)。完了(done=1)で true。
+  bool SaveAllParams(int device_id, int timeout_ms) override;
   // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
   const Foctive::MotParam& Params(int device_id);
 

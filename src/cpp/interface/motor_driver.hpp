@@ -41,6 +41,10 @@ public:
     virtual bool WriteParam(int device_id, int param_index, const uint8_t* value4,
                             uint8_t* out_old4, uint8_t* out_new4, int timeout_ms) = 0;
 
+    // 全パラメータセーブ(cmd=100, EEPROM 永続化)。完了(done=1)で true。
+    // パラメータ機能を持たないドライバ(moteus/dummy)は false。
+    virtual bool SaveAllParams(int device_id, int timeout_ms) = 0;
+
 protected:
     MotorDriver() = default;
 };

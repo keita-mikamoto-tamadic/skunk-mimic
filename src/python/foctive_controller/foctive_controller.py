@@ -187,6 +187,18 @@ while True:
                     print(f"param[{index}] write FAILED (timeout/error/LUT不可)")
             else:
                 print("no reply (timeout)")
+        elif sub == "save":
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=0, value=0)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            # EEPROM 書込で時間がかかるので長めに待つ
+            ev = node.next(timeout=1.0)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
+                res = unpack_settings_result(bytes(ev["value"].to_pylist()))
+                print("saved (EEPROM)" if res.ok else "save FAILED (timeout/error)")
+            else:
+                print("no reply (timeout)")
         else:
             print(f"setting {sub} (cmd={scmd}) は未配線です")
     else:

@@ -24,6 +24,7 @@ public:
     bool ReadParam(int, int, uint8_t*, int) override { return false; }
     bool ReadAllParams(int, uint8_t*, int) override { return false; }
     bool WriteParam(int, int, const uint8_t*, uint8_t*, uint8_t*, int) override { return false; }
+    bool SaveAllParams(int, int) override { return false; }
 
 private:
     SocketCanComm comm_;
