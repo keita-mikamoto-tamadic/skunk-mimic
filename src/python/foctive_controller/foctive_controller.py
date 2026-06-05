@@ -2,10 +2,34 @@ from dora import Node
 import pyarrow as pa
 import sys
 import os
+import struct
 
 # lib を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from lib.data_format import AxisRef, pack_axis_ref  # 自動生成(axis_data.json 正本)
+from lib.data_format import (  # 自動生成(axis_data.json 正本)
+    AxisRef, pack_axis_ref,
+    SettingsRequest, pack_settings_request, unpack_settings_result,
+)
+
+# setting サブコマンド → SettingsCmd 番号 (foctive_protocol.hpp の SettingsCmd と一致)
+SETTINGS_CMD = {
+    "pread": 104,    # 個別パラメータ読み出し
+    "pwrite": 103,   # 個別パラメータ設定 (未配線)
+    "readall": 102,  # 全パラメータ読み出し (未配線, マルチフレーム)
+    "save": 100,     # 全パラメータセーブ (未配線)
+    "load": 101,     # 全パラメータ初期値で設定 (未配線)
+    "calib": 1,      # 電気角キャリブ (未配線)
+}
+
+# uint32 として解釈するパラメータ index (それ以外は float)。index 8 は LUT(scalar外)
+INT_PARAM_INDICES = {0, 1, 2, 3, 4, 5, 6}
+
+
+def interpret_param(index, value_u32):
+    if index in INT_PARAM_INDICES:
+        return value_u32
+    # float: 生ビットを float として再解釈
+    return struct.unpack("<f", struct.pack("<I", value_u32))[0]
 
 # MotorState (enum_def.hpp と一致)
 MOTOR_OFF = 0
@@ -19,8 +43,11 @@ def axis_ref_bytes(rec):
 
 node = Node("foctive_controller")
 
+DEVICE_ID = 1  # 単軸テスト用
+
 print("[foctive_controller] Commands:")
 print("  v <volt_d> <volt_q> <vir_ang_freq> : 電圧制御 (例: v 0 1.0 20)")
+print("  setting pread <param_index>        : パラメータ読み出し (cmd=104, サーボOFFで)")
 print("  f : SERVO OFF")
 print("  q : QUIT")
 
@@ -59,5 +86,38 @@ while True:
         node.send_output("motor_commands", axis_ref_bytes(rec))
         print(f"sent: VOLTAGE volt_d={volt_d} volt_q={volt_q} "
               f"vir_ang_freq={vir_ang_freq}")
+    elif cmd == "setting":
+        if len(parts) < 2 or parts[1].lower() not in SETTINGS_CMD:
+            print("usage: setting <" + "|".join(SETTINGS_CMD) + "> [args]")
+            continue
+        sub = parts[1].lower()
+        scmd = SETTINGS_CMD[sub]
+
+        if sub == "pread":
+            if len(parts) != 3:
+                print("usage: setting pread <param_index>")
+                continue
+            try:
+                index = int(parts[2])
+            except ValueError:
+                print("数値で入力してください")
+                continue
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=index, value=0)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            # 返信(settings_result)を待つ
+            ev = node.next(timeout=0.5)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
+                res = unpack_settings_result(bytes(ev["value"].to_pylist()))
+                if res.ok:
+                    print(f"param[{res.param_index}] = "
+                          f"{interpret_param(res.param_index, res.value)}")
+                else:
+                    print(f"param[{index}] read FAILED (timeout/error/unsupported)")
+            else:
+                print("no reply (timeout)")
+        else:
+            print(f"setting {sub} (cmd={scmd}) は未配線です")
     else:
         print("unknown command")

@@ -152,3 +152,56 @@ void FoctiveCanDriver::SendAllOff(const std::vector<AxisConfig>& axes) {
     comm_.SendFrame(frame.canid_, frame.data, frame.size, /*extended=*/false);
   }
 }
+
+bool FoctiveCanDriver::ReadParam(
+        int device_id, int param_index, uint8_t* out_value4, int timeout_ms) {
+  Foctive::ParamIndex index = static_cast<Foctive::ParamIndex>(param_index);
+
+  // 1. cmd=104 個別読み出し要求を送信(設定モード = 標準ID)
+  Foctive::CanFdFrame tx;
+  Foctive::MakeReadParam(static_cast<uint8_t>(device_id), index, tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  // 2. 同 device の設定モード返信を待つ
+  uint8_t rx[kMaxFrameSize];
+  size_t rxlen;
+  auto deadline = std::chrono::steady_clock::now()
+                  + std::chrono::milliseconds(timeout_ms);
+
+  while (true) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) break;
+    int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - now).count();
+    if (remaining_ms <= 0) break;
+
+    uint32_t can_id;
+    if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
+
+    // device / 設定モード でフィルタ(返信は return bit=1, message=15)
+    if (Foctive::ParseDevId(static_cast<uint16_t>(can_id)) != device_id) continue;
+    if (Foctive::ParseMsgBit(static_cast<uint16_t>(can_id)) != Foctive::MsgBit::kSettings)
+      continue;
+
+    // 3. デコード → 保持 MotParam に反映
+    Foctive::CanFdFrame frame;
+    frame.canid_ = static_cast<uint16_t>(can_id);
+    std::memcpy(frame.data, rx, rxlen);
+    frame.size = static_cast<uint8_t>(rxlen);
+    Foctive::SettingsReply reply = Foctive::ParseSettings(frame, params_[device_id]);
+
+    if (reply.ok && reply.index == index) {
+      // 4. 反映した 4byte 値を out へコピー
+      if (out_value4) {
+        std::memcpy(out_value4, Foctive::ParamPtr(params_[device_id], index), 4);
+      }
+      return true;
+    }
+    return false;  // エラー応答 / index 不一致
+  }
+  return false;  // タイムアウト
+}
+
+const Foctive::MotParam& FoctiveCanDriver::Params(int device_id) {
+  return params_[device_id];
+}

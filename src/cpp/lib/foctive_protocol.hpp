@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include "enum_def.hpp"
+#include "foctive_param_data.hpp"  // ParamIndex / kParamNum / MotParam
 
 
 namespace Foctive {
@@ -18,15 +19,17 @@ namespace Foctive {
     kSettings         = 15,  // サーボ OFF
   };
 
-  // 設定モード (message bit = 15) の sub-command
+  // 設定モード (message bit = 15) の sub-command (README 設定モード表に対応)
   enum class SettingsCmd : uint8_t {
-    kCalibration   = 1,    // 電気角キャリブ
-    kIdentElec     = 2,    // 電気的パラメータ自動推定 (未実装)
-    kParamSave     = 100,  // 全パラメータセーブ
-    kParamLoad     = 101,  // 全パラメータ初期値ロード
-    kParamSet      = 102,  // 個別パラメータ設定
-    kLutRead       = 103,  // 電気角オフセット LUT 読み出し
-    kZeroPosOffset = 105,  // 現在位置で角度オフセット設定
+    kCalibration      = 1,    // 電気角キャリブ
+    kIdentElec        = 2,    // 電気的パラメータ自動推定 (未実装)
+    kParamSaveAll     = 100,  // 全パラメータセーブ
+    kParamLoadDefault = 101,  // 全パラメータ初期値で設定
+    kParamReadAll     = 102,  // 全パラメータ現在値読み出し (マルチフレーム返信)
+    kParamSet         = 103,  // 個別パラメータ設定
+    kParamRead        = 104,  // 個別パラメータ読み出し
+    kSetPosOffset     = 110,  // 現在位置で任意の値を設定
+    kError            = 255,  // エラー応答 (param_num 不一致 / LUT 書込禁止 等)
   };
 
   struct CanFdFrame {
@@ -54,6 +57,14 @@ namespace Foctive {
     float pos;
     float power_sup_volt;
     float mcu_temp;
+  };
+
+  // 設定モード返信のデコード結果(単フレーム)
+  struct SettingsReply {
+    SettingsCmd cmd     = SettingsCmd::kError;  // 返ってきた cmd
+    ParamIndex  index   = kInvalid;             // cmd=103/104 で有効
+    bool        ok      = false;                // 正常に処理できたか
+    uint8_t     warning = 0;                    // cmd=255 のとき
   };
 
   // MotorState(名前) → FOCTIVE message bit(ワイヤ番号)
@@ -137,6 +148,36 @@ namespace Foctive {
     }
   }
   
+  // ---- 設定モード(message bit=15)送信フレーム ----
+  // 共通の頭(CAN ID と cmd バイト)をセットして size を 1 にする
+  inline void StartSettingsFrame(SettingsCmd cmd, uint8_t device_id, CanFdFrame& out) {
+    out.canid_ = MakeCanId(static_cast<uint8_t>(MsgBit::kSettings), device_id);
+    out.data[0] = static_cast<uint8_t>(cmd);
+    out.size = 1;
+  }
+
+  // cmd=104 個別パラメータ読み出し要求: [cmd, param_index]
+  inline void MakeReadParam(uint8_t device_id, ParamIndex index, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kParamRead, device_id, out);
+    out.data[out.size++] = static_cast<uint8_t>(index);
+  }
+
+  // cmd=102 全パラメータ現在値読み出し要求: [cmd, param_num]
+  inline void MakeReadAllParams(uint8_t device_id, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kParamReadAll, device_id, out);
+    out.data[out.size++] = kParamNum;
+  }
+
+  // cmd=103 個別パラメータ設定要求: [cmd, param_index, 4byte data]
+  // (LUT index=8 は不可。呼び出し側で弾く)
+  inline void MakeWriteParam(uint8_t device_id, ParamIndex index,
+                             const uint8_t* data4, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kParamSet, device_id, out);
+    out.data[out.size++] = static_cast<uint8_t>(index);
+    std::memcpy(&out.data[out.size], data4, 4);
+    out.size += 4;
+  }
+
   inline void Parse(const CanFdFrame& frame, Reply& out, MsgBit return_msg) {
     uint8_t offset = 0;
 
@@ -166,6 +207,46 @@ namespace Foctive {
       out.power_sup_volt = pull_float();
       out.mcu_temp = pull_float();
     }else{}
+  }
+
+  // 設定モード返信(単フレーム)をデコードし、MotParam に反映する。
+  //   cmd=104 scalar: [cmd, index, 4byte]        → param[index] に書込
+  //   cmd=103 set:    [cmd, index, old4, new4]   → new 値を param[index] に反映
+  //   cmd=255 error:  [cmd, warning]
+  // マルチフレーム(cmd=102 全読み出し / cmd=104 の LUT index=8)は別途。
+  inline SettingsReply ParseSettings(const CanFdFrame& frame, MotParam& param) {
+    SettingsReply r;
+    const uint8_t* data = frame.data;
+    r.cmd = static_cast<SettingsCmd>(data[0]);
+
+    switch (r.cmd) {
+      case SettingsCmd::kError:           // 255
+        r.warning = data[1];
+        r.ok = false;
+        break;
+
+      case SettingsCmd::kParamRead: {     // 104: [cmd, index, 4byte]
+        ParamIndex idx = static_cast<ParamIndex>(data[1]);
+        r.index = idx;
+        if (idx == kElecAngleOfs) { r.ok = false; break; }  // LUT はマルチフレーム
+        WriteParam(param, idx, &data[2]);
+        r.ok = true;
+        break;
+      }
+
+      case SettingsCmd::kParamSet: {       // 103: [cmd, index, old4, new4]
+        ParamIndex idx = static_cast<ParamIndex>(data[1]);
+        r.index = idx;
+        WriteParam(param, idx, &data[6]);  // new 値(offset 6)を反映
+        r.ok = true;
+        break;
+      }
+
+      default:
+        r.ok = false;
+        break;
+    }
+    return r;
   }
 
 }

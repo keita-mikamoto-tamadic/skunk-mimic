@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <cstdint>
 #include "../lib/shm_data_format.hpp"
 #include "../lib/robot_config.hpp"
 
@@ -23,6 +24,12 @@ public:
 
     // 全軸 OFF 送信（シャットダウン時）
     virtual void SendAllOff(const std::vector<AxisConfig>& axes) = 0;
+
+    // パラメータ読み出し(scalar, 単フレーム)。
+    // out_value4 に 4byte の現在値を書き、成功なら true。
+    // パラメータ機能を持たないドライバ(moteus/dummy)は false を返す。
+    virtual bool ReadParam(int device_id, int param_index,
+                           uint8_t* out_value4, int timeout_ms) = 0;
 
 protected:
     MotorDriver() = default;

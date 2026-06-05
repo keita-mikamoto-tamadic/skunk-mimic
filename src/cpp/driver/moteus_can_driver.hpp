@@ -20,6 +20,9 @@ public:
                       int timeout_ms) override;
     void SendAllOff(const std::vector<AxisConfig>& axes) override;
 
+    // moteus はパラメータ読み出し非対応
+    bool ReadParam(int, int, uint8_t*, int) override { return false; }
+
 private:
     SocketCanComm comm_;
     MoteusConverter converter_;

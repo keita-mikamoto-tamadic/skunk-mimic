@@ -17,6 +17,7 @@
 #include <vector>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include "dora-node-api.h"
 #include <pthread.h>
 #include <sched.h>
@@ -42,9 +43,11 @@ static std::string ResolveConfigPath() {
 constexpr const char* kInputTick          = "tick";
 constexpr const char* kInputMotorCommands = "motor_commands";
 constexpr const char* kInputImuData       = "raw_imu";
+constexpr const char* kInputSettingsRequest = "settings_request";
 constexpr const char* kOutputMotorStatus  = "motor_status";
 constexpr const char* kOutputImuData      = "imu_data";
 constexpr const char* kOutputLatency      = "latency";
+constexpr const char* kOutputSettingsResult = "settings_result";
 
 static void SetCpuAffinity(uint32_t core, int32_t priority) {
     cpu_set_t cpuset;
@@ -183,6 +186,29 @@ int main() {
                 ZeroCopySendStructArray(node, kOutputMotorStatus, acts);
                 status_send_time = std::chrono::steady_clock::now();
                 status_pending = true;
+            }
+            else if (id == kInputSettingsRequest) {
+                // 設定モード要求(サーボOFF前提)。cmd で dispatch。
+                SettingsRequest req = ReceiveStructArray<SettingsRequest>(arr, 1)[0];
+                SettingsResult res{};
+                res.cmd = req.cmd;
+                res.param_index = req.param_index;
+
+                switch (req.cmd) {
+                    case 104: {  // 個別パラメータ読み出し
+                        uint8_t val[4] = {0};
+                        bool ok = driver->ReadParam(
+                            req.device_id, req.param_index, val, 10);
+                        res.ok = ok ? 1 : 0;
+                        std::memcpy(&res.value, val, 4);
+                        break;
+                    }
+                    // TODO: case 103 個別設定 / case 102 全読出 を今後追加
+                    default:
+                        res.ok = 0;  // 未対応 cmd
+                        break;
+                }
+                ZeroCopySendStruct(node, kOutputSettingsResult, res);
             }
         }
     }

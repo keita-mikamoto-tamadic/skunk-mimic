@@ -20,8 +20,11 @@ nodes:
 
   - id: foctive_controller
     path: dynamic
+    inputs:
+      settings_result: device_control_manager/settings_result
     outputs:
       - motor_commands
+      - settings_request
 
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
@@ -30,10 +33,12 @@ nodes:
     inputs:
       tick: dora/timer/millis/3
       motor_commands: foctive_controller/motor_commands
+      settings_request: foctive_controller/settings_request
     outputs:
       - motor_status
       - imu_data
       - latency
+      - settings_result
 
   - id: data_viewer
     path: dynamic

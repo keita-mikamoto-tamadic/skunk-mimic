@@ -41,3 +41,29 @@ static_assert(offsetof(AxisAct, velocity) == 8, "AxisAct.velocity offset mismatc
 static_assert(offsetof(AxisAct, torque) == 16, "AxisAct.torque offset mismatch vs axis_data.json");
 static_assert(offsetof(AxisAct, fault) == 24, "AxisAct.fault offset mismatch vs axis_data.json");
 
+// foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)
+struct SettingsRequest {
+    uint8_t device_id;  // 対象デバイス
+    uint8_t cmd;  // SettingsCmd (104=個別読出, 103=個別設定, 102=全読出, ...)
+    uint8_t param_index;  // ParamIndex (cmd=103/104)
+    uint32_t value;  // 4byte 生値(cmd=103 設定値。読出は未使用)
+};
+static_assert(sizeof(SettingsRequest) == 8, "SettingsRequest size mismatch vs axis_data.json");
+static_assert(offsetof(SettingsRequest, device_id) == 0, "SettingsRequest.device_id offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsRequest, cmd) == 1, "SettingsRequest.cmd offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsRequest, param_index) == 2, "SettingsRequest.param_index offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsRequest, value) == 4, "SettingsRequest.value offset mismatch vs axis_data.json");
+
+// device_control_manager → foctive_controller: 設定モード結果(scalar)
+struct SettingsResult {
+    uint8_t cmd;  // 実行した SettingsCmd
+    uint8_t param_index;  // ParamIndex
+    uint8_t ok;  // 1=成功, 0=失敗/タイムアウト/非対応
+    uint32_t value;  // 4byte 生値(読出結果。indexで float/uint32 解釈)
+};
+static_assert(sizeof(SettingsResult) == 8, "SettingsResult size mismatch vs axis_data.json");
+static_assert(offsetof(SettingsResult, cmd) == 0, "SettingsResult.cmd offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsResult, param_index) == 1, "SettingsResult.param_index offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsResult, ok) == 2, "SettingsResult.ok offset mismatch vs axis_data.json");
+static_assert(offsetof(SettingsResult, value) == 4, "SettingsResult.value offset mismatch vs axis_data.json");
+

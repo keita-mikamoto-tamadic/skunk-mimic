@@ -5,6 +5,7 @@
 #include "socket_can_comm.hpp"
 #include <set>
 #include <vector>
+#include <map>
 
 class FoctiveCanDriver : public MotorDriver {
 public:
@@ -22,10 +23,19 @@ public:
                     int timeout_ms) override;
   void SendAllOff(const std::vector<AxisConfig>& axes) override;
 
+  // 個別パラメータ読み出し(cmd=104, 単フレーム)。基底I/F経由で DCM から呼ぶ。
+  // 送信→返信待ち→保持 MotParam に反映し、out_value4 に 4byte 値を書く。
+  bool ReadParam(int device_id, int param_index,
+                 uint8_t* out_value4, int timeout_ms) override;
+  // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
+  const Foctive::MotParam& Params(int device_id);
+
 private:
   SocketCanComm comm_;
   std::set<int> expected_ids_;
   // SendQueries 用: 各軸の最後に送信したフレームを保持し再送する
   // (FOCTIVE には純粋 Query フレームが無く、状態を変えずに返信を得るため last を再送)
   std::vector<Foctive::CanFdFrame> last_frames_;
+  // 設定モードで読み出したパラメータを device_id ごとに保持(確認用)
+  std::map<int, Foctive::MotParam> params_;
 };

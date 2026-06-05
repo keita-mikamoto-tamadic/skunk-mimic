@@ -2,6 +2,7 @@
   "_comment": "dora で C++↔Python 間を生バイト列で交換するアプリ内部構造体の単一正本。tools/gen_data_format.py が C++ヘッダと Python モジュールを生成する(CMake configure 時に自動)。これは FOCTIVE の CAN フレーム(float)ではなく dora/shm の構造体(double)。CAN の float 変換はドライバ側で行う。",
   "types": {
     "double": {"cpp": "double", "size": 8, "align": 8, "py": "d"},
+    "uint32": {"cpp": "uint32_t", "size": 4, "align": 4, "py": "I"},
     "uint8": {"cpp": "uint8_t", "size": 1, "align": 1, "py": "B"}
   },
   "structs": [
@@ -28,6 +29,26 @@
         {"name": "velocity", "type": "double", "doc": "rad/s"},
         {"name": "torque", "type": "double", "doc": "Nm"},
         {"name": "fault", "type": "uint8", "doc": "0=正常, それ以外=異常"}
+      ]
+    },
+    {
+      "name": "SettingsRequest",
+      "doc": "foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)",
+      "fields": [
+        {"name": "device_id", "type": "uint8", "doc": "対象デバイス"},
+        {"name": "cmd", "type": "uint8", "doc": "SettingsCmd (104=個別読出, 103=個別設定, 102=全読出, ...)"},
+        {"name": "param_index", "type": "uint8", "doc": "ParamIndex (cmd=103/104)"},
+        {"name": "value", "type": "uint32", "doc": "4byte 生値(cmd=103 設定値。読出は未使用)"}
+      ]
+    },
+    {
+      "name": "SettingsResult",
+      "doc": "device_control_manager → foctive_controller: 設定モード結果(scalar)",
+      "fields": [
+        {"name": "cmd", "type": "uint8", "doc": "実行した SettingsCmd"},
+        {"name": "param_index", "type": "uint8", "doc": "ParamIndex"},
+        {"name": "ok", "type": "uint8", "doc": "1=成功, 0=失敗/タイムアウト/非対応"},
+        {"name": "value", "type": "uint32", "doc": "4byte 生値(読出結果。indexで float/uint32 解釈)"}
       ]
     }
   ]

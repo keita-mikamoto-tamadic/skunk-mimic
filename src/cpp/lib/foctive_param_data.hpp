@@ -1,8 +1,13 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>  // offsetof
+#include <cstring>  // memcpy
 
 namespace Foctive {
+  // 全パラメータ個数 (= 26 scalar + 1 LUT block)。cmd=100/102 の param_num に使う
+  constexpr uint8_t kParamNum = 27;
+
   enum ParamIndex : uint8_t {
     kMotorId       = 0,
     kDeviceId      = 1,
@@ -12,24 +17,25 @@ namespace Foctive {
     kMotPolePairs  = 5,
     kGearEnable    = 6,
     kGearRatio     = 7,
-    kZeroPosOfs    = 8,
-    kPGainCur      = 9,
-    kIGainCur      = 10,
-    kDGainCur      = 11,
-    kPGainVel      = 12,
-    kIGainVel      = 13,
-    kDGainVel      = 14,
-    kPGainPos      = 15,
-    kIGainPos      = 16,
-    kDGainPos      = 17,
-    kCurQMax       = 18,
-    kCurQMin       = 19,
-    kTrqOutMax     = 20,
-    kTrqOutMin     = 21,
-    kVelOutMax     = 22,
-    kVelOutMin     = 23,
-    kPosOutMax     = 24,
-    kPosOutMin     = 25,
+    kElecAngleOfs  = 8,   // LUT (256 byte, uint32_t×64)。特殊扱い
+    kZeroPosOfs    = 9,
+    kPGainCur      = 10,
+    kIGainCur      = 11,
+    kDGainCur      = 12,
+    kPGainVel      = 13,
+    kIGainVel      = 14,
+    kDGainVel      = 15,
+    kPGainPos      = 16,
+    kIGainPos      = 17,
+    kDGainPos      = 18,
+    kCurQMax       = 19,
+    kCurQMin       = 20,
+    kTrqOutMax     = 21,
+    kTrqOutMin     = 22,
+    kVelOutMax     = 23,
+    kVelOutMin     = 24,
+    kPosOutMax     = 25,
+    kPosOutMin     = 26,
     kInvalid       = 0xFF,
   };
 
@@ -62,4 +68,54 @@ namespace Foctive {
     float    pos_out_mx;
     float    pos_out_mn;
   };
+
+  // ParamIndex → MotParam 内のバイトオフセット / サイズ / 型。
+  // LUT(index 8)が中央に挟まるので線形(index×4)にできない → offsetof で吸収。
+  // MotParam のメモリ並び = README の index 表 = cmd=102 のワイヤ順、で一致している。
+  struct ParamDesc {
+    uint16_t offset;    // MotParam 先頭からのバイト位置
+    uint16_t size;      // scalar=4, LUT=256
+    bool     is_float;  // 表示・解釈用 (uint32 / LUT は false)
+  };
+
+  inline constexpr ParamDesc kParamDesc[kParamNum] = {
+    {offsetof(MotParam, motor_id),       4,   false},  // 0
+    {offsetof(MotParam, device_id),      4,   false},  // 1
+    {offsetof(MotParam, rot_dir),        4,   false},  // 2
+    {offsetof(MotParam, mech_angle_dir), 4,   false},  // 3
+    {offsetof(MotParam, elec_angle_dir), 4,   false},  // 4
+    {offsetof(MotParam, mot_pole_pairs), 4,   false},  // 5
+    {offsetof(MotParam, gear_enable),    4,   false},  // 6
+    {offsetof(MotParam, gear_ratio),     4,   true},   // 7
+    {offsetof(MotParam, elec_angle_ofs), 256, false},  // 8  LUT
+    {offsetof(MotParam, zero_pos_ofs),   4,   true},   // 9
+    {offsetof(MotParam, p_gain_cur),     4,   true},   // 10
+    {offsetof(MotParam, i_gain_cur),     4,   true},   // 11
+    {offsetof(MotParam, d_gain_cur),     4,   true},   // 12
+    {offsetof(MotParam, p_gain_vel),     4,   true},   // 13
+    {offsetof(MotParam, i_gain_vel),     4,   true},   // 14
+    {offsetof(MotParam, d_gain_vel),     4,   true},   // 15
+    {offsetof(MotParam, p_gain_pos),     4,   true},   // 16
+    {offsetof(MotParam, i_gain_pos),     4,   true},   // 17
+    {offsetof(MotParam, d_gain_pos),     4,   true},   // 18
+    {offsetof(MotParam, cur_q_mx),       4,   true},   // 19
+    {offsetof(MotParam, cur_q_mn),       4,   true},   // 20
+    {offsetof(MotParam, trq_out_mx),     4,   true},   // 21
+    {offsetof(MotParam, trq_out_mn),     4,   true},   // 22
+    {offsetof(MotParam, vel_out_mx),     4,   true},   // 23
+    {offsetof(MotParam, vel_out_mn),     4,   true},   // 24
+    {offsetof(MotParam, pos_out_mx),     4,   true},   // 25
+    {offsetof(MotParam, pos_out_mn),     4,   true},   // 26
+  };
+
+  // 受信した生バイト列を MotParam の該当フィールドへ書き込む(cmd=104/102 のデコード用)
+  inline void WriteParam(MotParam& p, ParamIndex idx, const uint8_t* src) {
+    const ParamDesc& d = kParamDesc[idx];
+    std::memcpy(reinterpret_cast<uint8_t*>(&p) + d.offset, src, d.size);
+  }
+
+  // MotParam の該当フィールド先頭ポインタ(送信・表示用)
+  inline const uint8_t* ParamPtr(const MotParam& p, ParamIndex idx) {
+    return reinterpret_cast<const uint8_t*>(&p) + kParamDesc[idx].offset;
+  }
 };
