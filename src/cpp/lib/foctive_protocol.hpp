@@ -149,7 +149,7 @@ namespace Foctive {
   }
   
   // ---- 設定モード(message bit=15)送信フレーム ----
-  // 共通の頭(CAN ID と cmd バイト)をセットして size を 1 にする
+  // 共通のヘッダ(CAN ID と cmd バイト)をセットして size を 1 にする
   inline void StartSettingsFrame(SettingsCmd cmd, uint8_t device_id, CanFdFrame& out) {
     out.canid_ = MakeCanId(static_cast<uint8_t>(MsgBit::kSettings), device_id);
     out.data[0] = static_cast<uint8_t>(cmd);

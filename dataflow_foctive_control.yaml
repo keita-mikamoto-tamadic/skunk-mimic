@@ -22,6 +22,7 @@ nodes:
     path: dynamic
     inputs:
       settings_result: device_control_manager/settings_result
+      param_dump: device_control_manager/param_dump
     outputs:
       - motor_commands
       - settings_request
@@ -39,6 +40,7 @@ nodes:
       - imu_data
       - latency
       - settings_result
+      - param_dump
 
   - id: data_viewer
     path: dynamic

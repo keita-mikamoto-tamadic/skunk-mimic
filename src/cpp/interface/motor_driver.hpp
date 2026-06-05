@@ -31,6 +31,11 @@ public:
     virtual bool ReadParam(int device_id, int param_index,
                            uint8_t* out_value4, int timeout_ms) = 0;
 
+    // 全パラメータ読み出し(マルチフレーム)。26 scalar + LUT を ParamScalars(360byte)
+    // として out_dump に書き出す。パラメータ機能を持たないドライバ(moteus/dummy)は false。
+    virtual bool ReadAllParams(int device_id, uint8_t* out_dump,
+                               int timeout_ms) = 0;
+
 protected:
     MotorDriver() = default;
 };

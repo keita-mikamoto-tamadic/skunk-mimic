@@ -22,6 +22,7 @@ public:
 
     // moteus はパラメータ読み出し非対応
     bool ReadParam(int, int, uint8_t*, int) override { return false; }
+    bool ReadAllParams(int, uint8_t*, int) override { return false; }
 
 private:
     SocketCanComm comm_;

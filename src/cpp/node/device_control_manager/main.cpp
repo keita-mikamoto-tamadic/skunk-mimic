@@ -48,6 +48,7 @@ constexpr const char* kOutputMotorStatus  = "motor_status";
 constexpr const char* kOutputImuData      = "imu_data";
 constexpr const char* kOutputLatency      = "latency";
 constexpr const char* kOutputSettingsResult = "settings_result";
+constexpr const char* kOutputParamDump      = "param_dump";
 
 static void SetCpuAffinity(uint32_t core, int32_t priority) {
     cpu_set_t cpuset;
@@ -203,7 +204,16 @@ int main() {
                         std::memcpy(&res.value, val, 4);
                         break;
                     }
-                    // TODO: case 103 個別設定 / case 102 全読出 を今後追加
+                    case 102: {  // 全パラメータ読み出し(マルチフレーム)
+                        // 26 scalar + LUT を ParamScalars(360byte)に受け取り param_dump で送る
+                        ParamScalars dump{};
+                        bool ok = driver->ReadAllParams(
+                            req.device_id, reinterpret_cast<uint8_t*>(&dump), 100);
+                        res.ok = ok ? 1 : 0;
+                        if (ok) ZeroCopySendStruct(node, kOutputParamDump, dump);
+                        break;
+                    }
+                    // TODO: case 103 個別設定 を今後追加
                     default:
                         res.ok = 0;  // 未対応 cmd
                         break;

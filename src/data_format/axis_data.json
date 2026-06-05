@@ -50,6 +50,39 @@
         {"name": "ok", "type": "uint8", "doc": "1=成功, 0=失敗/タイムアウト/非対応"},
         {"name": "value", "type": "uint32", "doc": "4byte 生値(読出結果。indexで float/uint32 解釈)"}
       ]
+    },
+    {
+      "name": "ParamScalars",
+      "doc": "device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。idx 0-6 は uint32, 7 以降は float。LUT(idx 8)は含まない",
+      "fields": [
+        {"name": "motor_id", "type": "uint32"},
+        {"name": "device_id", "type": "uint32"},
+        {"name": "rot_dir", "type": "uint32"},
+        {"name": "mech_angle_dir", "type": "uint32"},
+        {"name": "elec_angle_dir", "type": "uint32"},
+        {"name": "mot_pole_pairs", "type": "uint32"},
+        {"name": "gear_enable", "type": "uint32"},
+        {"name": "gear_ratio", "type": "uint32"},
+        {"name": "zero_pos_ofs", "type": "uint32"},
+        {"name": "p_gain_cur", "type": "uint32"},
+        {"name": "i_gain_cur", "type": "uint32"},
+        {"name": "d_gain_cur", "type": "uint32"},
+        {"name": "p_gain_vel", "type": "uint32"},
+        {"name": "i_gain_vel", "type": "uint32"},
+        {"name": "d_gain_vel", "type": "uint32"},
+        {"name": "p_gain_pos", "type": "uint32"},
+        {"name": "i_gain_pos", "type": "uint32"},
+        {"name": "d_gain_pos", "type": "uint32"},
+        {"name": "cur_q_mx", "type": "uint32"},
+        {"name": "cur_q_mn", "type": "uint32"},
+        {"name": "trq_out_mx", "type": "uint32"},
+        {"name": "trq_out_mn", "type": "uint32"},
+        {"name": "vel_out_mx", "type": "uint32"},
+        {"name": "vel_out_mn", "type": "uint32"},
+        {"name": "pos_out_mx", "type": "uint32"},
+        {"name": "pos_out_mn", "type": "uint32"},
+        {"name": "elec_angle_ofs", "type": "uint32", "count": 64, "doc": "電気角オフセット LUT (idx 8, 64要素)"}
+      ]
     }
   ]
 }

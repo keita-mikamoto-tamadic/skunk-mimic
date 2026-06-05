@@ -27,6 +27,9 @@ public:
   // 送信→返信待ち→保持 MotParam に反映し、out_value4 に 4byte 値を書く。
   bool ReadParam(int device_id, int param_index,
                  uint8_t* out_value4, int timeout_ms) override;
+  // 全パラメータ読み出し(cmd=102, マルチフレーム)。連結 → 保持 MotParam に反映し、
+  // 26 scalar の生値(ParamScalars, 104byte)を out_scalars に書き出す。
+  bool ReadAllParams(int device_id, uint8_t* out_dump, int timeout_ms) override;
   // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
   const Foctive::MotParam& Params(int device_id);
 

@@ -19,6 +19,7 @@ public:
 
     // dummy はパラメータ読み出し非対応
     bool ReadParam(int, int, uint8_t*, int) override { return false; }
+    bool ReadAllParams(int, uint8_t*, int) override { return false; }
 
 private:
     double dummy_pos_ = 0.0;

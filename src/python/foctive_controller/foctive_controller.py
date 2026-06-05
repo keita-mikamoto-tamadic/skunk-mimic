@@ -9,7 +9,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.data_format import (  # 自動生成(axis_data.json 正本)
     AxisRef, pack_axis_ref,
     SettingsRequest, pack_settings_request, unpack_settings_result,
+    unpack_param_scalars,
 )
+
+# ParamScalars のうち uint32 として表示するフィールド(残りは float ビットを再解釈)
+INT_PARAM_FIELDS = {
+    "motor_id", "device_id", "rot_dir", "mech_angle_dir",
+    "elec_angle_dir", "mot_pole_pairs", "gear_enable",
+}
 
 # setting サブコマンド → SettingsCmd 番号 (foctive_protocol.hpp の SettingsCmd と一致)
 SETTINGS_CMD = {
@@ -115,6 +122,36 @@ while True:
                           f"{interpret_param(res.param_index, res.value)}")
                 else:
                     print(f"param[{index}] read FAILED (timeout/error/unsupported)")
+            else:
+                print("no reply (timeout)")
+        elif sub == "readall":
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=0, value=0)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            # 成功時は param_dump(値) → settings_result(ok) の順で届く
+            ev = node.next(timeout=1.0)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "param_dump":
+                ps = unpack_param_scalars(bytes(ev["value"].to_pylist()))
+                print("[readall] 全パラメータ:")
+                for name in ps._fields:
+                    if name == "elec_angle_ofs":
+                        continue  # LUT は下でまとめて表示
+                    raw_u32 = getattr(ps, name)
+                    if name in INT_PARAM_FIELDS:
+                        print(f"  {name:14s} = {raw_u32}")
+                    else:
+                        f = struct.unpack("<f", struct.pack("<I", raw_u32))[0]
+                        print(f"  {name:14s} = {f:g}")
+                # 電気角オフセット LUT (64要素) を 8個ずつ折り返し表示
+                print("  elec_angle_ofs[64]:")
+                lut = ps.elec_angle_ofs
+                for r in range(0, len(lut), 8):
+                    row = " ".join(f"{v:>10}" for v in lut[r:r + 8])
+                    print(f"    [{r:2d}] {row}")
+                node.next(timeout=0.2)  # 後続の settings_result を drain
+            elif ev is not None and ev["id"] == "settings_result":
+                print("readall FAILED (timeout/error on CAN)")
             else:
                 print("no reply (timeout)")
         else:

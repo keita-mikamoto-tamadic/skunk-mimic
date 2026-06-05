@@ -36,7 +36,8 @@ def layout(fields, types):
     entries = []
     for f in fields:
         t = types[f["type"]]
-        size, align = t["size"], t["align"]
+        count = f.get("count", 1)        # 配列要素数 (省略時 1 = スカラ)
+        size, align = t["size"] * count, t["align"]
         pad = (-offset) % align          # このフィールド前の整列パディング
         offset += pad
         entries.append({
@@ -45,6 +46,7 @@ def layout(fields, types):
             "py": t["py"],
             "off": offset,
             "pad": pad,
+            "count": count,
             "doc": f.get("doc", ""),
         })
         offset += size
@@ -70,7 +72,8 @@ def gen_cpp(structs, types):
         out.append(f"struct {s['name']} {{")
         for e in entries:
             doc = f"  // {e['doc']}" if e["doc"] else ""
-            out.append(f"    {e['cpp']} {e['name']};{doc}")
+            arr = f"[{e['count']}]" if e["count"] > 1 else ""
+            out.append(f"    {e['cpp']} {e['name']}{arr};{doc}")
         out.append("};")
         out.append(f'static_assert(sizeof({s["name"]}) == {total}, '
                    f'"{s["name"]} size mismatch vs axis_data.json");')
@@ -97,28 +100,48 @@ def gen_py(structs, types):
         for e in entries:
             if e["pad"]:
                 fmt += f"{e['pad']}x"
-            fmt += e["py"]
+            fmt += e["py"] * e["count"]  # 配列はコードを count 回繰り返す
         if tail:
             fmt += f"{tail}x"
 
         upper = camel_to_snake(s["name"]).upper()
         snake = camel_to_snake(s["name"])
         field_names = [e["name"] for e in entries]
+        counts = [e["count"] for e in entries]
+        has_array = any(c > 1 for c in counts)
 
         out.append(f'{upper}_FMT = "{fmt}"')
         out.append(f"{upper}_SIZE = struct.calcsize({upper}_FMT)  # {total}")
         out.append(f"{upper}_FIELDS = {field_names!r}")
         out.append(f'{s["name"]} = namedtuple("{s["name"]}", {upper}_FIELDS)')
-        # 全フィールド 0 デフォルト(必要なものだけ kwargs で渡せる)
-        out.append(f"{s['name']}.__new__.__defaults__ = "
-                   f"({', '.join(['0'] * len(field_names))},)")
+        # デフォルト: スカラは 0、配列は空 tuple
+        defaults = ["()" if c > 1 else "0" for c in counts]
+        out.append(f"{s['name']}.__new__.__defaults__ = ({', '.join(defaults)},)")
         out.append("")
-        out.append(f"def pack_{snake}(rec):")
-        out.append(f"    return struct.pack({upper}_FMT, *rec)")
-        out.append("")
-        out.append(f"def unpack_{snake}(buf, offset=0):")
-        out.append(f"    return {s['name']}(*struct.unpack_from({upper}_FMT, buf, offset))")
-        out.append("")
+        if has_array:
+            # 配列フィールドあり: フラット化 / 再グループ化
+            out.append(f"{upper}_COUNTS = {counts!r}")
+            out.append(f"def pack_{snake}(rec):")
+            out.append(f"    flat = []")
+            out.append(f"    for v, c in zip(rec, {upper}_COUNTS):")
+            out.append(f"        flat.extend(v) if c > 1 else flat.append(v)")
+            out.append(f"    return struct.pack({upper}_FMT, *flat)")
+            out.append("")
+            out.append(f"def unpack_{snake}(buf, offset=0):")
+            out.append(f"    flat = struct.unpack_from({upper}_FMT, buf, offset)")
+            out.append(f"    vals = []; pos = 0")
+            out.append(f"    for c in {upper}_COUNTS:")
+            out.append(f"        if c > 1: vals.append(flat[pos:pos + c]); pos += c")
+            out.append(f"        else: vals.append(flat[pos]); pos += 1")
+            out.append(f"    return {s['name']}(*vals)")
+            out.append("")
+        else:
+            out.append(f"def pack_{snake}(rec):")
+            out.append(f"    return struct.pack({upper}_FMT, *rec)")
+            out.append("")
+            out.append(f"def unpack_{snake}(buf, offset=0):")
+            out.append(f"    return {s['name']}(*struct.unpack_from({upper}_FMT, buf, offset))")
+            out.append("")
     return "\n".join(out)
 
 

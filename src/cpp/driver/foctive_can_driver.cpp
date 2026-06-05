@@ -1,6 +1,7 @@
 #include "foctive_can_driver.hpp"
 #include <chrono>
 #include <cstring>
+#include <cstdio>
 
 static constexpr size_t kMaxFrameSize = 64;
 
@@ -204,4 +205,91 @@ bool FoctiveCanDriver::ReadParam(
 
 const Foctive::MotParam& FoctiveCanDriver::Params(int device_id) {
   return params_[device_id];
+}
+
+// 保持中の MotParam の 26 scalar を stdout に表示(LUT は除外、型で float/uint32)
+static void PrintParams(int device_id, const Foctive::MotParam& p) {
+  std::printf("[foctive] device %d params:\n", device_id);
+  for (uint8_t i = 0; i < Foctive::kParamNum; i++) {
+    if (i == Foctive::kElecAngleOfs) continue;  // LUT はスキップ
+    const Foctive::ParamDesc& d = Foctive::kParamDesc[i];
+    const uint8_t* ptr = Foctive::ParamPtr(p, static_cast<Foctive::ParamIndex>(i));
+    if (d.is_float) {
+      float f;
+      std::memcpy(&f, ptr, 4);
+      std::printf("  [%2u] %g\n", i, f);
+    } else {
+      uint32_t u;
+      std::memcpy(&u, ptr, 4);
+      std::printf("  [%2u] %u\n", i, u);
+    }
+  }
+  std::fflush(stdout);
+}
+
+bool FoctiveCanDriver::ReadAllParams(int device_id, uint8_t* out_dump,
+                                     int timeout_ms) {
+  // 1. cmd=102 全読み出し要求 [102, param_num]
+  Foctive::CanFdFrame tx;
+  Foctive::MakeReadAllParams(static_cast<uint8_t>(device_id), tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  // 2. マルチフレーム受信: 各フレーム [cmd, is_last_frame, payload chunk] を連結
+  uint8_t buf[sizeof(Foctive::MotParam)];
+  size_t total = 0;
+  bool last = false;
+
+  uint8_t rx[kMaxFrameSize];
+  size_t rxlen;
+  auto deadline = std::chrono::steady_clock::now()
+                  + std::chrono::milliseconds(timeout_ms);
+
+  while (!last) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) break;
+    int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - now).count();
+    if (remaining_ms <= 0) break;
+
+    uint32_t can_id;
+    if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
+    if (Foctive::ParseDevId(static_cast<uint16_t>(can_id)) != device_id) continue;
+    if (Foctive::ParseMsgBit(static_cast<uint16_t>(can_id)) != Foctive::MsgBit::kSettings)
+      continue;
+    if (rxlen < 2) continue;  // [cmd, is_last_frame] 最低
+    if (rx[0] != static_cast<uint8_t>(Foctive::SettingsCmd::kParamReadAll))
+      return false;  // cmd=255 エラー等
+
+    last = (rx[1] != 0);
+    size_t chunk = rxlen - 2;
+    // 最終フレームは CAN-FD パディングで rxlen が膨らむ(例: 52→64)ため、
+    // 既知の総量(sizeof MotParam)で残り容量に cap してパディングを捨てる
+    size_t room = sizeof(buf) - total;
+    if (chunk > room) chunk = room;
+    std::memcpy(buf + total, &rx[2], chunk);
+    total += chunk;
+  }
+
+  if (last && total == sizeof(Foctive::MotParam)) {
+    // 3. 連結バイト列 = MotParam メモリ並び なので直接 memcpy
+    std::memcpy(&params_[device_id], buf, sizeof(Foctive::MotParam));
+    PrintParams(device_id, params_[device_id]);  // DCM ログ確認用
+
+    // 4. ParamScalars(out_dump)へ詰める: [0..103]=26 scalar(index順), [104..359]=LUT
+    if (out_dump) {
+      size_t off = 0;
+      for (uint8_t i = 0; i < Foctive::kParamNum; i++) {
+        if (i == Foctive::kElecAngleOfs) continue;  // scalar 部には LUT を含めない
+        std::memcpy(&out_dump[off],
+                    Foctive::ParamPtr(params_[device_id],
+                                      static_cast<Foctive::ParamIndex>(i)), 4);
+        off += 4;
+      }
+      // 末尾に LUT 256byte
+      std::memcpy(&out_dump[off], params_[device_id].elec_angle_ofs,
+                  sizeof(params_[device_id].elec_angle_ofs));
+    }
+    return true;
+  }
+  return false;
 }
