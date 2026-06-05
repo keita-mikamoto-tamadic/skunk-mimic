@@ -231,6 +231,14 @@ int main() {
                         res.ok = ok ? 1 : 0;
                         break;
                     }
+                    case 101: {  // 全パラメータ初期値ロード(返信は初期値, cmd=102と同形)
+                        ParamScalars dump{};
+                        bool ok = driver->LoadDefaultParams(
+                            req.device_id, reinterpret_cast<uint8_t*>(&dump), 100);
+                        res.ok = ok ? 1 : 0;
+                        if (ok) ZeroCopySendStruct(node, kOutputParamDump, dump);
+                        break;
+                    }
                     default:
                         res.ok = 0;  // 未対応 cmd
                         break;

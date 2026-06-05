@@ -38,6 +38,25 @@ def interpret_param(index, value_u32):
     # float: 生ビットを float として再解釈
     return struct.unpack("<f", struct.pack("<I", value_u32))[0]
 
+
+def print_param_dump(ps, title):
+    # ParamScalars(26 scalar + LUT)を表示。cmd=102/101 共通
+    print(title)
+    for name in ps._fields:
+        if name == "elec_angle_ofs":
+            continue  # LUT は下でまとめて表示
+        raw_u32 = getattr(ps, name)
+        if name in INT_PARAM_FIELDS:
+            print(f"  {name:14s} = {raw_u32}")
+        else:
+            f = struct.unpack("<f", struct.pack("<I", raw_u32))[0]
+            print(f"  {name:14s} = {f:g}")
+    print("  elec_angle_ofs[64]:")
+    lut = ps.elec_angle_ofs
+    for r in range(0, len(lut), 8):
+        row = " ".join(f"{v:>10}" for v in lut[r:r + 8])
+        print(f"    [{r:2d}] {row}")
+
 # MotorState (enum_def.hpp と一致)
 MOTOR_OFF = 0
 MOTOR_VOLTAGE = 7
@@ -133,22 +152,7 @@ while True:
             ev = node.next(timeout=1.0)
             if ev is not None and ev["type"] == "INPUT" and ev["id"] == "param_dump":
                 ps = unpack_param_scalars(bytes(ev["value"].to_pylist()))
-                print("[readall] 全パラメータ:")
-                for name in ps._fields:
-                    if name == "elec_angle_ofs":
-                        continue  # LUT は下でまとめて表示
-                    raw_u32 = getattr(ps, name)
-                    if name in INT_PARAM_FIELDS:
-                        print(f"  {name:14s} = {raw_u32}")
-                    else:
-                        f = struct.unpack("<f", struct.pack("<I", raw_u32))[0]
-                        print(f"  {name:14s} = {f:g}")
-                # 電気角オフセット LUT (64要素) を 8個ずつ折り返し表示
-                print("  elec_angle_ofs[64]:")
-                lut = ps.elec_angle_ofs
-                for r in range(0, len(lut), 8):
-                    row = " ".join(f"{v:>10}" for v in lut[r:r + 8])
-                    print(f"    [{r:2d}] {row}")
+                print_param_dump(ps, "[readall] 全パラメータ:")
                 node.next(timeout=0.2)  # 後続の settings_result を drain
             elif ev is not None and ev["id"] == "settings_result":
                 print("readall FAILED (timeout/error on CAN)")
@@ -197,6 +201,21 @@ while True:
             if ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
                 res = unpack_settings_result(bytes(ev["value"].to_pylist()))
                 print("saved (EEPROM)" if res.ok else "save FAILED (timeout/error)")
+            else:
+                print("no reply (timeout)")
+        elif sub == "load":
+            req = SettingsRequest(device_id=DEVICE_ID, cmd=scmd,
+                                  param_index=0, value=0)
+            node.send_output("settings_request",
+                             pa.array(list(pack_settings_request(req)), type=pa.uint8()))
+            # 返信は初期値(readall と同形)
+            ev = node.next(timeout=1.0)
+            if ev is not None and ev["type"] == "INPUT" and ev["id"] == "param_dump":
+                ps = unpack_param_scalars(bytes(ev["value"].to_pylist()))
+                print_param_dump(ps, "[load] 初期値ロード後:")
+                node.next(timeout=0.2)  # settings_result を drain
+            elif ev is not None and ev["id"] == "settings_result":
+                print("load FAILED (timeout/error on CAN)")
             else:
                 print("no reply (timeout)")
         else:

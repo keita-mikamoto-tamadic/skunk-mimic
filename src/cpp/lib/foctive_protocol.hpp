@@ -176,6 +176,11 @@ namespace Foctive {
     out.data[out.size++] = kParamNum;
   }
 
+  // cmd=101 全パラメータ初期値ロード要求: [cmd] のみ。返信はマルチフレーム(初期値)
+  inline void MakeLoadDefault(uint8_t device_id, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kParamLoadDefault, device_id, out);
+  }
+
   // cmd=103 個別パラメータ設定要求: [cmd, param_index, 4byte data]
   // (LUT index=8 は不可。呼び出し側で弾く)
   inline void MakeWriteParam(uint8_t device_id, ParamIndex index,

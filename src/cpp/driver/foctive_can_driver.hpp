@@ -35,6 +35,8 @@ public:
                   uint8_t* out_old4, uint8_t* out_new4, int timeout_ms) override;
   // 全パラメータセーブ(cmd=100, EEPROM)。完了(done=1)で true。
   bool SaveAllParams(int device_id, int timeout_ms) override;
+  // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalars(360byte)へ。
+  bool LoadDefaultParams(int device_id, uint8_t* out_dump, int timeout_ms) override;
   // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
   const Foctive::MotParam& Params(int device_id);
 
@@ -46,4 +48,8 @@ private:
   std::vector<Foctive::CanFdFrame> last_frames_;
   // 設定モードで読み出したパラメータを device_id ごとに保持(確認用)
   std::map<int, Foctive::MotParam> params_;
+
+  // cmd=101/102 のマルチフレーム返信を連結 → MotParam → out_dump(ParamScalars)
+  bool ReceiveAllParamsMultiFrame(int device_id, uint8_t expected_cmd,
+                                  uint8_t* out_dump, int timeout_ms);
 };

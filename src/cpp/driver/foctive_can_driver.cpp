@@ -229,12 +229,29 @@ static void PrintParams(int device_id, const Foctive::MotParam& p) {
 
 bool FoctiveCanDriver::ReadAllParams(int device_id, uint8_t* out_dump,
                                      int timeout_ms) {
-  // 1. cmd=102 全読み出し要求 [102, param_num]
+  // cmd=102 全読み出し要求 [102, param_num] → マルチフレーム返信
   Foctive::CanFdFrame tx;
   Foctive::MakeReadAllParams(static_cast<uint8_t>(device_id), tx);
   comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+  return ReceiveAllParamsMultiFrame(
+      device_id, static_cast<uint8_t>(Foctive::SettingsCmd::kParamReadAll),
+      out_dump, timeout_ms);
+}
 
-  // 2. マルチフレーム受信: 各フレーム [cmd, is_last_frame, payload chunk] を連結
+bool FoctiveCanDriver::LoadDefaultParams(int device_id, uint8_t* out_dump,
+                                         int timeout_ms) {
+  // cmd=101 初期値ロード要求 [101] → マルチフレーム返信(初期値)
+  Foctive::CanFdFrame tx;
+  Foctive::MakeLoadDefault(static_cast<uint8_t>(device_id), tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+  return ReceiveAllParamsMultiFrame(
+      device_id, static_cast<uint8_t>(Foctive::SettingsCmd::kParamLoadDefault),
+      out_dump, timeout_ms);
+}
+
+bool FoctiveCanDriver::ReceiveAllParamsMultiFrame(
+        int device_id, uint8_t expected_cmd, uint8_t* out_dump, int timeout_ms) {
+  // マルチフレーム受信: 各フレーム [cmd, is_last_frame, payload chunk] を連結
   uint8_t buf[sizeof(Foctive::MotParam)];
   size_t total = 0;
   bool last = false;
@@ -257,7 +274,7 @@ bool FoctiveCanDriver::ReadAllParams(int device_id, uint8_t* out_dump,
     if (Foctive::ParseMsgBit(static_cast<uint16_t>(can_id)) != Foctive::MsgBit::kSettings)
       continue;
     if (rxlen < 2) continue;  // [cmd, is_last_frame] 最低
-    if (rx[0] != static_cast<uint8_t>(Foctive::SettingsCmd::kParamReadAll))
+    if (rx[0] != expected_cmd)
       return false;  // cmd=255 エラー等
 
     last = (rx[1] != 0);

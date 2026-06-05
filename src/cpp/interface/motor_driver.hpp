@@ -45,6 +45,11 @@ public:
     // パラメータ機能を持たないドライバ(moteus/dummy)は false。
     virtual bool SaveAllParams(int device_id, int timeout_ms) = 0;
 
+    // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalars(360byte)へ。
+    // パラメータ機能を持たないドライバ(moteus/dummy)は false。
+    virtual bool LoadDefaultParams(int device_id, uint8_t* out_dump,
+                                   int timeout_ms) = 0;
+
 protected:
     MotorDriver() = default;
 };
