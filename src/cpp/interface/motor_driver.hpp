@@ -59,7 +59,7 @@ public:
     // 現在位置設定(cmd=110)。現在の機械角を target_pos として読ませる。
     // ファームが適用した offset を out_offset へ書く。
     // パラメータ機能を持たないドライバ(moteus/dummy)は false。
-    virtual bool ZeroPosOffset(int device_id, float target_pos,
+    virtual bool AnyValPosOffset(int device_id, float target_pos,
                                float* out_offset, int timeout_ms) = 0;
 
 protected:

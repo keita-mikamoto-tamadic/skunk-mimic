@@ -433,11 +433,11 @@ bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
   return false;  // タイムアウト
 }
 
-bool FoctiveCanDriver::ZeroPosOffset(int device_id, float target_pos,
+bool FoctiveCanDriver::AnyValPosOffset(int device_id, float target_pos,
                                      float* out_offset, int timeout_ms) {
   // 1. cmd=110 現在位置設定要求 [110, float target_pos]
   Foctive::CanFdFrame tx;
-  Foctive::MakeZeroPosOffset(static_cast<uint8_t>(device_id), target_pos, tx);
+  Foctive::MakeAnyValPosOffset(static_cast<uint8_t>(device_id), target_pos, tx);
   comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
 
   // 2. 返信 [110, offset(float)] を待つ(即返信・単フレーム)
@@ -465,7 +465,7 @@ bool FoctiveCanDriver::ZeroPosOffset(int device_id, float target_pos,
     frame.size = static_cast<uint8_t>(rxlen);
     Foctive::MotParam dummy;  // ゼロ点応答は MotParam を書き換えない
     Foctive::SettingsReply reply = Foctive::ParseSettings(frame, dummy);
-    if (reply.cmd != Foctive::SettingsCmd::kZeroPosOffset) continue;
+    if (reply.cmd != Foctive::SettingsCmd::kAnyValPosOffset) continue;
     if (out_offset) std::memcpy(out_offset, reply.value, 4);  // 適用 offset(float)
     return reply.ok;
   }

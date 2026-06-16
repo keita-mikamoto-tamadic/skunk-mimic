@@ -212,7 +212,7 @@ int main() {
                         float target;
                         std::memcpy(&target, &req.value, 4);
                         float offset = 0;
-                        bool ok = driver->ZeroPosOffset(
+                        bool ok = driver->AnyValPosOffset(
                             req.device_id, target, &offset, 50);
                         res.ok = ok ? 1 : 0;
                         std::memcpy(&res.value, &offset, 4);  // 適用 offset

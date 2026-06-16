@@ -69,7 +69,7 @@ static_assert(offsetof(SettingsResult, ok) == 2, "SettingsResult.ok offset misma
 static_assert(offsetof(SettingsResult, value) == 4, "SettingsResult.value offset mismatch vs axis_data.json");
 static_assert(offsetof(SettingsResult, old_value) == 8, "SettingsResult.old_value offset mismatch vs axis_data.json");
 
-// device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。idx 0-6 は uint32, 7 以降は float。LUT(idx 8)は含まない
+// device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8
 struct ParamScalars {
     uint32_t motor_id;
     uint32_t device_id;
@@ -79,7 +79,7 @@ struct ParamScalars {
     uint32_t mot_pole_pairs;
     uint32_t gear_enable;
     uint32_t gear_ratio;
-    uint32_t zero_pos_ofs;
+    uint32_t anyval_pos_offset;
     uint32_t p_gain_cur;
     uint32_t i_gain_cur;
     uint32_t d_gain_cur;
@@ -97,7 +97,7 @@ struct ParamScalars {
     uint32_t vel_out_mn;
     uint32_t pos_out_mx;
     uint32_t pos_out_mn;
-    uint32_t elec_angle_ofs[64];  // 電気角オフセット LUT (idx 8, 64要素)
+    uint32_t elec_angle_ofs[64];  // 電気角オフセット LUT (wire index 8, 64要素)
 };
 static_assert(sizeof(ParamScalars) == 360, "ParamScalars size mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, motor_id) == 0, "ParamScalars.motor_id offset mismatch vs axis_data.json");
@@ -108,7 +108,7 @@ static_assert(offsetof(ParamScalars, elec_angle_dir) == 16, "ParamScalars.elec_a
 static_assert(offsetof(ParamScalars, mot_pole_pairs) == 20, "ParamScalars.mot_pole_pairs offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, gear_enable) == 24, "ParamScalars.gear_enable offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, gear_ratio) == 28, "ParamScalars.gear_ratio offset mismatch vs axis_data.json");
-static_assert(offsetof(ParamScalars, zero_pos_ofs) == 32, "ParamScalars.zero_pos_ofs offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, anyval_pos_offset) == 32, "ParamScalars.anyval_pos_offset offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, p_gain_cur) == 36, "ParamScalars.p_gain_cur offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, i_gain_cur) == 40, "ParamScalars.i_gain_cur offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, d_gain_cur) == 44, "ParamScalars.d_gain_cur offset mismatch vs axis_data.json");

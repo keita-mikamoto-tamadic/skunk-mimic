@@ -18,7 +18,7 @@ namespace Foctive {
     kGearEnable    = 6,
     kGearRatio     = 7,
     kElecAngleOfs  = 8,   // LUT (256 byte, uint32_t×64)。特殊扱い
-    kZeroPosOfs    = 9,
+    kAnyValPosOffset    = 9,
     kPGainCur      = 10,
     kIGainCur      = 11,
     kDGainCur      = 12,
@@ -49,7 +49,7 @@ namespace Foctive {
     uint32_t gear_enable;
     float    gear_ratio;
     uint32_t elec_angle_ofs[64];
-    float    zero_pos_ofs;
+    float    anyval_pos_offset;
     float    p_gain_cur;
     float    i_gain_cur;
     float    d_gain_cur;
@@ -88,7 +88,7 @@ namespace Foctive {
     {offsetof(MotParam, gear_enable),    4,   false},  // 6
     {offsetof(MotParam, gear_ratio),     4,   true},   // 7
     {offsetof(MotParam, elec_angle_ofs), 256, false},  // 8  LUT
-    {offsetof(MotParam, zero_pos_ofs),   4,   true},   // 9
+    {offsetof(MotParam, anyval_pos_offset),   4,   true},   // 9
     {offsetof(MotParam, p_gain_cur),     4,   true},   // 10
     {offsetof(MotParam, i_gain_cur),     4,   true},   // 11
     {offsetof(MotParam, d_gain_cur),     4,   true},   // 12

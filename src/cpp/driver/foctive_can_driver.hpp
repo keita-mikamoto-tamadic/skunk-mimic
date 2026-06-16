@@ -42,7 +42,7 @@ public:
   bool Calibrate(int device_id, float volt_d, float* out_pos, int timeout_ms) override;
   // 現在位置設定(cmd=110)。現在の機械角を target_pos として読ませる。
   // ファームが適用した offset を out_offset に書き、true を返す。
-  bool ZeroPosOffset(int device_id, float target_pos,
+  bool AnyValPosOffset(int device_id, float target_pos,
                      float* out_offset, int timeout_ms) override;
   // 保持中の MotParam を参照(FOCTIVE 専用, 確認・表示用)
   const Foctive::MotParam& Params(int device_id);

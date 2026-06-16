@@ -113,6 +113,11 @@ def gen_py(structs, types):
         out.append(f'{upper}_FMT = "{fmt}"')
         out.append(f"{upper}_SIZE = struct.calcsize({upper}_FMT)  # {total}")
         out.append(f"{upper}_FIELDS = {field_names!r}")
+        # フィールドが wire index を持つ場合、name -> index マップを出力
+        # (構造体の並び順 != wire param_index のためコード側で数えさせない)
+        wire_index = {f["name"]: f["index"] for f in s["fields"] if "index" in f}
+        if wire_index:
+            out.append(f"{upper}_WIRE_INDEX = {wire_index!r}")
         out.append(f'{s["name"]} = namedtuple("{s["name"]}", {upper}_FIELDS)')
         # デフォルト: スカラは 0、配列は空 tuple
         defaults = ["()" if c > 1 else "0" for c in counts]

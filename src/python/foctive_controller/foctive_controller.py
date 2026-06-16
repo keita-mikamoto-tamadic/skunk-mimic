@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.data_format import (  # 自動生成(axis_data.json 正本)
     AxisRef, pack_axis_ref,
     SettingsRequest, pack_settings_request, unpack_settings_result,
-    unpack_param_scalars,
+    unpack_param_scalars, PARAM_SCALARS_WIRE_INDEX,
 )
 
 # ParamScalars のうち uint32 として表示するフィールド(残りは float ビットを再解釈)
@@ -43,16 +43,18 @@ def interpret_param(index, value_u32):
 def print_param_dump(ps, title):
     # ParamScalars(26 scalar + LUT)を表示。cmd=102/101 共通
     print(title)
+    # 行頭の [NN] は wire param_index(pread/pwrite で使う番号)。axis_data.json 正本。
     for name in ps._fields:
         if name == "elec_angle_ofs":
             continue  # LUT は下でまとめて表示
+        idx = PARAM_SCALARS_WIRE_INDEX[name]
         raw_u32 = getattr(ps, name)
         if name in INT_PARAM_FIELDS:
-            print(f"  {name:14s} = {raw_u32}")
+            print(f"  [{idx:2d}] {name:18s} = {raw_u32}")
         else:
             f = struct.unpack("<f", struct.pack("<I", raw_u32))[0]
-            print(f"  {name:14s} = {f:g}")
-    print("  elec_angle_ofs[64]:")
+            print(f"  [{idx:2d}] {name:18s} = {f:g}")
+    print(f"  [{PARAM_SCALARS_WIRE_INDEX['elec_angle_ofs']:2d}] elec_angle_ofs[64]:")
     lut = ps.elec_angle_ofs
     for r in range(0, len(lut), 8):
         row = " ".join(f"{v:>10}" for v in lut[r:r + 8])
