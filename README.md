@@ -33,13 +33,26 @@ cargo --version
 
 ### dora のビルド
 
+> [!IMPORTANT]
+> dora 1.0.0-rc 系は **Python 3.11 以上が必須**（PyO3 が `abi3-py311` を要求し、CLI 自体も
+> これに依存する）。Ubuntu 22.04 のシステム Python は 3.10 なので、そのままだと
+> `cannot set a minimum Python version 3.11 higher than the interpreter version 3.10`
+> でビルドが失敗する。uv 管理の 3.11 を `PYO3_PYTHON` で指定して回避する
+> (システム Python 3.10 は触らない)。
+
 ~/dora をクローンしてビルド（CLI + C++ API の両方が生成される）：
 
 ```bash
 cd ~
 git clone https://github.com/dora-rs/dora.git
 cd dora
-git checkout v0.4.1
+git checkout v1.0.0-rc.1   # 検証時の実コミット: f342aeb0 (v1.0.0-rc.1 + 360)
+```
+
+PyO3 に 3.11 を使わせる（uv 管理の 3.11 を指定。無ければ `uv python install 3.11`）：
+```bash
+export PYO3_PYTHON="$(uv python find 3.11)"
+# 例: /home/<user>/.local/share/uv/python/cpython-3.11-linux-aarch64-gnu/bin/python3.11
 ```
 
 本体build
@@ -63,6 +76,23 @@ cargo build --package dora-node-api-cxx --release
 - `~/dora/target/release/libdora_node_api_cxx.a` — C++ 静的ライブラリ
 - `~/dora/target/cxxbridge/dora-node-api-cxx/install/` — C++ ヘッダーファイル
 
+### dora メトリクス収集と RT 性について
+
+dora daemon は 2 秒ごとに `sysinfo` で各プロセスの CPU/メモリ/ディスクを `/proc` 走査して
+収集する。**v0.4.1 ではこれが daemon のメインループ上で同期実行**され、発火のたびに RT ノード
+(`device_control_manager`, SCHED_FIFO) のループに周期的なレイテンシスパイクを起こしていた
+(当時は `binaries/daemon/src/lib.rs` の `Event::MetricsInterval` ハンドラで
+`collect_and_send_metrics()` の呼び出しをコメントアウトして回避)。
+
+**1.0-rc 以降は upstream が改善済み**: 収集は `tokio::task::spawn_blocking` で別の blocking
+スレッドに退避され、`try_lock` で多重起動も skip するようになった。重い `/proc` 走査が
+メイン reactor から外れたため、SCHED_FIFO で pin した RT ノードが preempt でき、
+**自前パッチは基本不要**。
+
+> もし 1.0-rc でも RT スパイクが再計測で出る場合のみ、`Event::MetricsInterval` ハンドラの
+> `self.spawn_metrics_collection();` を 1 行コメントアウトすれば収集を完全に止められる
+> (`binaries/daemon/src/lib.rs`。`git checkout` で上書きされるので都度再適用)。
+
 ### 環境変数設定
 
 dora CLI を使えるように alias を設定：
@@ -75,9 +105,7 @@ source ~/.bashrc
 ```bash
 dora --version
 # 出力例:
-# dora-cli 0.4.1
-# dora-message: 0.7.0
-# dora-rs (Python): not found
+# dora-cli 1.0.0-rc1
 ```
 
 ### dora をバージョンアップする場合
@@ -87,30 +115,35 @@ dora --version
 ```bash
 cd ~/dora
 git fetch --tags
-git checkout v0.4.2  # 新しいバージョンを指定
-cargo clean          # 古いビルドキャッシュを削除（重要）
+git checkout v1.0.0-rc.1     # 目的のバージョン/コミットを指定
+cargo clean                  # 古いビルドキャッシュを削除（重要）
+export PYO3_PYTHON="$(uv python find 3.11)"   # 1.0-rc は Python 3.11 必須
 cargo build --release
-cargo build --release -p dora-node-api-cxx  # C++ API を明示的にビルド
+cargo build --release -p dora-node-api-cxx    # C++ API を明示的にビルド
 ```
 
 C++ ノードを再ビルド：
 ```bash
-cd ~/ws/dora-test/src/cpp
+cd ~/skunk-mimic/src/cpp
 rm -rf node/*/build  # 各ノードのビルドディレクトリを削除
 mkdir -p build && cd build
 cmake .. && make
 ```
 
-Python パッケージも更新：
+Python 側 dora-rs も更新：このリポジトリは `src/python/pyproject.toml` の
+`[tool.uv.sources]` で `dora-rs` を `~/dora/apis/python/node` のローカルパスに向けている
+(rc コミットには対応する PyPI wheel が無いため)。`uv sync` するとそのソースから maturin で
+ビルドされ、CLI と同じバージョンに揃う。初回は Rust 拡張をフルコンパイルするため数分〜十数分
+かかる (止まって見えるが進行中。`uv sync -v` で確認可)。
 ```bash
-cd ~/ws/dora-test/src/python
-uv add dora-rs==0.4.2  # dora CLI と同じバージョンに揃える
+cd ~/skunk-mimic/src/python
+uv sync
 ```
 
 確認：
 ```bash
-dora --version                    # CLI のバージョン確認
-uv run python -c "import dora; print(dora.__version__)"  # Python パッケージのバージョン確認
+dora --version                                          # CLI のバージョン
+uv run python -c "import dora; print(dora.__version__)"  # Python パッケージのバージョン
 ```
 
 > **重要**: `cargo clean` を実行しないと、古いバージョンのバイナリが残り、バージョンが更新されない場合があります。C++ API も明示的にビルドしないと、ヘッダーファイルが生成されません。
