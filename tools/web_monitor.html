@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dora motor monitor</title>
+<!--
+  dora モータ監視 GUI。tools/motor_bridge.py が配信し、/stream(SSE)で
+  デコード済み JSON を流す。ブラウザは bincode を一切解かない。
+
+  起動:
+    python tools/motor_bridge.py            # ロボット側
+    ブラウザで http://<robot-ip>:8765/ を開く
+
+  ※ dora の WS topic frame は bincode シリアライズイベントで、data の位置は
+     metadata 依存。ブラウザ単体では解けないため、ブリッジ(dora topic echo
+     --format json をデコード)を経由する構成にしている。
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 1.4rem; background:#0f1115; color:#e6e6e6; }
+  h1 { font-size: 1.05rem; margin:0 0 .8rem; }
+  .bar { display:flex; gap:.7rem; align-items:center; margin-bottom:1rem; }
+  #status { padding:.25rem .6rem; border-radius:5px; background:#222732; font-size:.8rem; }
+  #status.ok { background:#1d4a36; color:#9f9; }
+  #status.err { background:#4a1d1d; color:#f99; }
+  #rate { color:#7cc4ff; font-variant-numeric:tabular-nums; }
+  table { border-collapse:collapse; width:100%; max-width:780px; }
+  th, td { border:1px solid #2a2f3a; padding:.45rem .7rem; text-align:right; font-variant-numeric:tabular-nums; }
+  th { background:#1b1e26; color:#bcd; font-weight:600; }
+  td:first-child, th:first-child { text-align:center; color:#9aa; }
+  tr.fault td { color:#ff8a8a; }
+</style>
+</head>
+<body>
+<h1>dora motor monitor</h1>
+
+<div class="bar">
+  <span id="status">connecting…</span>
+  <span id="rate"></span>
+</div>
+
+<table>
+  <thead><tr>
+    <th>axis</th><th>position [rad]</th><th>velocity [rad/s]</th>
+    <th>torque [Nm]</th><th>i_d [A]</th><th>i_q [A]</th><th>fault</th>
+  </tr></thead>
+  <tbody id="rows"><tr><td colspan="7" style="text-align:center;color:#667">waiting for data…</td></tr></tbody>
+</table>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let latest = [];
+let renderQueued = false;
+let msgCount = 0, lastRateT = performance.now();
+
+function setStatus(s, cls){ const e = $("status"); e.textContent = s; e.className = cls || ""; }
+
+function queueRender(){
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    if (!latest.length) return;
+    $("rows").innerHTML = latest.map((a, i) =>
+      `<tr class="${a.fault ? 'fault' : ''}"><td>${i}</td>`
+      + `<td>${a.position.toFixed(6)}</td>`
+      + `<td>${a.velocity.toFixed(4)}</td>`
+      + `<td>${a.torque.toFixed(4)}</td>`
+      + `<td>${a.cur_d.toFixed(3)}</td>`
+      + `<td>${a.cur_q.toFixed(3)}</td>`
+      + `<td>${a.fault}</td></tr>`
+    ).join("");
+  });
+}
+
+// ブリッジの SSE に接続(同オリジン)。EventSource は切断時に自動再接続。
+const es = new EventSource("/stream");
+es.onopen = () => setStatus("streaming", "ok");
+es.onerror = () => setStatus("disconnected (bridge 起動中? 再接続待ち)", "err");
+es.onmessage = (e) => {
+  let msg;
+  try { msg = JSON.parse(e.data); } catch (_) { return; }
+  if (!msg.axes) return;
+  latest = msg.axes;
+  msgCount++;
+  queueRender();
+};
+
+setInterval(() => {
+  const now = performance.now();
+  $("rate").textContent = (msgCount * 1000 / (now - lastRateT)).toFixed(0) + " Hz";
+  msgCount = 0; lastRateT = now;
+}, 1000);
+</script>
+</body>
+</html>

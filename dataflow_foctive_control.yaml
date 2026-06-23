@@ -16,6 +16,12 @@
 #   (別ターミナル) .venv/bin/python src/python/foctive_controller/foctive_controller.py
 #   (別ターミナル) ROBOT_CONFIG=robot_config/foctive_motor_test.json \
 #                  .venv/bin/python src/python/data_viewer/data_viewer.py
+# topic 購読(dora topic / WS GUI)に必須。true の間は daemon が全出力を常時
+# タップする(GUI 未接続でも一定のオーバーヘッド)。WS GUI が監視手段なら本番でも
+# 常時 true が必要 ―― "debug 用に一時的に" ではない。監視を一切しないときだけ false。
+_unstable_debug:
+  enable_debug_inspection: true
+
 nodes:
 
   - id: foctive_controller
@@ -32,7 +38,7 @@ nodes:
     env:
       ROBOT_CONFIG: robot_config/foctive_motor_test.json
     inputs:
-      tick: dora/timer/millis/3
+      tick: dora/timer/millis/1
       motor_commands: foctive_controller/motor_commands
       settings_request: foctive_controller/settings_request
     outputs:
@@ -44,6 +50,9 @@ nodes:
 
   - id: data_viewer
     path: dynamic
+    # 高 tick(1kHz)では Python が捌けず "event channel full"(warn) が多発する。
+    # drop 自体は無害(最新を30fps表示できてる)なので warn 以下を抑制。
+    min_log_level: error
     inputs:
       motor_status: device_control_manager/motor_status
       latency: device_control_manager/latency

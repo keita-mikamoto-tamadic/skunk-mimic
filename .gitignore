@@ -31,3 +31,10 @@ ref/
 
 # Logs
 sysid/data/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# dora 認証トークン (秘密。コミット厳禁)
+.dora-token
