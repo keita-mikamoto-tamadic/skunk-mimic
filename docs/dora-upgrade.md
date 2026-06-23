@@ -30,7 +30,9 @@ cargo build --release -p dora-node-api-cxx
 ```
 - 独立クレート(`crate-type = ["staticlib"]`)なので **本体ビルドには含まれず別途必要**。
 - 生成物: `dora-node-api.h` / `libdora_node_api_cxx.a`(install ディレクトリと `target/release/`)。
-- 新ゼロコピー送信API(`allocate_data_sample` / `data_sample_as_ptr` / `send_data_sample`)はこの再ビルドで入る。
+- 注: ゼロコピー allocate API(`allocate_data_sample` / `DataSample`)は **Rust / Python のみ**で、
+  C++ バインディング(cxx ブリッジ)には未公開(最新 main でも同様, 2026-06 時点で確認)。C++ の送信は
+  `send_output` 系のみで、SHM への 1 コピーが入る。小さい制御構造体では無視できるため対応不要。
 
 ### 4. skunk-mimic(C++側)をビルド
 - 更新された `dora-node-api.h` / `libdora_node_api_cxx.a` を使って通常どおりビルド。
