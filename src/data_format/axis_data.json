@@ -28,6 +28,8 @@
         {"name": "position", "type": "double", "doc": "rad"},
         {"name": "velocity", "type": "double", "doc": "rad/s"},
         {"name": "torque", "type": "double", "doc": "Nm"},
+        {"name": "cur_d", "type": "double", "doc": "d軸電流 A"},
+        {"name": "cur_q", "type": "double", "doc": "q軸電流 A"},
         {"name": "fault", "type": "uint8", "doc": "0=正常, それ以外=異常"}
       ]
     },

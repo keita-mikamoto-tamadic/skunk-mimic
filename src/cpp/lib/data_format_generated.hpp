@@ -33,13 +33,17 @@ struct AxisAct {
     double position;  // rad
     double velocity;  // rad/s
     double torque;  // Nm
+    double cur_d;  // d軸電流 A
+    double cur_q;  // q軸電流 A
     uint8_t fault;  // 0=正常, それ以外=異常
 };
-static_assert(sizeof(AxisAct) == 32, "AxisAct size mismatch vs axis_data.json");
+static_assert(sizeof(AxisAct) == 48, "AxisAct size mismatch vs axis_data.json");
 static_assert(offsetof(AxisAct, position) == 0, "AxisAct.position offset mismatch vs axis_data.json");
 static_assert(offsetof(AxisAct, velocity) == 8, "AxisAct.velocity offset mismatch vs axis_data.json");
 static_assert(offsetof(AxisAct, torque) == 16, "AxisAct.torque offset mismatch vs axis_data.json");
-static_assert(offsetof(AxisAct, fault) == 24, "AxisAct.fault offset mismatch vs axis_data.json");
+static_assert(offsetof(AxisAct, cur_d) == 24, "AxisAct.cur_d offset mismatch vs axis_data.json");
+static_assert(offsetof(AxisAct, cur_q) == 32, "AxisAct.cur_q offset mismatch vs axis_data.json");
+static_assert(offsetof(AxisAct, fault) == 40, "AxisAct.fault offset mismatch vs axis_data.json");
 
 // foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)
 struct SettingsRequest {

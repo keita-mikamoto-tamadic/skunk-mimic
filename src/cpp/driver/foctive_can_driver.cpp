@@ -133,6 +133,8 @@ std::vector<AxisAct> FoctiveCanDriver::ReceiveStatus(
           acts[i].position = reply.pos;
           acts[i].velocity = reply.vel;
           acts[i].torque   = reply.torq;
+          acts[i].cur_d    = reply.cur_d;
+          acts[i].cur_q    = reply.cur_q;
           acts[i].fault    = reply.alarm;
           received_ids.insert(device_id);
           break;

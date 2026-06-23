@@ -29,9 +29,10 @@ DATA_DIR = os.path.join(PROJECT_ROOT, "sysid", "data")
 AXIS_REF_FMT = "<B7xdddddd"
 AXIS_REF_SIZE = struct.calcsize(AXIS_REF_FMT)  # 56
 
-# AxisAct: 3 doubles + fault(u8) + pad(7)
-AXIS_ACT_FMT = "<dddB7x"
-AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
+# AxisAct: position/velocity/torque/cur_d/cur_q (5 doubles) + fault(u8) + pad(7)
+# TODO: AXIS_REF_FMT 含めハードコードは lib.data_format(生成物) へ移行すべき(ドリフト負債)
+AXIS_ACT_FMT = "<dddddB7x"
+AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 48
 
 # ImuData: 14 doubles
 IMU_DATA_FMT = "<14d"
@@ -96,7 +97,7 @@ class DataRecorder:
             return
         pos, vel, torq, flt = [], [], [], []
         for i in range(NUM_AXES):
-            p, v, tq, f = struct.unpack_from(
+            p, v, tq, _cd, _cq, f = struct.unpack_from(
                 AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE
             )
             pos.append(p)

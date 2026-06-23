@@ -58,9 +58,11 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 	table.add_column("position", justify="right")
 	table.add_column("velocity", justify="right")
 	table.add_column("torque", justify="right")
+	table.add_column("i_d", justify="right")
+	table.add_column("i_q", justify="right")
 	table.add_column("fault", justify="center")
 
-	for i, (pos, vel, torq, fault) in enumerate(axes):
+	for i, (pos, vel, torq, cur_d, cur_q, fault) in enumerate(axes):
 		# 軸名と CAN ID を config から取得
 		axis_name = config.axes[i].name if config and i < len(config.axes) else f"#{i}"
 		can_id = str(config.axes[i].device_id) if config and i < len(config.axes) else "-"
@@ -72,6 +74,8 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 			f"{pos:+.4f}",
 			f"{vel:+.4f}",
 			f"{torq:+.4f}",
+			f"{cur_d:+.3f}",
+			f"{cur_q:+.3f}",
 			f"[{fault_style}]{fault}[/]",
 		)
 
@@ -87,7 +91,7 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 			info_parts.append(f"Time: [dim]{timestamp_sec:.3f}s[/]")
 
 		info_text = "  |  ".join(info_parts)
-		table.add_row(info_text, "", "", "", "", "")
+		table.add_row(info_text, "", "", "", "", "", "", "")
 
 	return table
 
@@ -176,39 +180,39 @@ with Live(initial_display, refresh_per_second=30) as live:
 	current_imu_data = None
 	current_latency = None
 	current_est_state = None
+	current_axes = []
+	last_render_ns = 0
+	RENDER_INTERVAL_NS = 33_000_000  # ~30fps。高 tick(1kHz)でも描画を間引いて追従
+
 	for event in node:
 		if event["type"] == "INPUT":
-			if event["id"] == "state_status":
-				raw = bytes(event["value"].to_pylist())
+			# 受信は最新値の保存だけ(軽量)。描画は下で間引く。
+			raw = bytes(event["value"].to_pylist())
+			eid = event["id"]
+			if eid == "state_status":
 				if len(raw) > 0:
 					current_state = raw[0]
-			elif event["id"] == "imu_data":
-				raw = bytes(event["value"].to_pylist())
+			elif eid == "imu_data":
 				if len(raw) >= IMU_DATA_SIZE:
 					current_imu_data = struct.unpack(IMU_DATA_FMT, raw[:IMU_DATA_SIZE])
-			elif event["id"] == "latency":
-				raw = bytes(event["value"].to_pylist())
+			elif eid == "latency":
 				if len(raw) >= LATENCY_SIZE:
 					current_latency = struct.unpack(LATENCY_FMT, raw[:LATENCY_SIZE])
-			elif event["id"] == "estimated_state":
-				raw = bytes(event["value"].to_pylist())
+			elif eid == "estimated_state":
 				if len(raw) >= EST_STATE_SIZE:
 					current_est_state = struct.unpack(EST_STATE_FMT, raw[:EST_STATE_SIZE])
-			elif event["id"] == "motor_status":
-				raw = bytes(event["value"].to_pylist())
+			elif eid == "motor_status":
 				axis_count = len(raw) // AXIS_ACT_SIZE
+				current_axes = [
+					struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
+					for i in range(axis_count)
+				]
 
-				# Get current timestamp relative to start
-				timestamp_ns = time.time_ns() - start_time
-
-				axes = []
-				for i in range(axis_count):
-					axes.append(
-						struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
-					)
-
-				# 両方のテーブルを更新
-				motor_table = build_motor_table(axes, timestamp_ns, current_state, config)
-				imu_table = build_imu_table(current_imu_data, current_est_state)
-				latency_table = build_latency_table(current_latency)
-				live.update(Group(motor_table, imu_table, latency_table))
+		# 描画は一定間隔に間引く(毎イベント描画だと高 tick で input が溢れる)
+		now = time.time_ns()
+		if now - last_render_ns >= RENDER_INTERVAL_NS:
+			motor_table = build_motor_table(current_axes, now - start_time, current_state, config)
+			imu_table = build_imu_table(current_imu_data, current_est_state)
+			latency_table = build_latency_table(current_latency)
+			live.update(Group(motor_table, imu_table, latency_table))
+			last_render_ns = now

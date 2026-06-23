@@ -17,11 +17,11 @@ def pack_axis_ref(rec):
 def unpack_axis_ref(buf, offset=0):
     return AxisRef(*struct.unpack_from(AXIS_REF_FMT, buf, offset))
 
-AXIS_ACT_FMT = "<dddB7x"
-AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
-AXIS_ACT_FIELDS = ['position', 'velocity', 'torque', 'fault']
+AXIS_ACT_FMT = "<dddddB7x"
+AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 48
+AXIS_ACT_FIELDS = ['position', 'velocity', 'torque', 'cur_d', 'cur_q', 'fault']
 AxisAct = namedtuple("AxisAct", AXIS_ACT_FIELDS)
-AxisAct.__new__.__defaults__ = (0, 0, 0, 0,)
+AxisAct.__new__.__defaults__ = (0, 0, 0, 0, 0, 0,)
 
 def pack_axis_act(rec):
     return struct.pack(AXIS_ACT_FMT, *rec)
