@@ -23,9 +23,11 @@ static Foctive::Command ToCommand(const AxisRef& ref) {
       break;
     case MotorState::VELOCITY:
       cmd.vel = ref.ref_val;
+      cmd.accel_limit = ref.accel_limit;  // 0 ならファーム側パラメータの accel_limit を使用
       break;
     case MotorState::POSITION:
       cmd.pos = ref.ref_val;
+      cmd.accel_limit = ref.accel_limit;
       break;
     case MotorState::TORQUE:
       cmd.torq = ref.ref_val;

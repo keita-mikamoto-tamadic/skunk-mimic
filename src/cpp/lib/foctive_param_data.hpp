@@ -32,8 +32,8 @@ namespace Foctive {
     kCurQMin       = 20,
     kTrqOutMax     = 21,
     kTrqOutMin     = 22,
-    kVelOutMax     = 23,
-    kVelOutMin     = 24,
+    kVelocityLimit = 23,   // 台形プロファイル巡航速度制限 (旧 kVelOutMax)
+    kAccelLimit    = 24,   // 台形プロファイル加速度制限 (旧 kVelOutMin)
     kPosOutMax     = 25,
     kPosOutMin     = 26,
     kInvalid       = 0xFF,
@@ -63,8 +63,8 @@ namespace Foctive {
     float    cur_q_mn;
     float    trq_out_mx;
     float    trq_out_mn;
-    float    vel_out_mx;
-    float    vel_out_mn;
+    float    velocity_limit;   // 台形プロファイル巡航速度制限 (<=0 で無制限)
+    float    accel_limit;      // 台形プロファイル加速度制限 (<=0 で無制限, RefVal 未指定時に使用)
     float    pos_out_mx;
     float    pos_out_mn;
   };
@@ -102,8 +102,8 @@ namespace Foctive {
     {offsetof(MotParam, cur_q_mn),       4,   true},   // 20
     {offsetof(MotParam, trq_out_mx),     4,   true},   // 21
     {offsetof(MotParam, trq_out_mn),     4,   true},   // 22
-    {offsetof(MotParam, vel_out_mx),     4,   true},   // 23
-    {offsetof(MotParam, vel_out_mn),     4,   true},   // 24
+    {offsetof(MotParam, velocity_limit), 4,   true},   // 23
+    {offsetof(MotParam, accel_limit),    4,   true},   // 24
     {offsetof(MotParam, pos_out_mx),     4,   true},   // 25
     {offsetof(MotParam, pos_out_mn),     4,   true},   // 26
   };

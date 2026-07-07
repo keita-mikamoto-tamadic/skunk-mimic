@@ -43,6 +43,7 @@ namespace Foctive {
     float volt_d = 0, volt_q = 0, vir_ang_freq = 0;  // 電圧
     float cur_d = 0, cur_q = 0;                       // 電流
     float vel = 0, pos = 0, torq = 0;                 // 速度/位置/トルク
+    float accel_limit = 0;                            // 速度/位置制御の加速度制限(<=0でパラメータ側)
     float kp_scale = 1, kd_scale = 1;                 // インピーダンス
   };
 
@@ -126,10 +127,12 @@ namespace Foctive {
 
       case MotorState::VELOCITY:
         push(cmd.vel);
+        push(cmd.accel_limit);  // 2nd float。ファームは dlc>=8 で読む(<=0 でパラメータ側)
         break;
 
       case MotorState::POSITION:
         push(cmd.pos);
+        push(cmd.accel_limit);
         break;
 
       case MotorState::TORQUE:

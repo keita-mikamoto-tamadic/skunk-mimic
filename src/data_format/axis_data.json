@@ -80,8 +80,8 @@
         {"name": "cur_q_mn", "type": "uint32", "index": 20},
         {"name": "trq_out_mx", "type": "uint32", "index": 21},
         {"name": "trq_out_mn", "type": "uint32", "index": 22},
-        {"name": "vel_out_mx", "type": "uint32", "index": 23},
-        {"name": "vel_out_mn", "type": "uint32", "index": 24},
+        {"name": "velocity_limit", "type": "uint32", "index": 23},
+        {"name": "accel_limit", "type": "uint32", "index": 24},
         {"name": "pos_out_mx", "type": "uint32", "index": 25},
         {"name": "pos_out_mn", "type": "uint32", "index": 26},
         {"name": "elec_angle_ofs", "type": "uint32", "count": 64, "index": 8, "doc": "電気角オフセット LUT (wire index 8, 64要素)"}

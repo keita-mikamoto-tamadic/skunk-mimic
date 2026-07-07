@@ -97,8 +97,8 @@ struct ParamScalars {
     uint32_t cur_q_mn;
     uint32_t trq_out_mx;
     uint32_t trq_out_mn;
-    uint32_t vel_out_mx;
-    uint32_t vel_out_mn;
+    uint32_t velocity_limit;
+    uint32_t accel_limit;
     uint32_t pos_out_mx;
     uint32_t pos_out_mn;
     uint32_t elec_angle_ofs[64];  // 電気角オフセット LUT (wire index 8, 64要素)
@@ -126,8 +126,8 @@ static_assert(offsetof(ParamScalars, cur_q_mx) == 72, "ParamScalars.cur_q_mx off
 static_assert(offsetof(ParamScalars, cur_q_mn) == 76, "ParamScalars.cur_q_mn offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, trq_out_mx) == 80, "ParamScalars.trq_out_mx offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, trq_out_mn) == 84, "ParamScalars.trq_out_mn offset mismatch vs axis_data.json");
-static_assert(offsetof(ParamScalars, vel_out_mx) == 88, "ParamScalars.vel_out_mx offset mismatch vs axis_data.json");
-static_assert(offsetof(ParamScalars, vel_out_mn) == 92, "ParamScalars.vel_out_mn offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, velocity_limit) == 88, "ParamScalars.velocity_limit offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, accel_limit) == 92, "ParamScalars.accel_limit offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, pos_out_mx) == 96, "ParamScalars.pos_out_mx offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, pos_out_mn) == 100, "ParamScalars.pos_out_mn offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, elec_angle_ofs) == 104, "ParamScalars.elec_angle_ofs offset mismatch vs axis_data.json");

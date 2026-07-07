@@ -80,8 +80,8 @@ DEVICE_ID = 1  # 単軸テスト用
 print("[foctive_controller] Commands:")
 print("  v <volt_d> <volt_q> <vir_ang_freq> : 電圧制御 (例: v 0 1.0 20)")
 print("  c <cur_d> <cur_q>                  : 電流制御 (例: c 0 0.5)")
-print("  vel <vel>                          : 速度制御 (例: vel 5.0) [rad/s]")
-print("  p <pos>                            : 位置制御 (例: p 1.57) [rad]")
+print("  vel <vel> [accel_limit]            : 速度制御 (例: vel 5.0 / vel 5.0 20)")
+print("  p <pos> [accel_limit]              : 位置制御 (例: p 1.57 / p 1.57 10)")
 print("  setting pread <param_index>        : パラメータ読み出し (cmd=104, サーボOFFで)")
 print("  f : SERVO OFF")
 print("  q : QUIT")
@@ -137,33 +137,35 @@ while True:
         node.send_output("motor_commands", axis_ref_bytes(rec))
         print(f"sent: CURRENT cur_d={cur_d} cur_q={cur_q}")
     elif cmd == "vel":
-        if len(parts) != 2:
-            print("usage: vel <vel>  [rad/s]")
+        if len(parts) not in (2, 3):
+            print("usage: vel <vel> [accel_limit]  [rad/s, rad/s^2]")
             continue
         try:
             vel = float(parts[1])
+            accel = float(parts[2]) if len(parts) == 3 else 0.0
         except ValueError:
             print("数値で入力してください")
             continue
-        # VELOCITY: ref_val=vel (ToCommand のマッピングに一致)
-        rec = AxisRef(motor_state=MOTOR_VELOCITY, ref_val=vel,
+        # VELOCITY: ref_val=vel, accel_limit(任意, 0=ファームのパラメータ側を使用)
+        rec = AxisRef(motor_state=MOTOR_VELOCITY, ref_val=vel, accel_limit=accel,
                       kp_scale=1.0, kv_scale=1.0)
         node.send_output("motor_commands", axis_ref_bytes(rec))
-        print(f"sent: VELOCITY vel={vel}")
+        print(f"sent: VELOCITY vel={vel} accel_limit={accel}")
     elif cmd == "p":
-        if len(parts) != 2:
-            print("usage: p <pos>  [rad]")
+        if len(parts) not in (2, 3):
+            print("usage: p <pos> [accel_limit]  [rad, rad/s^2]")
             continue
         try:
             pos = float(parts[1])
+            accel = float(parts[2]) if len(parts) == 3 else 0.0
         except ValueError:
             print("数値で入力してください")
             continue
-        # POSITION: ref_val=pos (ToCommand のマッピングに一致)
-        rec = AxisRef(motor_state=MOTOR_POSITION, ref_val=pos,
+        # POSITION: ref_val=pos, accel_limit(任意, 0=ファームのパラメータ側を使用)
+        rec = AxisRef(motor_state=MOTOR_POSITION, ref_val=pos, accel_limit=accel,
                       kp_scale=1.0, kv_scale=1.0)
         node.send_output("motor_commands", axis_ref_bytes(rec))
-        print(f"sent: POSITION pos={pos}")
+        print(f"sent: POSITION pos={pos} accel_limit={accel}")
     elif cmd == "setting":
         if len(parts) < 2 or parts[1].lower() not in SETTINGS_CMD:
             print("usage: setting <" + "|".join(SETTINGS_CMD) + "> [args]")
@@ -206,7 +208,7 @@ while True:
                 ps = unpack_param_scalars(bytes(ev["value"].to_pylist()))
                 print_param_dump(ps, "[readall] 全パラメータ:")
                 node.next(timeout=0.2)  # 後続の settings_result を drain
-            elif ev is not None and ev["id"] == "settings_result":
+            elif ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
                 print("readall FAILED (timeout/error on CAN)")
             else:
                 print("no reply (timeout)")
@@ -266,7 +268,7 @@ while True:
                 ps = unpack_param_scalars(bytes(ev["value"].to_pylist()))
                 print_param_dump(ps, "[load] 初期値ロード後:")
                 node.next(timeout=0.2)  # settings_result を drain
-            elif ev is not None and ev["id"] == "settings_result":
+            elif ev is not None and ev["type"] == "INPUT" and ev["id"] == "settings_result":
                 print("load FAILED (timeout/error on CAN)")
             else:
                 print("no reply (timeout)")
