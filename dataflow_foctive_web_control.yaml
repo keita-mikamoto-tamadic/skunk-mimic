@@ -1,0 +1,53 @@
+# FOCTIVE 単軸テスト + Web 操作 (分散構成)。
+#
+# 操作ノード web_controller を PC 側 daemon に deploy し、ブラウザから
+# motor_commands を送る。device_control_manager(can0) は robot 側。
+# モータ指令はノード境界(Zenoh)を越えて robot に届く。
+#
+#   web_controller (PC, ブラウザ操作) ──motor_commands──▶ device_control_manager (robot, can0)
+#
+# foctive_controller(端末版) の代わりに web_controller を配線した版。
+# 設定系(settings_request)は対象外 ―― 必要なら端末版 foctive_controller を使う。
+#
+# 前提:
+#   - robot: can0 UP、coordinator + 既定 daemon (machine-id 無し) が稼働
+#   - PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc
+#            (この pc が下の _unstable_deploy.machine と一致)
+#
+# 起動 (詳細は src/python/web_controller/README.md):
+#   1) PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc
+#   2) 任意:  dora start dataflow_foctive_web_control.yaml --coordinator-addr <robot-ip>
+#   3) PC:    cd src/python && uv run web_controller/web_controller.py
+#   4) PC:    ブラウザで http://localhost:8770/
+#
+# topic inspection (web_monitor の dora topic echo) 用に true を維持。
+_unstable_debug:
+  enable_debug_inspection: true
+
+nodes:
+
+  # 操作ノード ―― PC 側 daemon (machine-id: pc) に配置。path: dynamic なので
+  # PC 上で web_controller.py を手動起動して node id "web_controller" にアタッチ。
+  - id: web_controller
+    path: dynamic
+    _unstable_deploy:
+      machine: pc
+    inputs:
+      tick: dora/timer/millis/20    # 送信キューを 50Hz で drain
+    outputs:
+      - motor_commands
+
+  # デバイス側 ―― deploy 指定なし = 既定マシン(robot, can0)。
+  - id: device_control_manager
+    path: src/cpp/node/device_control_manager/build/device_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/foctive_motor_test.json
+    inputs:
+      tick: dora/timer/millis/1
+      motor_commands: web_controller/motor_commands
+    outputs:
+      - motor_status
+      - imu_data
+      - latency
+      - settings_result
+      - param_dump

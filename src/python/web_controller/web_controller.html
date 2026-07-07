@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>foctive web controller</title>
+<!--
+  FOCTIVE 操作 GUI。web_controller.py(同一オリジン) に POST /cmd で指令を送る。
+  body: {"type":"v|c|vel|p|off","args":[...]} → ノードが AxisRef を motor_commands に送出。
+  ★ 実モータが動きます。SERVO OFF を常に手元に。自動送信はしません(明示 Send のみ)。
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 1.4rem; background:#0f1115; color:#e6e6e6; max-width:680px; }
+  h1 { font-size: 1.05rem; margin:0 0 .8rem; }
+  .off { width:100%; padding:1rem; font-size:1.2rem; font-weight:700; color:#fff;
+         background:#a11; border:1px solid #d33; border-radius:8px; cursor:pointer; margin-bottom:1rem; }
+  .off:active { background:#c22; }
+  fieldset { border:1px solid #2a2f3a; border-radius:8px; margin:0 0 .9rem; padding:.7rem .9rem 1rem; }
+  legend { color:#bcd; font-weight:600; padding:0 .4rem; }
+  .row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+  label { font-size:.85rem; color:#9aa; display:inline-flex; flex-direction:column; gap:.15rem; }
+  input { width:6.5rem; background:#1b1e26; color:#e6e6e6; border:1px solid #2a2f3a;
+          border-radius:5px; padding:.35rem .5rem; font-variant-numeric:tabular-nums; }
+  button.send { background:#1d4a36; color:#9f9; border:1px solid #2c6; border-radius:6px;
+                padding:.4rem .9rem; cursor:pointer; font-size:.9rem; align-self:flex-end; }
+  button.send:active { background:#2c6; color:#022; }
+  .bar { display:flex; gap:.7rem; align-items:center; margin-top:.4rem; font-size:.85rem; }
+  #status { padding:.22rem .55rem; border-radius:5px; background:#222732; }
+  #status.ok { background:#1d4a36; color:#9f9; } #status.err { background:#4a1d1d; color:#f99; }
+  #last { color:#7cc4ff; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<h1>foctive web controller</h1>
+
+<button class="off" id="off">■ SERVO OFF</button>
+
+<fieldset>
+  <legend>電圧制御 (VOLTAGE)</legend>
+  <div class="row">
+    <label>volt_d<input id="v_d" type="number" step="0.1" value="0"></label>
+    <label>volt_q<input id="v_q" type="number" step="0.1" value="0"></label>
+    <label>vir_ang_freq<input id="v_f" type="number" step="1" value="0"></label>
+    <button class="send" data-type="v" data-args="v_d,v_q,v_f">Send</button>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>電流制御 (CURRENT)</legend>
+  <div class="row">
+    <label>cur_d<input id="c_d" type="number" step="0.1" value="0"></label>
+    <label>cur_q<input id="c_q" type="number" step="0.1" value="0"></label>
+    <button class="send" data-type="c" data-args="c_d,c_q">Send</button>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>速度制御 (VELOCITY)</legend>
+  <div class="row">
+    <label>vel [rad/s]<input id="vel" type="number" step="0.5" value="0"></label>
+    <button class="send" data-type="vel" data-args="vel">Send</button>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>位置制御 (POSITION)</legend>
+  <div class="row">
+    <label>pos [rad]<input id="pos" type="number" step="0.1" value="0"></label>
+    <button class="send" data-type="p" data-args="pos">Send</button>
+  </div>
+</fieldset>
+
+<div class="bar">
+  <span id="status">ready</span>
+  <span>last sent: <span id="last">(none)</span></span>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function setStatus(s, cls){ const e = $("status"); e.textContent = s; e.className = cls || ""; }
+
+async function send(type, args){
+  try {
+    const r = await fetch("/cmd", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, args }),
+    });
+    const j = await r.json();
+    if (j.ok) { setStatus("sent", "ok"); $("last").textContent = j.queued; }
+    else      { setStatus("error: " + (j.error || r.status), "err"); }
+  } catch (e) { setStatus("network error", "err"); }
+}
+
+$("off").onclick = () => send("off", []);
+
+document.querySelectorAll("button.send").forEach(btn => {
+  btn.onclick = () => {
+    const type = btn.dataset.type;
+    const ids = btn.dataset.args.split(",");
+    const args = ids.map(id => parseFloat($(id).value) || 0);
+    send(type, args);
+  };
+});
+</script>
+</body>
+</html>

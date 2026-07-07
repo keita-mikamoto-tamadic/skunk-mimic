@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dora motor monitor</title>
+<link rel="stylesheet" href="/uPlot.min.css">
+<!--
+  dora モータ監視 GUI。同一オリジンの web_monitor.py が /stream(SSE) で
+  デコード済み JSON ({"t":<unix秒>,"axes":[...]}) を流す。bincode/Arrow は触らない。
+  グラフは uPlot (同梱 /uPlot.iife.min.js)。
+    - 信号選択: フィールドのチェックボックス、または凡例クリックで個別 on/off
+    - 時間窓: 5/10/30/60s 切替 (ライブ追従)
+    - Pause: 追従停止 → ドラッグで範囲ズーム / ダブルクリックでリセット
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 1.2rem; background:#0f1115; color:#e6e6e6; }
+  h1 { font-size: 1.05rem; margin:0 0 .7rem; }
+  .bar { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:.8rem; }
+  #status { padding:.22rem .55rem; border-radius:5px; background:#222732; font-size:.8rem; }
+  #status.ok { background:#1d4a36; color:#9f9; }
+  #status.err { background:#4a1d1d; color:#f99; }
+  #rate { color:#7cc4ff; font-variant-numeric:tabular-nums; font-size:.85rem; }
+  button, select { background:#1b1e26; color:#dbe; border:1px solid #2a2f3a; border-radius:5px;
+                   padding:.25rem .6rem; font-size:.82rem; cursor:pointer; }
+  button.active { background:#1d4a36; color:#9f9; border-color:#2c6; }
+  .fields { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; font-size:.82rem; }
+  .fields label { display:inline-flex; gap:.25rem; align-items:center; cursor:pointer; }
+  .sep { width:1px; height:1.1rem; background:#2a2f3a; }
+  table { border-collapse:collapse; width:100%; max-width:820px; margin-bottom:1rem; }
+  th, td { border:1px solid #2a2f3a; padding:.4rem .65rem; text-align:right; font-variant-numeric:tabular-nums; }
+  th { background:#1b1e26; color:#bcd; font-weight:600; }
+  td:first-child, th:first-child { text-align:center; color:#9aa; }
+  tr.fault td { color:#ff8a8a; }
+  #chart { width:100%; }
+  .uplot { width:100%; }
+</style>
+</head>
+<body>
+<h1>dora motor monitor</h1>
+
+<div class="bar">
+  <span id="status">connecting…</span>
+  <span id="rate"></span>
+  <span class="sep"></span>
+  <button id="pause">⏸ Pause</button>
+  <span class="sep"></span>
+  <span style="font-size:.82rem;color:#9aa">window</span>
+  <select id="window">
+    <option value="5">5 s</option>
+    <option value="10" selected>10 s</option>
+    <option value="30">30 s</option>
+    <option value="60">60 s</option>
+  </select>
+  <span class="sep"></span>
+  <span class="fields" id="fields"></span>
+  <span class="sep"></span>
+  <button id="clear">Clear</button>
+</div>
+
+<table>
+  <thead><tr>
+    <th>axis</th><th>position [rad]</th><th>velocity [rad/s]</th>
+    <th>torque [Nm]</th><th>i_d [A]</th><th>i_q [A]</th><th>fault</th>
+  </tr></thead>
+  <tbody id="rows"><tr><td colspan="7" style="text-align:center;color:#667">waiting for data…</td></tr></tbody>
+</table>
+
+<div id="chart"></div>
+
+<script src="/uPlot.iife.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+const FIELDS = ["position", "velocity", "torque", "cur_d", "cur_q"];
+const DEFAULT_HIDDEN = new Set(["position"]);   // 初期は桁の大きい position を隠す
+const MAX_SEC = 120;                            // リングバッファ保持秒数
+const color = i => `hsl(${(i * 47) % 360} 72% 60%)`;
+
+// ---- 状態 -------------------------------------------------------------
+let u = null, nAxes = 0, seriesDefs = [];       // seriesDefs[i] = {ai, field, label}
+let xs = [], cols = [];                          // cols[i] は seriesDefs[i] に対応する値配列
+let live = true, windowSec = 10, renderQueued = false;
+const fieldShow = Object.fromEntries(FIELDS.map(f => [f, !DEFAULT_HIDDEN.has(f)]));
+
+// ---- 数値テーブル (従来) ---------------------------------------------
+let latest = [], tableQueued = false;
+let msgCount = 0, lastRateT = performance.now();
+function setStatus(s, cls){ const e = $("status"); e.textContent = s; e.className = cls || ""; }
+function queueTable(){
+  if (tableQueued) return; tableQueued = true;
+  requestAnimationFrame(() => {
+    tableQueued = false;
+    if (!latest.length) return;
+    $("rows").innerHTML = latest.map((a, i) =>
+      `<tr class="${a.fault ? 'fault' : ''}"><td>${a.name ?? i}</td>`
+      + `<td>${a.position.toFixed(6)}</td><td>${a.velocity.toFixed(4)}</td>`
+      + `<td>${a.torque.toFixed(4)}</td><td>${a.cur_d.toFixed(3)}</td>`
+      + `<td>${a.cur_q.toFixed(3)}</td><td>${a.fault}</td></tr>`
+    ).join("");
+  });
+}
+
+// ---- フィールド選択 UI -----------------------------------------------
+function buildFieldToggles(){
+  $("fields").innerHTML = FIELDS.map(f =>
+    `<label><input type="checkbox" data-f="${f}" ${fieldShow[f] ? "checked" : ""}>${f}</label>`
+  ).join("");
+  $("fields").querySelectorAll("input").forEach(cb => {
+    cb.onchange = () => {
+      const f = cb.dataset.f; fieldShow[f] = cb.checked;
+      if (!u) return;
+      seriesDefs.forEach((d, i) => { if (d.field === f) u.setSeries(i + 1, { show: cb.checked }); });
+    };
+  });
+}
+
+// ---- uPlot 構築 (軸数が判明/変化したとき) -----------------------------
+function buildChart(axes){
+  nAxes = axes.length;
+  seriesDefs = [];
+  for (let ai = 0; ai < nAxes; ai++){
+    const an = axes[ai].name ?? ("ax" + ai);
+    for (const f of FIELDS) seriesDefs.push({ ai, field: f, label: an + "." + f });
+  }
+  xs = []; cols = seriesDefs.map(() => []);
+  const series = [{}].concat(seriesDefs.map((d, i) => ({
+    label: d.label, stroke: color(i), width: 1.4, scale: "y",
+    show: fieldShow[d.field], spanGaps: true,
+    value: (uu, v) => v == null ? "--" : v.toFixed(4),
+  })));
+  const opts = {
+    width: $("chart").clientWidth || 800, height: 380,
+    scales: { x: { time: true }, y: { auto: true } },
+    cursor: { drag: { x: true, y: false } },   // ドラッグで x 範囲ズーム
+    legend: { show: true },                     // 凡例クリックで個別 on/off
+    series,
+    axes: [
+      { stroke: "#9aa", grid: { stroke: "#222732" } },
+      { stroke: "#9aa", grid: { stroke: "#222732" } },
+    ],
+  };
+  if (u) u.destroy();
+  u = new uPlot(opts, [xs, ...cols], $("chart"));
+}
+
+// ---- サンプル投入 -----------------------------------------------------
+function pushSample(t, axes){
+  if (!u || axes.length !== nAxes) buildChart(axes);   // 初回 / 相手が変わった時
+  xs.push(t);
+  for (let i = 0; i < seriesDefs.length; i++){
+    const d = seriesDefs[i];
+    const a = axes[d.ai];
+    cols[i].push(a ? a[d.field] : null);
+  }
+  while (xs.length > 2 && t - xs[0] > MAX_SEC){ xs.shift(); for (const c of cols) c.shift(); }
+  queueChart();
+}
+function queueChart(){
+  if (renderQueued) return; renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    if (!u || !live || !xs.length) return;          // Pause 中は描画を凍結
+    u.setData([xs, ...cols], false);                // スケールは保持
+    const tl = xs[xs.length - 1];
+    u.setScale("x", { min: tl - windowSec, max: tl });   // ライブ追従
+  });
+}
+
+// ---- コントロール -----------------------------------------------------
+$("pause").onclick = () => {
+  live = !live;
+  $("pause").textContent = live ? "⏸ Pause" : "▶ Live";
+  $("pause").classList.toggle("active", !live);
+  if (live) queueChart();   // 再開で最新へ追従
+};
+$("window").onchange = e => { windowSec = +e.target.value; if (live) queueChart(); };
+$("clear").onclick = () => { xs.length = 0; cols.forEach(c => c.length = 0); if (u) u.setData([xs, ...cols]); };
+addEventListener("resize", () => { if (u) u.setSize({ width: $("chart").clientWidth, height: 380 }); });
+
+// ---- SSE 受信 ---------------------------------------------------------
+const es = new EventSource("/stream");
+es.onopen  = () => setStatus("streaming", "ok");
+es.onerror = () => setStatus("disconnected (web_monitor.py 起動中? 再接続待ち)", "err");
+es.onmessage = (e) => {
+  let msg; try { msg = JSON.parse(e.data); } catch (_) { return; }
+  if (!msg.axes) return;
+  latest = msg.axes; queueTable();
+  if (typeof msg.t === "number") pushSample(msg.t, msg.axes);
+  msgCount++;
+};
+
+setInterval(() => {
+  const now = performance.now();
+  $("rate").textContent = (msgCount * 1000 / (now - lastRateT)).toFixed(0) + " Hz";
+  msgCount = 0; lastRateT = now;
+}, 1000);
+
+buildFieldToggles();
+</script>
+</body>
+</html>

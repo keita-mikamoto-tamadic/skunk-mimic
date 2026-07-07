@@ -1,0 +1,9 @@
+[project]
+name = "gui"
+version = "0.1.0"
+description = "Web motor monitor: dora topic echo -> HTTP/SSE -> browser. dataflow 非依存。"
+requires-python = ">=3.11"
+# 第三者依存なし。Python stdlib だけで動く (lib.data_format は struct のみ)。
+# 実行時に `dora` CLI が PATH か ~/dora/target/release/dora にあること。
+# uv は不要 ―― `python3 web_monitor.py` で直接動く。
+dependencies = []
