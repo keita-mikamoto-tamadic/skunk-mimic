@@ -84,6 +84,9 @@
         {"name": "accel_limit", "type": "uint32", "index": 24},
         {"name": "pos_out_mx", "type": "uint32", "index": 25},
         {"name": "pos_out_mn", "type": "uint32", "index": 26},
+        {"name": "imp_kp", "type": "uint32", "index": 27},
+        {"name": "imp_kd", "type": "uint32", "index": 28},
+        {"name": "torq_const", "type": "uint32", "index": 29},
         {"name": "elec_angle_ofs", "type": "uint32", "count": 64, "index": 8, "doc": "電気角オフセット LUT (wire index 8, 64要素)"}
       ]
     }

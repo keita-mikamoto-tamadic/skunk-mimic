@@ -66,6 +66,9 @@ MOTOR_POSITION = 2
 MOTOR_VELOCITY = 3
 MOTOR_CURRENT = 6
 MOTOR_VOLTAGE = 7
+MOTOR_POSITION_PD = 8   # インピーダンス制御
+MOTOR_CASCADE_POS_PID = 9   # FOCTIVE ネイティブ位置カスケードPID
+MOTOR_CASCADE_VEL_PID = 10  # FOCTIVE ネイティブ速度カスケードPID
 
 
 def axis_ref_bytes(rec):
@@ -80,8 +83,11 @@ DEVICE_ID = 1  # 単軸テスト用
 print("[foctive_controller] Commands:")
 print("  v <volt_d> <volt_q> <vir_ang_freq> : 電圧制御 (例: v 0 1.0 20)")
 print("  c <cur_d> <cur_q>                  : 電流制御 (例: c 0 0.5)")
-print("  vel <vel> [accel_limit]            : 速度制御 (例: vel 5.0 / vel 5.0 20)")
-print("  p <pos> [accel_limit]              : 位置制御 (例: p 1.57 / p 1.57 10)")
+print("  vel <vel> [kp] [kd] [accel_limit]  : 速度制御(インピーダンス) (例: vel 5.0 / vel 5.0 1 1 20)")
+print("  p <pos> [kp] [kd] [accel_limit]    : 位置制御(インピーダンス) (例: p 1.57 / p 1.57 1 1 10)")
+print("  pd <pos> <vel> <torq> [kp] [kd]    : インピーダンス制御 (例: pd 1.57 0 0)")
+print("  cpos <pos> [accel_limit]           : カスケードPID位置 (FOCTIVE専用)")
+print("  cvel <vel> [accel_limit]           : カスケードPID速度 (FOCTIVE専用)")
 print("  setting pread <param_index>        : パラメータ読み出し (cmd=104, サーボOFFで)")
 print("  f : SERVO OFF")
 print("  q : QUIT")
@@ -137,23 +143,61 @@ while True:
         node.send_output("motor_commands", axis_ref_bytes(rec))
         print(f"sent: CURRENT cur_d={cur_d} cur_q={cur_q}")
     elif cmd == "vel":
-        if len(parts) not in (2, 3):
-            print("usage: vel <vel> [accel_limit]  [rad/s, rad/s^2]")
+        if len(parts) not in (2, 4, 5):
+            print("usage: vel <vel> [kp] [kd] [accel_limit]")
             continue
         try:
             vel = float(parts[1])
-            accel = float(parts[2]) if len(parts) == 3 else 0.0
+            kp = float(parts[2]) if len(parts) >= 4 else 1.0
+            kd = float(parts[3]) if len(parts) >= 4 else 1.0
+            accel = float(parts[4]) if len(parts) == 5 else 0.0
         except ValueError:
             print("数値で入力してください")
             continue
-        # VELOCITY: ref_val=vel, accel_limit(任意, 0=ファームのパラメータ側を使用)
+        # VELOCITY → インピーダンス(pos=NaN): kp=前進目標の追従(=速度誤差積分),
+        #   kd=速度ダンピング。kp=0 で純速度。
         rec = AxisRef(motor_state=MOTOR_VELOCITY, ref_val=vel, accel_limit=accel,
-                      kp_scale=1.0, kv_scale=1.0)
+                      kp_scale=kp, kv_scale=kd)
         node.send_output("motor_commands", axis_ref_bytes(rec))
-        print(f"sent: VELOCITY vel={vel} accel_limit={accel}")
+        print(f"sent: VELOCITY vel={vel} kp={kp} kd={kd} accel_limit={accel}")
     elif cmd == "p":
+        if len(parts) not in (2, 4, 5):
+            print("usage: p <pos> [kp] [kd] [accel_limit]")
+            continue
+        try:
+            pos = float(parts[1])
+            kp = float(parts[2]) if len(parts) >= 4 else 1.0
+            kd = float(parts[3]) if len(parts) >= 4 else 1.0
+            accel = float(parts[4]) if len(parts) == 5 else 0.0
+        except ValueError:
+            print("数値で入力してください")
+            continue
+        # POSITION → インピーダンス: pos 目標 + kp/kd スケール + accel_limit(任意)
+        rec = AxisRef(motor_state=MOTOR_POSITION, ref_val=pos, accel_limit=accel,
+                      kp_scale=kp, kv_scale=kd)
+        node.send_output("motor_commands", axis_ref_bytes(rec))
+        print(f"sent: POSITION pos={pos} kp={kp} kd={kd} accel_limit={accel}")
+    elif cmd == "pd":
+        if len(parts) not in (4, 6):
+            print("usage: pd <pos> <vel> <torq> [kp_scale] [kd_scale]  (インピーダンス)")
+            continue
+        try:
+            pos, vel, torq = float(parts[1]), float(parts[2]), float(parts[3])
+            kp = float(parts[4]) if len(parts) == 6 else 1.0
+            kd = float(parts[5]) if len(parts) == 6 else 1.0
+        except ValueError:
+            print("数値で入力してください")
+            continue
+        # POSITION_PD: ref_val=pos, ref_val_1=vel, ref_val_2=torq(FFトルク),
+        #   kp_scale/kv_scale = パラメータ imp_kp/imp_kd へのスケール (1.0=フルゲイン)
+        rec = AxisRef(motor_state=MOTOR_POSITION_PD,
+                      ref_val=pos, ref_val_1=vel, ref_val_2=torq,
+                      kp_scale=kp, kv_scale=kd)
+        node.send_output("motor_commands", axis_ref_bytes(rec))
+        print(f"sent: IMPEDANCE pos={pos} vel={vel} torq={torq} kp_scale={kp} kd_scale={kd}")
+    elif cmd == "cpos":
         if len(parts) not in (2, 3):
-            print("usage: p <pos> [accel_limit]  [rad, rad/s^2]")
+            print("usage: cpos <pos> [accel_limit]  (カスケードPID位置, FOCTIVE専用)")
             continue
         try:
             pos = float(parts[1])
@@ -161,11 +205,24 @@ while True:
         except ValueError:
             print("数値で入力してください")
             continue
-        # POSITION: ref_val=pos, accel_limit(任意, 0=ファームのパラメータ側を使用)
-        rec = AxisRef(motor_state=MOTOR_POSITION, ref_val=pos, accel_limit=accel,
+        rec = AxisRef(motor_state=MOTOR_CASCADE_POS_PID, ref_val=pos, accel_limit=accel,
                       kp_scale=1.0, kv_scale=1.0)
         node.send_output("motor_commands", axis_ref_bytes(rec))
-        print(f"sent: POSITION pos={pos} accel_limit={accel}")
+        print(f"sent: CASCADE_POS pos={pos} accel_limit={accel}")
+    elif cmd == "cvel":
+        if len(parts) not in (2, 3):
+            print("usage: cvel <vel> [accel_limit]  (カスケードPID速度, FOCTIVE専用)")
+            continue
+        try:
+            vel = float(parts[1])
+            accel = float(parts[2]) if len(parts) == 3 else 0.0
+        except ValueError:
+            print("数値で入力してください")
+            continue
+        rec = AxisRef(motor_state=MOTOR_CASCADE_VEL_PID, ref_val=vel, accel_limit=accel,
+                      kp_scale=1.0, kv_scale=1.0)
+        node.send_output("motor_commands", axis_ref_bytes(rec))
+        print(f"sent: CASCADE_VEL vel={vel} accel_limit={accel}")
     elif cmd == "setting":
         if len(parts) < 2 or parts[1].lower() not in SETTINGS_CMD:
             print("usage: setting <" + "|".join(SETTINGS_CMD) + "> [args]")

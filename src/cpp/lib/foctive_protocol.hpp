@@ -77,10 +77,14 @@ namespace Foctive {
       case MotorState::OFF:         return MsgBit::kIdle;
       case MotorState::VOLTAGE:     return MsgBit::kVoltageControl;
       case MotorState::CURRENT:     return MsgBit::kCurrentControl;
-      case MotorState::VELOCITY:    return MsgBit::kVelocityControl;
-      case MotorState::POSITION:    return MsgBit::kPositionControl;
       case MotorState::TORQUE:      return MsgBit::kTorqueFB;
+      // POSITION/VELOCITY/POSITION_PD は全てインピーダンス系にマップ(moteus 互換)
+      case MotorState::POSITION:    return MsgBit::kImpedanceControl;
+      case MotorState::VELOCITY:    return MsgBit::kImpedanceControl;
       case MotorState::POSITION_PD: return MsgBit::kImpedanceControl;
+      // FOCTIVE ネイティブ カスケードPID
+      case MotorState::CASCADE_POS_PID: return MsgBit::kPositionControl;
+      case MotorState::CASCADE_VEL_PID: return MsgBit::kVelocityControl;
       default:                      return MsgBit::kIdle;
     }
   }
@@ -125,26 +129,35 @@ namespace Foctive {
         push(cmd.cur_q);
         break;
 
-      case MotorState::VELOCITY:
-        push(cmd.vel);
-        push(cmd.accel_limit);  // 2nd float。ファームは dlc>=8 で読む(<=0 でパラメータ側)
-        break;
-
-      case MotorState::POSITION:
-        push(cmd.pos);
-        push(cmd.accel_limit);
-        break;
-
       case MotorState::TORQUE:
         push(cmd.torq);
         break;
 
-      case MotorState::POSITION_PD:  // インピーダンス制御
+      // インピーダンス系(msg_bit=6): POSITION/VELOCITY/POSITION_PD 共通。
+      // pos, vel, torq, kp_scale, kd_scale, accel_limit = 24byte。
+      // 各モードの詰め方(pos/vel/kp/kd の値)は ToCommand 側で決める。
+      // 注: accel_limit(offset 20)を効かせるにはファーム側の読み取り追加が必要
+      //     (現ファームは 20byte のみ読み、余剰は無視 = 送っても無害)。
+      case MotorState::POSITION:
+      case MotorState::VELOCITY:
+      case MotorState::POSITION_PD:
         push(cmd.pos);
         push(cmd.vel);
         push(cmd.torq);
         push(cmd.kp_scale);
         push(cmd.kd_scale);
+        push(cmd.accel_limit);
+        break;
+
+      // FOCTIVE ネイティブ カスケードPID: [target, accel_limit]
+      case MotorState::CASCADE_POS_PID:
+        push(cmd.pos);
+        push(cmd.accel_limit);
+        break;
+
+      case MotorState::CASCADE_VEL_PID:
+        push(cmd.vel);
+        push(cmd.accel_limit);
         break;
 
       case MotorState::OFF:

@@ -37,7 +37,8 @@ size_t MoteusConverter::BuildCommandFrame(
     moteus::StopMode::Command cmd;
     moteus::StopMode::Format fmt;
     moteus::StopMode::Make(&writer, cmd, fmt);
-  } else {
+  } else if (state == MotorState::STOP || state == MotorState::POSITION ||
+             state == MotorState::VELOCITY || state == MotorState::TORQUE) {
     moteus::PositionMode::Command cmd;
     cmd.feedforward_torque = 0.0;
     cmd.stop_position = std::numeric_limits<double>::quiet_NaN();
@@ -102,6 +103,12 @@ size_t MoteusConverter::BuildCommandFrame(
         break;
     }
     moteus::PositionMode::Make(&writer, cmd, fmt);
+  } else {
+    // CURRENT/VOLTAGE/POSITION_PD/CASCADE_POS_PID/CASCADE_VEL_PID は moteus 非対応。
+    // 誤って送られても動かさない (StopMode = 電流カット)。
+    moteus::StopMode::Command cmd;
+    moteus::StopMode::Format fmt;
+    moteus::StopMode::Make(&writer, cmd, fmt);
   }
   
   // 全モード共通処理

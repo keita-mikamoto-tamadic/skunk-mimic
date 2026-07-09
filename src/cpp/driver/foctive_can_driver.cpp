@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstring>
 #include <cstdio>
+#include <limits>  // quiet_NaN (インピーダンス速度モード pos=NaN)
 
 static constexpr size_t kMaxFrameSize = 64;
 
@@ -21,23 +22,45 @@ static Foctive::Command ToCommand(const AxisRef& ref) {
       cmd.cur_d = ref.ref_val;
       cmd.cur_q = ref.ref_val_1;
       break;
-    case MotorState::VELOCITY:
-      cmd.vel = ref.ref_val;
-      cmd.accel_limit = ref.accel_limit;  // 0 ならファーム側パラメータの accel_limit を使用
-      break;
-    case MotorState::POSITION:
-      cmd.pos = ref.ref_val;
-      cmd.accel_limit = ref.accel_limit;
-      break;
     case MotorState::TORQUE:
       cmd.torq = ref.ref_val;
       break;
-    case MotorState::POSITION_PD:  // インピーダンス制御
-      cmd.pos      = ref.ref_val;
-      cmd.vel      = ref.ref_val_1;
-      cmd.torq     = ref.ref_val_2;
-      cmd.kp_scale = ref.kp_scale;
-      cmd.kd_scale = ref.kv_scale;
+    // POSITION → インピーダンス系(moteus 互換): pos 目標 + kp/kd ゲイン。
+    case MotorState::POSITION:
+      cmd.pos         = ref.ref_val;
+      cmd.vel         = 0.0;
+      cmd.torq        = 0.0;
+      cmd.kp_scale    = ref.kp_scale;
+      cmd.kd_scale    = ref.kv_scale;
+      cmd.accel_limit = ref.accel_limit;
+      break;
+    // VELOCITY → インピーダンス系: pos=NaN で速度モード(moteus と同じ規約)。
+    // ファームは NaN 検出で「現在位置から vel で前進する内部目標」を作り kp で追従、
+    // velocity_limit で slip クランプ。kp_scale はコマンド値をそのまま渡す(0=純速度)。
+    case MotorState::VELOCITY:
+      cmd.pos         = std::numeric_limits<float>::quiet_NaN();
+      cmd.vel         = ref.ref_val;
+      cmd.torq        = 0.0;
+      cmd.kp_scale    = ref.kp_scale;
+      cmd.kd_scale    = ref.kv_scale;
+      cmd.accel_limit = ref.accel_limit;
+      break;
+    case MotorState::POSITION_PD:  // 明示インピーダンス(pos/vel/FFトルク+kp/kd)
+      cmd.pos         = ref.ref_val;
+      cmd.vel         = ref.ref_val_1;
+      cmd.torq        = ref.ref_val_2;
+      cmd.kp_scale    = ref.kp_scale;
+      cmd.kd_scale    = ref.kv_scale;
+      cmd.accel_limit = ref.accel_limit;
+      break;
+    // FOCTIVE ネイティブ カスケードPID (moteus 非対応)
+    case MotorState::CASCADE_POS_PID:
+      cmd.pos         = ref.ref_val;
+      cmd.accel_limit = ref.accel_limit;
+      break;
+    case MotorState::CASCADE_VEL_PID:
+      cmd.vel         = ref.ref_val;
+      cmd.accel_limit = ref.accel_limit;
       break;
     case MotorState::STOP:
       // TODO: 現在位置保持。FOCTIVE にブレーキ保持モードが無いため暫定 idle(脱力)。

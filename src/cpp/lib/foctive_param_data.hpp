@@ -5,8 +5,8 @@
 #include <cstring>  // memcpy
 
 namespace Foctive {
-  // 全パラメータ個数 (= 26 scalar + 1 LUT block)。cmd=100/102 の param_num に使う
-  constexpr uint8_t kParamNum = 27;
+  // 全パラメータ個数 (= 29 scalar + 1 LUT block)。cmd=100/102 の param_num に使う
+  constexpr uint8_t kParamNum = 30;
 
   enum ParamIndex : uint8_t {
     kMotorId       = 0,
@@ -36,6 +36,9 @@ namespace Foctive {
     kAccelLimit    = 24,   // 台形プロファイル加速度制限 (旧 kVelOutMin)
     kPosOutMax     = 25,
     kPosOutMin     = 26,
+    kImpKp         = 27,   // インピーダンス制御 位置ゲイン
+    kImpKd         = 28,   // インピーダンス制御 速度ゲイン
+    kTorqConst     = 29,   // モータ軸トルク定数 [Nm/A]
     kInvalid       = 0xFF,
   };
 
@@ -67,6 +70,9 @@ namespace Foctive {
     float    accel_limit;      // 台形プロファイル加速度制限 (<=0 で無制限, RefVal 未指定時に使用)
     float    pos_out_mx;
     float    pos_out_mn;
+    float    imp_kp;           // インピーダンス制御 位置ゲイン [A/rad]
+    float    imp_kd;           // インピーダンス制御 速度ゲイン [A/(rad/s)]
+    float    torq_const;       // モータ軸トルク定数 [Nm/A] (<=0 でトルク FF 無効)
   };
 
   // ParamIndex → MotParam 内のバイトオフセット / サイズ / 型。
@@ -106,6 +112,9 @@ namespace Foctive {
     {offsetof(MotParam, accel_limit),    4,   true},   // 24
     {offsetof(MotParam, pos_out_mx),     4,   true},   // 25
     {offsetof(MotParam, pos_out_mn),     4,   true},   // 26
+    {offsetof(MotParam, imp_kp),         4,   true},   // 27
+    {offsetof(MotParam, imp_kd),         4,   true},   // 28
+    {offsetof(MotParam, torq_const),     4,   true},   // 29
   };
 
   // 受信した生バイト列を MotParam の該当フィールドへ書き込む(cmd=104/102 のデコード用)

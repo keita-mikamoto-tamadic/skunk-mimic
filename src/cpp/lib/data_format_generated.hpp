@@ -101,9 +101,12 @@ struct ParamScalars {
     uint32_t accel_limit;
     uint32_t pos_out_mx;
     uint32_t pos_out_mn;
+    uint32_t imp_kp;
+    uint32_t imp_kd;
+    uint32_t torq_const;
     uint32_t elec_angle_ofs[64];  // 電気角オフセット LUT (wire index 8, 64要素)
 };
-static_assert(sizeof(ParamScalars) == 360, "ParamScalars size mismatch vs axis_data.json");
+static_assert(sizeof(ParamScalars) == 372, "ParamScalars size mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, motor_id) == 0, "ParamScalars.motor_id offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, device_id) == 4, "ParamScalars.device_id offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, rot_dir) == 8, "ParamScalars.rot_dir offset mismatch vs axis_data.json");
@@ -130,5 +133,8 @@ static_assert(offsetof(ParamScalars, velocity_limit) == 88, "ParamScalars.veloci
 static_assert(offsetof(ParamScalars, accel_limit) == 92, "ParamScalars.accel_limit offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, pos_out_mx) == 96, "ParamScalars.pos_out_mx offset mismatch vs axis_data.json");
 static_assert(offsetof(ParamScalars, pos_out_mn) == 100, "ParamScalars.pos_out_mn offset mismatch vs axis_data.json");
-static_assert(offsetof(ParamScalars, elec_angle_ofs) == 104, "ParamScalars.elec_angle_ofs offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, imp_kp) == 104, "ParamScalars.imp_kp offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, imp_kd) == 108, "ParamScalars.imp_kd offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, torq_const) == 112, "ParamScalars.torq_const offset mismatch vs axis_data.json");
+static_assert(offsetof(ParamScalars, elec_angle_ofs) == 116, "ParamScalars.elec_angle_ofs offset mismatch vs axis_data.json");
 

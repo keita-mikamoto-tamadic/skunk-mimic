@@ -53,14 +53,14 @@ def pack_settings_result(rec):
 def unpack_settings_result(buf, offset=0):
     return SettingsResult(*struct.unpack_from(SETTINGS_RESULT_FMT, buf, offset))
 
-PARAM_SCALARS_FMT = "<IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
-PARAM_SCALARS_SIZE = struct.calcsize(PARAM_SCALARS_FMT)  # 360
-PARAM_SCALARS_FIELDS = ['motor_id', 'device_id', 'rot_dir', 'mech_angle_dir', 'elec_angle_dir', 'mot_pole_pairs', 'gear_enable', 'gear_ratio', 'anyval_pos_offset', 'p_gain_cur', 'i_gain_cur', 'd_gain_cur', 'p_gain_vel', 'i_gain_vel', 'd_gain_vel', 'p_gain_pos', 'i_gain_pos', 'd_gain_pos', 'cur_q_mx', 'cur_q_mn', 'trq_out_mx', 'trq_out_mn', 'velocity_limit', 'accel_limit', 'pos_out_mx', 'pos_out_mn', 'elec_angle_ofs']
-PARAM_SCALARS_WIRE_INDEX = {'motor_id': 0, 'device_id': 1, 'rot_dir': 2, 'mech_angle_dir': 3, 'elec_angle_dir': 4, 'mot_pole_pairs': 5, 'gear_enable': 6, 'gear_ratio': 7, 'anyval_pos_offset': 9, 'p_gain_cur': 10, 'i_gain_cur': 11, 'd_gain_cur': 12, 'p_gain_vel': 13, 'i_gain_vel': 14, 'd_gain_vel': 15, 'p_gain_pos': 16, 'i_gain_pos': 17, 'd_gain_pos': 18, 'cur_q_mx': 19, 'cur_q_mn': 20, 'trq_out_mx': 21, 'trq_out_mn': 22, 'velocity_limit': 23, 'accel_limit': 24, 'pos_out_mx': 25, 'pos_out_mn': 26, 'elec_angle_ofs': 8}
+PARAM_SCALARS_FMT = "<IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+PARAM_SCALARS_SIZE = struct.calcsize(PARAM_SCALARS_FMT)  # 372
+PARAM_SCALARS_FIELDS = ['motor_id', 'device_id', 'rot_dir', 'mech_angle_dir', 'elec_angle_dir', 'mot_pole_pairs', 'gear_enable', 'gear_ratio', 'anyval_pos_offset', 'p_gain_cur', 'i_gain_cur', 'd_gain_cur', 'p_gain_vel', 'i_gain_vel', 'd_gain_vel', 'p_gain_pos', 'i_gain_pos', 'd_gain_pos', 'cur_q_mx', 'cur_q_mn', 'trq_out_mx', 'trq_out_mn', 'velocity_limit', 'accel_limit', 'pos_out_mx', 'pos_out_mn', 'imp_kp', 'imp_kd', 'torq_const', 'elec_angle_ofs']
+PARAM_SCALARS_WIRE_INDEX = {'motor_id': 0, 'device_id': 1, 'rot_dir': 2, 'mech_angle_dir': 3, 'elec_angle_dir': 4, 'mot_pole_pairs': 5, 'gear_enable': 6, 'gear_ratio': 7, 'anyval_pos_offset': 9, 'p_gain_cur': 10, 'i_gain_cur': 11, 'd_gain_cur': 12, 'p_gain_vel': 13, 'i_gain_vel': 14, 'd_gain_vel': 15, 'p_gain_pos': 16, 'i_gain_pos': 17, 'd_gain_pos': 18, 'cur_q_mx': 19, 'cur_q_mn': 20, 'trq_out_mx': 21, 'trq_out_mn': 22, 'velocity_limit': 23, 'accel_limit': 24, 'pos_out_mx': 25, 'pos_out_mn': 26, 'imp_kp': 27, 'imp_kd': 28, 'torq_const': 29, 'elec_angle_ofs': 8}
 ParamScalars = namedtuple("ParamScalars", PARAM_SCALARS_FIELDS)
-ParamScalars.__new__.__defaults__ = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (),)
+ParamScalars.__new__.__defaults__ = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (),)
 
-PARAM_SCALARS_COUNTS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 64]
+PARAM_SCALARS_COUNTS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 64]
 def pack_param_scalars(rec):
     flat = []
     for v, c in zip(rec, PARAM_SCALARS_COUNTS):

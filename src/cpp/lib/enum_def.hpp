@@ -13,7 +13,11 @@ enum class MotorState : uint8_t {
     SET_POSITION = 5,  // エンコーダ位置リセット（OFF時のみ）
     CURRENT = 6,       // 電流制御
     VOLTAGE = 7,       // 電圧制御
-    POSITION_PD = 8    // 位置/速度PDゲイン+FFトルク（インピーダンス制御）
+    POSITION_PD = 8,   // 位置/速度PDゲイン+FFトルク（インピーダンス制御）
+    // POSITION/VELOCITY は driver 層でインピーダンス系にマップ(moteus 互換)。
+    // 下は FOCTIVE ネイティブのカスケードPID(moteus 非対応 → moteus では停止)。
+    CASCADE_POS_PID = 9,   // 位置カスケードPID (FOCTIVE 専用)
+    CASCADE_VEL_PID = 10   // 速度カスケードPID (FOCTIVE 専用)
 };
 
 // ステートマシンの状態
