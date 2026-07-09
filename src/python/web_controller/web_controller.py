@@ -37,39 +37,69 @@ HTML_PATH = os.path.join(SCRIPT_DIR, "web_controller.html")
 
 # MotorState (enum_def.hpp / foctive_controller.py と一致)
 MOTOR_OFF = 0
-MOTOR_POSITION = 2
-MOTOR_VELOCITY = 3
+MOTOR_POSITION = 2          # 位置(インピーダンス)
+MOTOR_VELOCITY = 3          # 速度(インピーダンス)
 MOTOR_CURRENT = 6
 MOTOR_VOLTAGE = 7
+MOTOR_POSITION_PD = 8       # インピーダンス (pos/vel/torq)
+MOTOR_CASCADE_POS_PID = 9   # FOCTIVE ネイティブ位置カスケードPID
+MOTOR_CASCADE_VEL_PID = 10  # FOCTIVE ネイティブ速度カスケードPID
 
 # HTTP スレッド → node ループへ渡す送信キュー。要素 = (AxisRef, 説明文字列)
 CMD_Q = queue.Queue(maxsize=64)
 LAST_SENT = {"desc": "(none)"}  # /status 用
 
 
-def build_ref(typ, args):
-    """指令 type/args から (AxisRef, desc) を作る。foctive_controller のマッピングに一致。"""
-    def f(i):
-        return float(args[i])
+def build_ref(typ, p):
+    """指令 type + パラメータ dict から (AxisRef, desc) を作る。
+
+    マッピングは foctive_controller.py と一致 (impedance/cascade 対応)。
+    p は {名前: 数値} の dict。欠けたキーは default を使う。
+    """
+    p = p or {}
+
+    def n(key, default=0.0):
+        v = p.get(key)
+        return float(v) if isinstance(v, (int, float)) else float(default)
 
     if typ in ("off", "f"):
         return AxisRef(motor_state=MOTOR_OFF), "SERVO OFF"
-    if typ == "v":   # 電圧: ref_val=volt_d, ref_val_1=volt_q, ref_val_2=vir_ang_freq
-        return (AxisRef(motor_state=MOTOR_VOLTAGE, ref_val=f(0), ref_val_1=f(1),
-                        ref_val_2=f(2), kp_scale=1.0, kv_scale=1.0),
-                f"VOLTAGE d={f(0)} q={f(1)} freq={f(2)}")
-    if typ == "c":   # 電流: ref_val=cur_d, ref_val_1=cur_q
-        return (AxisRef(motor_state=MOTOR_CURRENT, ref_val=f(0), ref_val_1=f(1),
+    if typ == "v":    # 電圧: ref_val=volt_d, ref_val_1=volt_q, ref_val_2=vir_ang_freq
+        d, q, fr = n("volt_d"), n("volt_q"), n("vir_ang_freq")
+        return (AxisRef(motor_state=MOTOR_VOLTAGE, ref_val=d, ref_val_1=q, ref_val_2=fr,
                         kp_scale=1.0, kv_scale=1.0),
-                f"CURRENT d={f(0)} q={f(1)}")
-    if typ == "vel":  # 速度: ref_val=vel [rad/s]
-        return (AxisRef(motor_state=MOTOR_VELOCITY, ref_val=f(0),
+                f"VOLTAGE d={d} q={q} freq={fr}")
+    if typ == "c":    # 電流: ref_val=cur_d, ref_val_1=cur_q
+        d, q = n("cur_d"), n("cur_q")
+        return (AxisRef(motor_state=MOTOR_CURRENT, ref_val=d, ref_val_1=q,
                         kp_scale=1.0, kv_scale=1.0),
-                f"VELOCITY {f(0)} rad/s")
-    if typ == "p":   # 位置: ref_val=pos [rad]
-        return (AxisRef(motor_state=MOTOR_POSITION, ref_val=f(0),
+                f"CURRENT d={d} q={q}")
+    if typ == "vel":  # 速度(インピーダンス): ref_val=vel, kp/kd/accel_limit
+        vel, kp, kd, ac = n("vel"), n("kp", 1.0), n("kd", 1.0), n("accel", 0.0)
+        return (AxisRef(motor_state=MOTOR_VELOCITY, ref_val=vel, accel_limit=ac,
+                        kp_scale=kp, kv_scale=kd),
+                f"VELOCITY vel={vel} kp={kp} kd={kd} accel={ac}")
+    if typ == "p":    # 位置(インピーダンス): ref_val=pos, kp/kd/accel_limit
+        pos, kp, kd, ac = n("pos"), n("kp", 1.0), n("kd", 1.0), n("accel", 0.0)
+        return (AxisRef(motor_state=MOTOR_POSITION, ref_val=pos, accel_limit=ac,
+                        kp_scale=kp, kv_scale=kd),
+                f"POSITION pos={pos} kp={kp} kd={kd} accel={ac}")
+    if typ == "pd":   # インピーダンス: ref_val=pos, ref_val_1=vel, ref_val_2=torq(FF)
+        pos, vel, torq = n("pos"), n("vel"), n("torq")
+        kp, kd = n("kp", 1.0), n("kd", 1.0)
+        return (AxisRef(motor_state=MOTOR_POSITION_PD, ref_val=pos, ref_val_1=vel,
+                        ref_val_2=torq, kp_scale=kp, kv_scale=kd),
+                f"IMPEDANCE pos={pos} vel={vel} torq={torq} kp={kp} kd={kd}")
+    if typ == "cpos":  # カスケードPID位置 (FOCTIVE専用): ref_val=pos, accel_limit
+        pos, ac = n("pos"), n("accel", 0.0)
+        return (AxisRef(motor_state=MOTOR_CASCADE_POS_PID, ref_val=pos, accel_limit=ac,
                         kp_scale=1.0, kv_scale=1.0),
-                f"POSITION {f(0)} rad")
+                f"CASCADE_POS pos={pos} accel={ac}")
+    if typ == "cvel":  # カスケードPID速度 (FOCTIVE専用): ref_val=vel, accel_limit
+        vel, ac = n("vel"), n("accel", 0.0)
+        return (AxisRef(motor_state=MOTOR_CASCADE_VEL_PID, ref_val=vel, accel_limit=ac,
+                        kp_scale=1.0, kv_scale=1.0),
+                f"CASCADE_VEL vel={vel} accel={ac}")
     raise ValueError(f"unknown command type: {typ}")
 
 
@@ -90,9 +120,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         try:
-            n = int(self.headers.get("Content-Length", "0"))
-            body = json.loads(self.rfile.read(n) or b"{}")
-            rec, desc = build_ref(body.get("type"), body.get("args", []))
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length) or b"{}")
+            rec, desc = build_ref(body.get("type"), body.get("params", {}))
         except (ValueError, TypeError, IndexError, json.JSONDecodeError) as e:
             self._json(400, {"ok": False, "error": str(e)})
             return

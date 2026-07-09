@@ -45,13 +45,17 @@ cd src/python && uv run web_controller/web_controller.py
 ## 操作 (ブラウザ)
 
 - **■ SERVO OFF** (赤) … いつでも停止。最上部に常駐。
-- 電圧 VOLTAGE (volt_d, volt_q, vir_ang_freq)
+- 電圧 VOLTAGE (volt_d, volt_q, vir_ang_freq) … キャリブ不要
 - 電流 CURRENT (cur_d, cur_q)
-- 速度 VELOCITY (rad/s)
-- 位置 POSITION (rad)
+- 速度 VELOCITY / impedance (vel, kp, kd, accel_limit)
+- 位置 POSITION / impedance (pos, kp, kd, accel_limit)
+- インピーダンス POSITION_PD (pos, vel, torq(FF), kp_scale, kd_scale)
+- カスケードPID 位置 cpos (pos, accel_limit) … FOCTIVE 専用
+- カスケードPID 速度 cvel (vel, accel_limit) … FOCTIVE 専用
 
 各行の Send で送信 (自動送信なし)。送った内容は "last sent" に出る。
-マッピングは `foctive_controller` と同一 (`v`/`c`/`vel`/`p`/`f`)。
+マッピングは更新後の `foctive_controller` と同一 (`v`/`c`/`vel`/`p`/`pd`/`cpos`/`cvel`/`f`、
+MotorState 2/3/6/7/8/9/10)。kp/kd/accel_limit の既定は 1/1/0。
 
 ## 注意
 

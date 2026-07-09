@@ -6,24 +6,26 @@
 <title>foctive web controller</title>
 <!--
   FOCTIVE 操作 GUI。web_controller.py(同一オリジン) に POST /cmd で指令を送る。
-  body: {"type":"v|c|vel|p|off","args":[...]} → ノードが AxisRef を motor_commands に送出。
+  body: {"type":"v|c|vel|p|pd|cpos|cvel|off","params":{...}} → ノードが AxisRef を送出。
+  指令マッピングは foctive_controller.py と一致 (impedance/cascade 対応)。
   ★ 実モータが動きます。SERVO OFF を常に手元に。自動送信はしません(明示 Send のみ)。
 -->
 <style>
   :root { color-scheme: dark; }
-  body { font-family: system-ui, sans-serif; margin: 1.4rem; background:#0f1115; color:#e6e6e6; max-width:680px; }
+  body { font-family: system-ui, sans-serif; margin: 1.4rem; background:#0f1115; color:#e6e6e6; max-width:760px; }
   h1 { font-size: 1.05rem; margin:0 0 .8rem; }
   .off { width:100%; padding:1rem; font-size:1.2rem; font-weight:700; color:#fff;
          background:#a11; border:1px solid #d33; border-radius:8px; cursor:pointer; margin-bottom:1rem; }
   .off:active { background:#c22; }
   fieldset { border:1px solid #2a2f3a; border-radius:8px; margin:0 0 .9rem; padding:.7rem .9rem 1rem; }
   legend { color:#bcd; font-weight:600; padding:0 .4rem; }
-  .row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
-  label { font-size:.85rem; color:#9aa; display:inline-flex; flex-direction:column; gap:.15rem; }
-  input { width:6.5rem; background:#1b1e26; color:#e6e6e6; border:1px solid #2a2f3a;
+  .note { color:#c93; font-size:.78rem; margin:.2rem 0 .6rem; }
+  .row { display:flex; gap:.6rem; align-items:flex-end; flex-wrap:wrap; }
+  label { font-size:.82rem; color:#9aa; display:inline-flex; flex-direction:column; gap:.15rem; }
+  input { width:5.6rem; background:#1b1e26; color:#e6e6e6; border:1px solid #2a2f3a;
           border-radius:5px; padding:.35rem .5rem; font-variant-numeric:tabular-nums; }
   button.send { background:#1d4a36; color:#9f9; border:1px solid #2c6; border-radius:6px;
-                padding:.4rem .9rem; cursor:pointer; font-size:.9rem; align-self:flex-end; }
+                padding:.4rem .9rem; cursor:pointer; font-size:.9rem; }
   button.send:active { background:#2c6; color:#022; }
   .bar { display:flex; gap:.7rem; align-items:center; margin-top:.4rem; font-size:.85rem; }
   #status { padding:.22rem .55rem; border-radius:5px; background:#222732; }
@@ -36,38 +38,76 @@
 
 <button class="off" id="off">■ SERVO OFF</button>
 
-<fieldset>
-  <legend>電圧制御 (VOLTAGE)</legend>
+<fieldset data-type="v">
+  <legend>電圧制御 (VOLTAGE) ― キャリブ不要</legend>
   <div class="row">
-    <label>volt_d<input id="v_d" type="number" step="0.1" value="0"></label>
-    <label>volt_q<input id="v_q" type="number" step="0.1" value="0"></label>
-    <label>vir_ang_freq<input id="v_f" type="number" step="1" value="0"></label>
-    <button class="send" data-type="v" data-args="v_d,v_q,v_f">Send</button>
+    <label>volt_d<input data-p="volt_d" type="number" step="0.1" value="0"></label>
+    <label>volt_q<input data-p="volt_q" type="number" step="0.1" value="0"></label>
+    <label>vir_ang_freq<input data-p="vir_ang_freq" type="number" step="1" value="0"></label>
+    <button class="send">Send</button>
   </div>
 </fieldset>
 
-<fieldset>
+<p class="note">↓ 以下の閉ループ制御は事前に電気角キャリブが必要 (端末版 foctive_controller の <code>setting calib</code>)</p>
+
+<fieldset data-type="c">
   <legend>電流制御 (CURRENT)</legend>
   <div class="row">
-    <label>cur_d<input id="c_d" type="number" step="0.1" value="0"></label>
-    <label>cur_q<input id="c_q" type="number" step="0.1" value="0"></label>
-    <button class="send" data-type="c" data-args="c_d,c_q">Send</button>
+    <label>cur_d<input data-p="cur_d" type="number" step="0.1" value="0"></label>
+    <label>cur_q<input data-p="cur_q" type="number" step="0.1" value="0"></label>
+    <button class="send">Send</button>
   </div>
 </fieldset>
 
-<fieldset>
-  <legend>速度制御 (VELOCITY)</legend>
+<fieldset data-type="vel">
+  <legend>速度制御 (VELOCITY / impedance)</legend>
   <div class="row">
-    <label>vel [rad/s]<input id="vel" type="number" step="0.5" value="0"></label>
-    <button class="send" data-type="vel" data-args="vel">Send</button>
+    <label>vel [rad/s]<input data-p="vel" type="number" step="0.5" value="0"></label>
+    <label>kp<input data-p="kp" type="number" step="0.1" value="1"></label>
+    <label>kd<input data-p="kd" type="number" step="0.1" value="1"></label>
+    <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+    <button class="send">Send</button>
   </div>
 </fieldset>
 
-<fieldset>
-  <legend>位置制御 (POSITION)</legend>
+<fieldset data-type="p">
+  <legend>位置制御 (POSITION / impedance)</legend>
   <div class="row">
-    <label>pos [rad]<input id="pos" type="number" step="0.1" value="0"></label>
-    <button class="send" data-type="p" data-args="pos">Send</button>
+    <label>pos [rad]<input data-p="pos" type="number" step="0.1" value="0"></label>
+    <label>kp<input data-p="kp" type="number" step="0.1" value="1"></label>
+    <label>kd<input data-p="kd" type="number" step="0.1" value="1"></label>
+    <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+    <button class="send">Send</button>
+  </div>
+</fieldset>
+
+<fieldset data-type="pd">
+  <legend>インピーダンス (POSITION_PD)</legend>
+  <div class="row">
+    <label>pos [rad]<input data-p="pos" type="number" step="0.1" value="0"></label>
+    <label>vel [rad/s]<input data-p="vel" type="number" step="0.5" value="0"></label>
+    <label>torq (FF)<input data-p="torq" type="number" step="0.1" value="0"></label>
+    <label>kp_scale<input data-p="kp" type="number" step="0.1" value="1"></label>
+    <label>kd_scale<input data-p="kd" type="number" step="0.1" value="1"></label>
+    <button class="send">Send</button>
+  </div>
+</fieldset>
+
+<fieldset data-type="cpos">
+  <legend>カスケードPID 位置 (FOCTIVE専用)</legend>
+  <div class="row">
+    <label>pos [rad]<input data-p="pos" type="number" step="0.1" value="0"></label>
+    <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+    <button class="send">Send</button>
+  </div>
+</fieldset>
+
+<fieldset data-type="cvel">
+  <legend>カスケードPID 速度 (FOCTIVE専用)</legend>
+  <div class="row">
+    <label>vel [rad/s]<input data-p="vel" type="number" step="0.5" value="0"></label>
+    <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+    <button class="send">Send</button>
   </div>
 </fieldset>
 
@@ -81,11 +121,11 @@
 const $ = id => document.getElementById(id);
 function setStatus(s, cls){ const e = $("status"); e.textContent = s; e.className = cls || ""; }
 
-async function send(type, args){
+async function send(type, params){
   try {
     const r = await fetch("/cmd", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, args }),
+      body: JSON.stringify({ type, params }),
     });
     const j = await r.json();
     if (j.ok) { setStatus("sent", "ok"); $("last").textContent = j.queued; }
@@ -93,14 +133,17 @@ async function send(type, args){
   } catch (e) { setStatus("network error", "err"); }
 }
 
-$("off").onclick = () => send("off", []);
+$("off").onclick = () => send("off", {});
 
-document.querySelectorAll("button.send").forEach(btn => {
+// 各 fieldset[data-type] の Send: 中の input[data-p] を params dict に集めて送る
+document.querySelectorAll("fieldset[data-type] button.send").forEach(btn => {
   btn.onclick = () => {
-    const type = btn.dataset.type;
-    const ids = btn.dataset.args.split(",");
-    const args = ids.map(id => parseFloat($(id).value) || 0);
-    send(type, args);
+    const fs = btn.closest("fieldset");
+    const params = {};
+    fs.querySelectorAll("input[data-p]").forEach(inp => {
+      params[inp.dataset.p] = parseFloat(inp.value) || 0;
+    });
+    send(fs.dataset.type, params);
   };
 });
 </script>
