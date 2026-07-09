@@ -41,7 +41,10 @@ nodes:
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
     env:
-      ROBOT_CONFIG: robot_config/foctive_motor_test.json
+      # _unstable_deploy 入り dataflow はノードが <daemon cwd>/_work/<session-id>
+      # (空ディレクトリ) で実行されるため、相対パスだと config が開けない。
+      # 絶対パスで指定する。
+      ROBOT_CONFIG: /home/minijet/skunk-mimic/robot_config/foctive_motor_test.json
     inputs:
       tick: dora/timer/millis/1
       motor_commands: web_controller/motor_commands

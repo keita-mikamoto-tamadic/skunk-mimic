@@ -3,6 +3,7 @@
 #include "vendor/nlohmann/json.hpp"
 #include <fstream>
 #include <limits>
+#include <stdexcept>
 
 namespace robot_config {
 namespace {
@@ -44,6 +45,12 @@ RobotConfig Parse(const std::string& json_str) {
 
 RobotConfig LoadFromFile(const std::string& path) {
   std::ifstream ifs(path);
+  if (!ifs) {
+    // 開けないまま空文字列を Parse すると意味不明な json parse_error になるので
+    // パス入りで明示的に落とす。相対パスは daemon の作業ディレクトリ基準
+    // (_unstable_deploy 入り dataflow では _work/<session-id>) なことに注意。
+    throw std::runtime_error("robot_config: cannot open file: " + path);
+  }
   std::string content((std::istreambuf_iterator<char>(ifs)),
                        std::istreambuf_iterator<char>());
   return Parse(content);
