@@ -156,6 +156,12 @@ int main() {
                 }
                 latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
                 has_new_commands = true;
+                // コマンド到達の確認ログ(送信時のみの低頻度なので常設)。
+                // 分散構成で「送ったのに動かない」ときの切り分けに使う。
+                std::cout << "recv motor_commands: state="
+                          << static_cast<int>(latest_commands[0].motor_state)
+                          << " ref=" << latest_commands[0].ref_val
+                          << " ref1=" << latest_commands[0].ref_val_1 << std::endl;
             }
             else if (id == kInputTick) {
                 auto t0 = std::chrono::steady_clock::now();

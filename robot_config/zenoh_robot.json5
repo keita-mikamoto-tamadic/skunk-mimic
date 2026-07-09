@@ -1,0 +1,23 @@
+// robot 側 dora daemon 用の Zenoh 設定 (dora_rt_damon.bash が ZENOH_CONFIG で指定)。
+//
+// 目的: 分散構成 (web_controller 等) のために、daemon の Zenoh を
+// 経路化可能なアドレス (0.0.0.0:5456) で listen させる。リモート daemon (PC) は
+// --zenoh-peer tcp/<robot-ip>:5456 でここへ明示接続する。
+//
+// なぜ robot 側に --zenoh-peer を使わないか:
+//   --zenoh-peer は endpoint を listen と connect の両方に追加するため、
+//   bind した本人が自分自身へ 4 秒ごとに接続試行し続ける (CONNECTION_TO_SELF)。
+//   この接続チャーンが zenoh の linkstate ルーティングを破壊し、リモートノードの
+//   データが最初の 1 メッセージ以降届かなくなる (実測で確認済み)。
+//   この設定ファイルは listen だけを足すのでチャーンが発生しない。
+//
+// routing/transport は dora が既定で入れる設定の複製 (ZENOH_CONFIG を使うと
+// dora 側の設定注入が全てスキップされるため、ここで同じものを再現する)。
+{
+  routing: { peer: { mode: "linkstate" } },
+  transport: { unicast: { lowlatency: true, qos: { enabled: false } } },
+  // exit_on_failure=false: daemon が spawn するノードもこの env を継承して
+  // 同じファイルを読むため、2匹目以降は 5456 の bind に失敗する。失敗を許容して
+  // 接続専用 peer として動かす (先に起動する daemon が 5456 を取る)。
+  listen: { endpoints: ["tcp/0.0.0.0:5456"], exit_on_failure: false },
+}

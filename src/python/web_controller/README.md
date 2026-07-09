@@ -25,12 +25,16 @@ robot-ip は例として `10.42.0.235`、PC daemon の machine-id は `pc`
 
 ```bash
 # 1) robot: coordinator + 既定 daemon、can0 UP は従来どおり (dora_rt_damon.bash / can_setup)
-#    ※ robot daemon は --zenoh-peer tcp/0.0.0.0:5456 付きで起動すること
-#      (dora_rt_damon.bash は設定済み)。無いと daemon 間 Zenoh が loopback
-#      locator しか広告せず、PC からの motor_commands が robot に届かない。
+#    ※ robot daemon は ZENOH_CONFIG=robot_config/zenoh_robot.json5 で
+#      tcp/0.0.0.0:5456 を listen させる (dora_rt_damon.bash が設定済み)。
+#      これが無いと daemon の Zenoh は loopback しか listen せず、PC からの
+#      motor_commands が robot に届かない。robot 側に --zenoh-peer を使うのは
+#      禁止 (自己接続チャーンで linkstate が壊れ、最初の 1 コマンドしか
+#      届かなくなる。詳細は robot_config/zenoh_robot.json5 参照)。
 
 # 2) PC: machine-id 付き daemon を robot coordinator に参加させる (常駐)。
-#    --zenoh-peer は robot 側と同じポートを robot の IP で指定する。
+#    --zenoh-peer で robot の listener へ明示接続する (PC 側はこれが正解。
+#    robot の IP を指す = 自己接続にならないので安全)。
 dora daemon --coordinator-addr 10.42.0.235 --machine-id pc \
             --zenoh-peer tcp/10.42.0.235:5456
 
