@@ -22,4 +22,4 @@ dependencies = [
 members = ["dummy_input", "data_viewer", "mujoco_node", "sysid_controller", "data_recorder"]
 
 [tool.uv.sources]
-dora-rs = { path = "/home/minijet/dora/apis/python/node" }
+dora-rs = { path = "/home/tama/dora/apis/python/node" }
