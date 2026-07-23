@@ -29,7 +29,7 @@ from dora import Node
 
 # lib (axis_data.json 正本から自動生成) を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from lib.data_format import AxisRef, pack_axis_ref  # noqa: E402
+from lib.axis_data_format import AxisRef, pack_axis_ref  # noqa: E402
 
 PORT = int(os.environ.get("WEB_CONTROLLER_PORT", "8770"))
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

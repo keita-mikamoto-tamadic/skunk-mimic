@@ -7,7 +7,7 @@ Reuses MuJoCoSim class from mujoco_node for simulation logic.
 """
 
 import os
-import struct
+import sys
 import threading
 import time
 
@@ -27,16 +27,16 @@ MODEL_PATH = os.path.join(
 )
 
 # ---------------------------------------------------------------------------
-# Binary formats (must match C++ structs in shm_data_format.hpp)
+# Binary formats: src/data_format/*.json を正本に自動生成した lib から取る。
+# (以前はここにハードコードしていて AxisRef 56B / AxisAct 32B のまま取り残され、
+#  実際の 72B / 48B とズレていた。二度と起こさないため生成物を参照する。)
 # ---------------------------------------------------------------------------
-AXIS_REF_FMT = "<B7xdddddd"
-AXIS_REF_SIZE = struct.calcsize(AXIS_REF_FMT)  # 56
-
-AXIS_ACT_FMT = "<dddB7x"
-AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 32
-
-IMU_DATA_FMT = "<14d"
-IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
+sys.path.insert(0, os.path.join(SCRIPT_DIR, ".."))
+from lib.axis_data_format import (  # noqa: E402
+    AXIS_REF_SIZE, unpack_axis_ref,
+    AxisAct, pack_axis_act,
+)
+from lib.sensor_data_format import ImuData, pack_imu_data  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # MotorState enum (matches enum_def.hpp)
@@ -160,7 +160,12 @@ class MuJoCoSim:
     def apply_commands(self, commands):
         all_off = True
         for i, cmd in enumerate(commands):
-            motor_state, ref_val, kp_scale, kv_scale, vel_limit, accel_limit, torque_limit = cmd
+            # cmd は AxisRef(namedtuple)。位置展開だとフィールド追加で静かにズレるため
+            # 名前でアクセスする (以前 6 double 前提の展開で全項目ズレていた)。
+            motor_state = cmd.motor_state
+            ref_val = cmd.ref_val
+            kp_scale, kv_scale = cmd.kp_scale, cmd.kv_scale
+            torque_limit = cmd.torque_limit
             aid = self.actuator_ids[i]
 
             self._set_actuator_mode(i, motor_state, kp_scale, kv_scale, torque_limit)
@@ -206,7 +211,9 @@ class MuJoCoSim:
             vel = self.data.qvel[self.dof_addrs[i]]
             torque = self.data.actuator_force[self.actuator_ids[i]]
             fault = 0
-            buf += struct.pack(AXIS_ACT_FMT, pos, vel, torque, fault)
+            # sim には電流センシングが無いので cur_d/cur_q は 0
+            buf += pack_axis_act(AxisAct(position=pos, velocity=vel, torque=torque,
+                                         cur_d=0.0, cur_q=0.0, fault=fault))
         return bytes(buf)
 
     def get_imu_data(self) -> bytes:
@@ -229,14 +236,13 @@ class MuJoCoSim:
         roll, pitch, yaw = quat_to_euler(w, x, y, z)
 
         timestamp = self.data.time
-        return struct.pack(
-            IMU_DATA_FMT,
-            timestamp,
-            accel[0], accel[1], accel[2],
-            gyro[0], gyro[1], gyro[2],
-            w, x, y, z,
-            roll, pitch, yaw,
-        )
+        return pack_imu_data(ImuData(
+            timestamp=timestamp,
+            ax=accel[0], ay=accel[1], az=accel[2],
+            gx=gyro[0], gy=gyro[1], gz=gyro[2],
+            q0=w, q1=x, q2=y, q3=z,
+            roll=roll, pitch=pitch, yaw=yaw,
+        ))
 
     def sync_viewer(self):
         if self.viewer is not None:
@@ -269,7 +275,7 @@ def main():
                 num_axes = len(raw) // AXIS_REF_SIZE
                 latest_commands = []
                 for i in range(min(num_axes, NUM_AXES)):
-                    cmd = struct.unpack_from(AXIS_REF_FMT, raw, i * AXIS_REF_SIZE)
+                    cmd = unpack_axis_ref(raw, i * AXIS_REF_SIZE)
                     latest_commands.append(cmd)
                 has_new_commands = True
 

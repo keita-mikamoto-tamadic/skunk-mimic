@@ -34,7 +34,7 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
 # ---------------------------------------------------------------------------
 # Binary formats (must match C++ structs)
 # ---------------------------------------------------------------------------
-from lib.data_format import (  # noqa: E402
+from lib.axis_data_format import (  # noqa: E402
     AXIS_REF_FMT, AXIS_REF_SIZE, AXIS_ACT_FMT, AXIS_ACT_SIZE,
     AxisRef, pack_axis_ref as _pack_axis_ref,
 )

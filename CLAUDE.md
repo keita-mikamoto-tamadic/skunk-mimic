@@ -31,12 +31,16 @@ The `dora-rs` Python package version must exactly match the dora CLI version (1.
 
 ### Data-format code generation
 
-`src/data_format/axis_data.json` is the single source of truth for the binary structs exchanged between C++ and Python. `tools/gen_data_format.py` generates:
+`src/data_format/*.json` are the single source of truth for every binary struct exchanged between C++ and Python — one spec file per domain. `tools/gen_data_format.py` picks up each spec and emits a matching pair:
 
-- `src/cpp/lib/data_format_generated.hpp` (structs + static_asserts)
-- `src/python/lib/data_format.py` (struct formats / namedtuples / pack helpers)
+| spec | C++ | Python | structs |
+|------|-----|--------|---------|
+| `axis_data.json` | `src/cpp/lib/axis_data_format.hpp` | `src/python/lib/axis_data_format.py` | `AxisRef`, `AxisAct`, `SettingsRequest`, `SettingsResult`, `ParamScalars` |
+| `sensor_data.json` | `src/cpp/lib/sensor_data_format.hpp` | `src/python/lib/sensor_data_format.py` | `ImuData`, `LatencyData`, `EstimatedState` |
 
-It runs automatically at CMake configure time; run manually with `python3 tools/gen_data_format.py` from the repo root. Never hand-edit the generated files — edit the JSON and regenerate.
+Adding a domain = drop a new `.json` in `src/data_format/` — output names are always `<spec>_format.hpp` / `<spec>_format.py`, no special cases. Omit `"types"` to use the generator's `DEFAULT_TYPES`. `src/cpp/lib/shm_data_format.hpp` is just an aggregator that includes both generated headers — it defines no structs itself.
+
+It runs automatically at CMake configure time; run manually with `python3 tools/gen_data_format.py` from the repo root. Never hand-edit the generated files — edit the JSON and regenerate. Never hand-write a struct format in a node either (that is exactly how `mujoco_backend` silently drifted to a 32 B `AxisAct` / 56 B `AxisRef`); import from the generated module and use named fields, not positional unpacking.
 
 ## Running
 
@@ -86,6 +90,6 @@ See README_ARCH.md for the full node graph, struct layouts, and Python binary fo
 1. **Motor drivers** — `device_control_manager` talks to hardware through the `MotorDriver` interface (`src/cpp/interface/motor_driver.hpp`). Implementations live in `src/cpp/driver/`: `MoteusCanDriver` (CAN-FD + moteus), `FoctiveCanDriver`, `DummyDriver`. Selection happens in `CreateDriver()` in `src/cpp/node/device_control_manager/main.cpp` based on the config's `transport`/`protocol`. To add a new bus or protocol, implement `MotorDriver` and add a branch there.
 2. **Controllers** — `stabilizer` swaps control algorithms via the `Controller` interface (`src/cpp/node/stabilizer/controller.hpp`), selected by the config's `controller` field.
 
-To replace either side with Python (as `mujoco_backend` and `sysid_controller` do), swap the whole dora node — match the input/output names and byte formats from the generated data format (`AxisRef` 72 B commands, `AxisAct` 48 B status, `ImuData` 112 B). The struct sizes are enforced by `static_assert`s in `data_format_generated.hpp`; treat the generated files (not README_ARCH.md) as the source of truth for current layouts.
+To replace either side with Python (as `mujoco_backend` and `sysid_controller` do), swap the whole dora node — match the input/output names and byte formats from the generated data format (`AxisRef` 72 B commands, `AxisAct` 48 B status, `ImuData` 112 B). The struct sizes are enforced by `static_assert`s in `axis_data_format.hpp` / `sensor_data_format.hpp`; treat the generated files (not README_ARCH.md) as the source of truth for current layouts.
 
 **Shared C++ helpers** live in `src/cpp/lib/` (robot_config parsing, dora helpers, PID, FOCTIVE protocol/param definitions, enums shared with Python).

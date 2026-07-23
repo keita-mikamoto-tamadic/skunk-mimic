@@ -12,7 +12,7 @@
   dora topic echo -d <df> device_control_manager/motor_status --format json
             │  {"data":[<AxisAct 48B>...], ...}  ← dora が envelope を解いて生バイトを渡す
             ▼
-  web_monitor.py ── AxisAct デコード(lib.data_format) ──HTTP/SSE──> web_monitor.html
+  web_monitor.py ── AxisAct デコード(lib.axis_data_format) ──HTTP/SSE──> web_monitor.html
 
 特徴:
   * dora node add も deploy も daemon 配置も不要。dataflow に一切属さない。
@@ -21,7 +21,7 @@
     (トピック inspection 一般に必要。monitor 固有の依存ではない)。
   * dataflow が止まる/別の相手(mimic 等)に変わっても、自動で再発見して追従する。
 
-依存: Python stdlib のみ (lib.data_format は struct だけ)。`dora` CLI が要る。
+依存: Python stdlib のみ (lib.axis_data_format は struct だけ)。`dora` CLI が要る。
 
 環境変数:
   DORA_COORDINATOR_ADDR  coordinator の IP (dora CLI が読む。既定 127.0.0.1)
@@ -46,7 +46,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "python"))
-from lib.data_format import AXIS_ACT_SIZE, unpack_axis_act  # noqa: E402
+from lib.axis_data_format import AXIS_ACT_SIZE, unpack_axis_act  # noqa: E402
 
 PORT = int(os.environ.get("WEB_MONITOR_PORT", "8765"))
 TOPIC = os.environ.get("DORA_TOPIC", "device_control_manager/motor_status")

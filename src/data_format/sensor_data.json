@@ -1,0 +1,44 @@
+{
+  "_comment": "センサ/推定/計測系の dora 構造体の単一正本。axis_data.json (軸ごとのモータ指令・状態) とはドメインを分けている。tools/gen_data_format.py が src/cpp/lib/sensor_data_generated.hpp と src/python/lib/sensor_data.py を生成する(CMake configure 時に自動)。types を省略するとジェネレータの既定型テーブルが使われる。",
+  "structs": [
+    {
+      "name": "ImuData",
+      "doc": "imu_node / mujoco_backend → stabilizer, data_viewer: IMU 姿勢・加速度・角速度",
+      "fields": [
+        {"name": "timestamp", "type": "double", "doc": "秒"},
+        {"name": "ax", "type": "double", "doc": "加速度 X"},
+        {"name": "ay", "type": "double", "doc": "加速度 Y"},
+        {"name": "az", "type": "double", "doc": "加速度 Z"},
+        {"name": "gx", "type": "double", "doc": "角速度 X"},
+        {"name": "gy", "type": "double", "doc": "角速度 Y"},
+        {"name": "gz", "type": "double", "doc": "角速度 Z"},
+        {"name": "q0", "type": "double", "doc": "クォータニオン w"},
+        {"name": "q1", "type": "double", "doc": "クォータニオン x"},
+        {"name": "q2", "type": "double", "doc": "クォータニオン y"},
+        {"name": "q3", "type": "double", "doc": "クォータニオン z"},
+        {"name": "roll", "type": "double", "doc": "rad (X軸回転)"},
+        {"name": "pitch", "type": "double", "doc": "rad (Y軸回転)"},
+        {"name": "yaw", "type": "double", "doc": "rad (Z軸回転)"}
+      ]
+    },
+    {
+      "name": "LatencyData",
+      "doc": "device_control_manager → data_viewer: レイテンシ計測結果",
+      "fields": [
+        {"name": "can_avg_us", "type": "double", "doc": "CAN 送受信の平均レイテンシ (us)"},
+        {"name": "can_max_us", "type": "double", "doc": "CAN 送受信の最大レイテンシ (us)"},
+        {"name": "ctrl_avg_us", "type": "double", "doc": "制御側の平均レイテンシ (us)"},
+        {"name": "ctrl_max_us", "type": "double", "doc": "制御側の最大レイテンシ (us)"}
+      ]
+    },
+    {
+      "name": "EstimatedState",
+      "doc": "stabilizer → data_viewer: EKF 推定状態",
+      "fields": [
+        {"name": "velocity", "type": "double", "doc": "s' [m/s] ボディ前進速度"},
+        {"name": "yaw", "type": "double", "doc": "alpha [rad] ヨー角"},
+        {"name": "yaw_rate", "type": "double", "doc": "alpha' [rad/s] ヨーレート"}
+      ]
+    }
+  ]
+}

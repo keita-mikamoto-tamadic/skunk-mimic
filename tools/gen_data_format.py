@@ -1,26 +1,40 @@
 #!/usr/bin/env python3
-"""src/data_format/axis_data.json を正本に、C++ と Python のデータフォーマット定義を生成する。
+"""src/data_format/*.json を正本に、C++ と Python のデータフォーマット定義を生成する。
 
 dora で C++↔Python 間を生バイト列で交換する構造体の単一正本。手書き重複(と
 バイナリのサイレントなドリフト)を防ぐためにここから両言語の定義を生成する。
 
-  入力 : src/data_format/axis_data.json
-  出力 : src/cpp/lib/data_format_generated.hpp   (型付き struct + static_assert)
-         src/python/lib/data_format.py           (struct format / namedtuple / pack)
+スペックは 1 ドメイン = 1 ファイル。src/data_format/ に置いた .json は自動で拾われ、
+対になる生成物が出る (命名は <スペック名>_format.hpp / <スペック名>_format.py で統一):
+
+  src/data_format/axis_data.json    → src/cpp/lib/axis_data_format.hpp
+                                      src/python/lib/axis_data_format.py
+  src/data_format/sensor_data.json  → src/cpp/lib/sensor_data_format.hpp
+                                      src/python/lib/sensor_data_format.py
+
+新しいドメインを足すときは .json を置くだけ。"types" を省略すると下の
+DEFAULT_TYPES が使われる。
 
 CMake の configure 時に自動実行される。手動でも実行可:
     python3 tools/gen_data_format.py
 """
+import glob
 import json
 import os
 import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-JSON_PATH = os.path.join(ROOT, "src", "data_format", "axis_data.json")
-CPP_OUT = os.path.join(ROOT, "src", "cpp", "lib", "data_format_generated.hpp")
-PY_OUT = os.path.join(ROOT, "src", "python", "lib", "data_format.py")
+SPEC_DIR = os.path.join(ROOT, "src", "data_format")
+CPP_DIR = os.path.join(ROOT, "src", "cpp", "lib")
+PY_DIR = os.path.join(ROOT, "src", "python", "lib")
 
-GEN_NOTE = "AUTO-GENERATED from src/data_format/axis_data.json by tools/gen_data_format.py"
+# スペックが "types" を持たない場合に使う型テーブル (言語マッピングであって
+# ドメインデータではないので、スペック側での重複を避けここに置く)
+DEFAULT_TYPES = {
+    "double": {"cpp": "double", "size": 8, "align": 8, "py": "d"},
+    "uint32": {"cpp": "uint32_t", "size": 4, "align": 4, "py": "I"},
+    "uint8": {"cpp": "uint8_t", "size": 1, "align": 1, "py": "B"},
+}
 
 
 def camel_to_snake(name):
@@ -55,10 +69,10 @@ def layout(fields, types):
     return entries, offset + tail, tail
 
 
-def gen_cpp(structs, types):
+def gen_cpp(structs, types, src_name):
     out = [
         "#pragma once",
-        f"// {GEN_NOTE}",
+        f"// AUTO-GENERATED from src/data_format/{src_name} by tools/gen_data_format.py",
         "// DO NOT EDIT. 再生成: python3 tools/gen_data_format.py",
         "#include <cstdint>",
         "#include <cstddef>",
@@ -76,17 +90,17 @@ def gen_cpp(structs, types):
             out.append(f"    {e['cpp']} {e['name']}{arr};{doc}")
         out.append("};")
         out.append(f'static_assert(sizeof({s["name"]}) == {total}, '
-                   f'"{s["name"]} size mismatch vs axis_data.json");')
+                   f'"{s["name"]} size mismatch vs {src_name}");')
         for e in entries:
             out.append(f'static_assert(offsetof({s["name"]}, {e["name"]}) == {e["off"]}, '
-                       f'"{s["name"]}.{e["name"]} offset mismatch vs axis_data.json");')
+                       f'"{s["name"]}.{e["name"]} offset mismatch vs {src_name}");')
         out.append("")
     return "\n".join(out) + "\n"
 
 
-def gen_py(structs, types):
+def gen_py(structs, types, src_name):
     out = [
-        '"""' + GEN_NOTE + ".",
+        f'"""AUTO-GENERATED from src/data_format/{src_name} by tools/gen_data_format.py.',
         "",
         "DO NOT EDIT. 再生成: python3 tools/gen_data_format.py",
         '"""',
@@ -151,17 +165,27 @@ def gen_py(structs, types):
 
 
 def main():
-    with open(JSON_PATH, encoding="utf-8") as f:
-        spec = json.load(f)
-    types = spec["types"]
-    structs = spec["structs"]
+    spec_paths = sorted(glob.glob(os.path.join(SPEC_DIR, "*.json")))
+    if not spec_paths:
+        raise SystemExit(f"no spec files found in {SPEC_DIR}")
 
-    with open(CPP_OUT, "w", encoding="utf-8") as f:
-        f.write(gen_cpp(structs, types))
-    with open(PY_OUT, "w", encoding="utf-8") as f:
-        f.write(gen_py(structs, types))
+    for path in spec_paths:
+        src_name = os.path.basename(path)
+        stem = os.path.splitext(src_name)[0]
+        with open(path, encoding="utf-8") as f:
+            spec = json.load(f)
+        types = spec.get("types", DEFAULT_TYPES)
+        structs = spec["structs"]
 
-    print(f"generated:\n  {CPP_OUT}\n  {PY_OUT}")
+        cpp_out = os.path.join(CPP_DIR, f"{stem}_format.hpp")
+        py_out = os.path.join(PY_DIR, f"{stem}_format.py")
+
+        with open(cpp_out, "w", encoding="utf-8") as f:
+            f.write(gen_cpp(structs, types, src_name))
+        with open(py_out, "w", encoding="utf-8") as f:
+            f.write(gen_py(structs, types, src_name))
+
+        print(f"generated from {src_name}:\n  {cpp_out}\n  {py_out}")
 
 
 if __name__ == "__main__":

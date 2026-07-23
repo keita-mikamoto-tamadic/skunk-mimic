@@ -10,7 +10,11 @@ import os
 # lib を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib import robot_config
-from lib.data_format import AXIS_ACT_FMT, AXIS_ACT_SIZE  # 自動生成(axis_data.json 正本)
+from lib.axis_data_format import AXIS_ACT_FMT, AXIS_ACT_SIZE  # 自動生成(axis_data.json 正本)
+from lib.sensor_data_format import (  # 自動生成(sensor_data.json 正本)
+	IMU_DATA_SIZE, LATENCY_DATA_SIZE, ESTIMATED_STATE_SIZE,
+	unpack_imu_data, unpack_latency_data, unpack_estimated_state,
+)
 
 # Config file path: 環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
 # dynamic ノードなので dataflow yaml の env は届かない → 起動シェルで
@@ -25,20 +29,10 @@ if _env_config:
 else:
     CONFIG_PATH = os.path.join(PROJECT_ROOT, "robot_config", "mimic_v2.json")
 
-# AxisAct (position/velocity/torque/fault) は lib.data_format から import(上)
+# AxisAct (position/velocity/torque/fault) は lib.axis_data_format から import(上)
 
-# ImuData: timestamp, ax, ay, az, gx, gy, gz, q0, q1, q2, q3, roll, pitch, yaw
-# sizeof(ImuData) = 14 * sizeof(double) = 112
-IMU_DATA_FMT = "<14d"  # little-endian
-IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
-
-# EstimatedState: velocity, yaw, yaw_rate (3 doubles = 24 bytes)
-EST_STATE_FMT = "<3d"
-EST_STATE_SIZE = struct.calcsize(EST_STATE_FMT)  # 24
-
-# LatencyData: can_avg_us, can_max_us, ctrl_avg_us, ctrl_max_us
-LATENCY_FMT = "<4d"
-LATENCY_SIZE = struct.calcsize(LATENCY_FMT)  # 32
+# ImuData / EstimatedState / LatencyData は lib.sensor_data_format から import(上)。
+# 定義の正本は src/data_format/sensor_data.json。
 
 # State enum with styles (C++ enum class State と対応)
 STATE_STYLES = {
@@ -107,8 +101,8 @@ def build_imu_table(imu_data, est_state=None):
 	table.add_column("az", justify="right")
 
 	if imu_data is not None:
-		roll, pitch, yaw = imu_data[11], imu_data[12], imu_data[13]
-		ax, ay, az = imu_data[1], imu_data[2], imu_data[3]
+		roll, pitch, yaw = imu_data.roll, imu_data.pitch, imu_data.yaw
+		ax, ay, az = imu_data.ax, imu_data.ay, imu_data.az
 		table.add_row(
 			"[dim]IMU[/]",
 			f"[cyan]{roll:+.3f}[/]",
@@ -194,13 +188,13 @@ with Live(initial_display, refresh_per_second=30) as live:
 					current_state = raw[0]
 			elif eid == "imu_data":
 				if len(raw) >= IMU_DATA_SIZE:
-					current_imu_data = struct.unpack(IMU_DATA_FMT, raw[:IMU_DATA_SIZE])
+					current_imu_data = unpack_imu_data(raw)
 			elif eid == "latency":
-				if len(raw) >= LATENCY_SIZE:
-					current_latency = struct.unpack(LATENCY_FMT, raw[:LATENCY_SIZE])
+				if len(raw) >= LATENCY_DATA_SIZE:
+					current_latency = unpack_latency_data(raw)
 			elif eid == "estimated_state":
-				if len(raw) >= EST_STATE_SIZE:
-					current_est_state = struct.unpack(EST_STATE_FMT, raw[:EST_STATE_SIZE])
+				if len(raw) >= ESTIMATED_STATE_SIZE:
+					current_est_state = unpack_estimated_state(raw)
 			elif eid == "motor_status":
 				axis_count = len(raw) // AXIS_ACT_SIZE
 				current_axes = [

@@ -6,7 +6,7 @@ import struct
 
 # lib を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from lib.data_format import (  # 自動生成(axis_data.json 正本)
+from lib.axis_data_format import (  # 自動生成(axis_data.json 正本)
     AxisRef, pack_axis_ref,
     SettingsRequest, pack_settings_request, unpack_settings_result,
     unpack_param_scalars, PARAM_SCALARS_WIRE_INDEX,

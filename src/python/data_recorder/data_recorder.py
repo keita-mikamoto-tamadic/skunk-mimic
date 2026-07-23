@@ -23,20 +23,14 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 DATA_DIR = os.path.join(PROJECT_ROOT, "sysid", "data")
 
 # ---------------------------------------------------------------------------
-# Binary formats (must match C++ structs in shm_data_format.hpp)
+# Binary formats: src/data_format/*.json を正本に自動生成した lib から取る。
+# (以前はここにハードコードしていて AxisRef が 56B のまま実際の 72B とズレていた)
 # ---------------------------------------------------------------------------
-# AxisRef: MotorState(u8) + pad(7) + 6 doubles
-AXIS_REF_FMT = "<B7xdddddd"
-AXIS_REF_SIZE = struct.calcsize(AXIS_REF_FMT)  # 56
-
-# AxisAct: position/velocity/torque/cur_d/cur_q (5 doubles) + fault(u8) + pad(7)
-# TODO: AXIS_REF_FMT 含めハードコードは lib.data_format(生成物) へ移行すべき(ドリフト負債)
-AXIS_ACT_FMT = "<dddddB7x"
-AXIS_ACT_SIZE = struct.calcsize(AXIS_ACT_FMT)  # 48
-
-# ImuData: 14 doubles
-IMU_DATA_FMT = "<14d"
-IMU_DATA_SIZE = struct.calcsize(IMU_DATA_FMT)  # 112
+sys.path.insert(0, os.path.join(SCRIPT_DIR, ".."))
+from lib.axis_data_format import (  # noqa: E402
+    AXIS_REF_FMT, AXIS_REF_SIZE, AXIS_ACT_FMT, AXIS_ACT_SIZE,
+)
+from lib.sensor_data_format import IMU_DATA_FMT, IMU_DATA_SIZE  # noqa: E402
 
 NUM_AXES = 6
 
