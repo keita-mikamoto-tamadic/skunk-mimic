@@ -3,7 +3,7 @@
   "transport": "socketcan",
   "protocol": "moteus",
   "axis_count": 6,
-  "controller": "lqr",
+  "controller": "angle_pid",
   "interpolation_time": 3.0,
   "comm_ch": ["can0", "can1"],
   "axes": [

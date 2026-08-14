@@ -1,0 +1,84 @@
+# mimic_v2_5 実機運転 (state machine 経由の通常運転フロー)。
+#
+# dataflow.yaml (v2 実機) の v2_5 版。dummy_input (端末) の代わりに
+# robot_web_gui (ブラウザ) で state 遷移をトリガする。
+#
+#   robot_web_gui ──state_command──▶ robot_control_manager ──motor_commands──▶ device_control_manager (can0+can1)
+#        ▲                              │  ▲                                     │
+#        └────────state_status──────────┘  └── run_command ── stabilizer ◀───────┤ motor_status / imu_data
+#                                                                                └◀─ raw_imu ── imu_node
+#
+# 起動 (全部 robot 上):
+#   1) bash pcan_setup.bash can0 can1 keep
+#   2) bash dora_rt_damon.bash
+#   3) dora start dataflow_mimic.yaml
+#   4) cd src/python && \
+#      ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py
+#      (dynamic ノードが attach するまで dataflow は開始バリアで待つ)
+#   5) PC のブラウザで http://<robot-ip>:8766/
+#   表示側:   ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 tools/gui/web_monitor.py
+#
+# 単軸テスト/ゼロ点直接操作は dataflow_mimic_web_control.yaml (state machine バイパス) を使う。
+#
+# topic inspection (web_monitor の dora topic echo) 用に true を維持。
+_unstable_debug:
+  enable_debug_inspection: true
+
+nodes:
+
+  - id: robot_control_manager
+    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json
+    inputs:
+      watchdog: dora/timer/millis/30
+      state_command: robot_web_gui/state_command
+      motor_status: device_control_manager/motor_status
+      run_command: stabilizer/run_command
+    outputs:
+      - motor_commands
+      - state_status
+
+  - id: stabilizer
+    path: src/cpp/node/stabilizer/build/stabilizer
+    env:
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json
+    inputs:
+      motor_status: device_control_manager/motor_status
+      imu_data: device_control_manager/imu_data
+      state_status: robot_control_manager/state_status
+    outputs:
+      - run_command
+      - estimated_state
+
+  - id: device_control_manager
+    path: src/cpp/node/device_control_manager/build/device_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json
+    inputs:
+      tick: dora/timer/millis/3
+      motor_commands: robot_control_manager/motor_commands
+      raw_imu: imu_node/raw_imu
+    outputs:
+      - motor_status
+      - imu_data
+      - latency
+
+  - id: imu_node
+    path: src/cpp/node/imu_node/build/imu_node
+    env:
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json   # Step 4 (取り付け回転) で使用
+    inputs:
+      tick: dora/timer/millis/3
+    outputs:
+      - raw_imu
+
+  # 操作 GUI ―― 唯一の dynamic ノード (dynamic は全 attach まで開始バリアで待つため、
+  # 常時起動しない data_viewer 等はここに入れない。表示は web_monitor で)。
+  - id: robot_web_gui
+    path: dynamic
+    inputs:
+      tick: dora/timer/millis/50          # コマンドキュー drain + RUN リトライ用
+      state_status: robot_control_manager/state_status
+    outputs:
+      - state_command

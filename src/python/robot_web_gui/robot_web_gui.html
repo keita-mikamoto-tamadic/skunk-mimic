@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>robot web gui</title>
+<!--
+  ロボット操作 GUI。robot_web_gui.py (同一オリジン) に POST /cmd で状態遷移
+  コマンドを送る。表示は GET /status のポーリング (5Hz) で、必ず RCM の
+  state_status 由来の状態を描画する (自前で遷移を推測しない)。
+  ボタンの有効/無効は RCM の遷移ガードをミラー:
+    サーボON/基準姿勢セット: OFF のみ / READY: STOP のみ /
+    RUN: READY + 補間完了のみ / STOP: OFF 以外 / サーボOFF: 常時
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 1.4rem; background:#0f1115; color:#e6e6e6; max-width:560px; }
+  h1 { font-size: 1.05rem; margin:0 0 .8rem; }
+  .off { width:100%; padding:1rem; font-size:1.2rem; font-weight:700; color:#fff;
+         background:#a11; border:1px solid #d33; border-radius:8px; cursor:pointer; margin-bottom:1rem; }
+  .off:active { background:#c22; }
+  #state { font-size:1.6rem; font-weight:700; text-align:center; padding:.6rem;
+           border-radius:8px; background:#222732; margin-bottom:.9rem; letter-spacing:.15em; }
+  #state.OFF   { background:#333;    color:#aaa; }
+  #state.STOP  { background:#4a3a1d; color:#fc6; }
+  #state.READY { background:#1d3a4a; color:#6cf; }
+  #state.RUN   { background:#1d4a36; color:#9f9; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.9rem; }
+  button.cmd { padding:.9rem; font-size:1rem; font-weight:600; border-radius:8px; cursor:pointer;
+               background:#1b1e26; color:#e6e6e6; border:1px solid #2a2f3a; }
+  button.cmd:not(:disabled):active { background:#2c6; color:#022; }
+  button.cmd:disabled { opacity:.35; cursor:not-allowed; }
+  #progress-wrap { height:10px; background:#222732; border-radius:5px; margin:.2rem 0 .9rem; overflow:hidden; }
+  #progress { height:100%; width:0%; background:#6cf; transition:width .2s linear; }
+  .bar { display:flex; gap:.7rem; align-items:center; font-size:.85rem; flex-wrap:wrap; }
+  #link { padding:.22rem .55rem; border-radius:5px; background:#4a1d1d; color:#f99; }
+  #link.ok { background:#1d4a36; color:#9f9; }
+  #err { color:#f99; min-height:1.2em; }
+  .note { color:#889; font-size:.78rem; margin:.2rem 0 .6rem; }
+</style>
+</head>
+<body>
+<h1 id="title">robot web gui</h1>
+
+<button class="off" id="servo_off">■ サーボOFF (緊急)</button>
+
+<div id="state">----</div>
+
+<div class="grid">
+  <button class="cmd" id="servo_on">サーボON</button>
+  <button class="cmd" id="reset">基準姿勢セット</button>
+  <button class="cmd" id="ready">READY (初期姿勢へ補間)</button>
+  <button class="cmd" id="run">RUN</button>
+  <button class="cmd" id="stop" style="grid-column:1/3">STOP</button>
+</div>
+
+<p class="note">READY 補間進捗 (完了するまで RUN 不可):</p>
+<div id="progress-wrap"><div id="progress"></div></div>
+
+<div class="bar">
+  <span id="link">state_status 未受信</span>
+  <span>last: <span id="last">(none)</span></span>
+</div>
+<p id="err"></p>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+async function send(cmd){
+  try {
+    const r = await fetch("/cmd", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cmd }),
+    });
+    const j = await r.json();
+    if (!j.ok) $("err").textContent = j.error || r.status;
+    else $("err").textContent = "";
+  } catch (e) { $("err").textContent = "network error"; }
+}
+
+["servo_on", "reset", "ready", "run", "stop"].forEach(id => {
+  $(id).onclick = () => send(id);
+});
+$("servo_off").onclick = () => send("servo_off");
+
+// RCM の遷移ガードをミラーしたボタン有効化 (サーバ側でも再検証される)
+function applyStatus(s){
+  $("title").textContent = `robot web gui — ${s.robot_name}`;
+  const st = s.state;
+  $("state").textContent = st;
+  $("state").className = st;
+  $("servo_on").disabled = st !== "OFF";
+  $("reset").disabled    = st !== "OFF";
+  $("ready").disabled    = st !== "STOP";
+  $("run").disabled      = !(st === "READY" && s.ready_progress >= 1.0) || s.run_pending;
+  $("stop").disabled     = (st === "OFF" || st === "----");
+  $("progress").style.width = `${Math.round(s.ready_progress * 100)}%`;
+  $("link").textContent = s.link_ok ? "state_status OK" : "state_status 途絶";
+  $("link").className = s.link_ok ? "ok" : "";
+  $("last").textContent = s.run_pending ? "RUN (リトライ中...)" : s.last_cmd;
+  if (s.error) $("err").textContent = s.error;
+}
+
+setInterval(async () => {
+  try { applyStatus(await (await fetch("/status")).json()); }
+  catch (e) { $("link").textContent = "GUI サーバ断"; $("link").className = ""; }
+}, 200);
+</script>
+</body>
+</html>
