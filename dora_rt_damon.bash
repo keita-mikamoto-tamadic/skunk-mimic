@@ -15,6 +15,11 @@ export ZENOH_CONFIG="$HOME/skunk-mimic/robot_config/zenoh_robot.json5"
 # orchestrator だけ error に落とす (他の WARN は残す)。spawn ノードにも継承される。
 export RUST_LOG="${RUST_LOG:-warn,zenoh::net::runtime::orchestrator=error}"
 pkill -f "dora (coordinator|daemon)"; sleep 1
+# daemon を kill するとその daemon が spawn した C++ ノードは孤児化して残る
+# (イベント待ちでブロックしたまま生存し続け、次セッションの動作を乱す)。
+# 前回セッションの残骸をここで掃除してから起動する。
+pkill -f "skunk-mimic/src/cpp/node/.*/build/" 2>/dev/null
+sleep 1
 $DORA coordinator --interface 0.0.0.0 &
 sleep 2
 $DORA daemon --rt
