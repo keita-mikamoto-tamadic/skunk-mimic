@@ -33,7 +33,10 @@ nodes:
     env:
       ROBOT_CONFIG: robot_config/mimic_v2_5.json
     inputs:
-      watchdog: dora/timer/millis/30
+      # 注: v2 の dataflow.yaml にある 30ms watchdog タイマーは繋がない。
+      # motor_status 途絶時は moteus 自身の watchdog (100ms, kPositionTimeout)
+      # がモータを止めるので RCM 側の検出は冗長で、配送ジッタでの誤発動
+      # (勝手に SERVO_OFF) の実害の方が大きい。
       state_command: robot_web_gui/state_command
       motor_status: device_control_manager/motor_status
       run_command: stabilizer/run_command
