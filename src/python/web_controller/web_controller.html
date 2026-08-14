@@ -51,11 +51,12 @@
 </div>
 
 <fieldset id="zero" style="display:none">
-  <legend>ゼロ点セット (SET_POSITION)</legend>
-  <p class="note" style="display:block">現在の物理姿勢を config の reset_position と定義する
-    (エンコーダ位置リセット。モータは無通電のまま)。対象軸を OFF → 300ms 後に SET_POSITION を送る。</p>
+  <legend>基準姿勢セット (SET_POSITION / エンコーダ位置リセット)</legend>
+  <p class="note" style="display:block">★ 先に対象軸をストッパーに押し当てること。
+    その姿勢のエンコーダ読みを config の reset_position (ストッパー角) にセットする
+    (ゼロにはならない。モータは無通電のまま)。対象軸 OFF → 300ms 後に SET_POSITION を送る。</p>
   <div class="row">
-    <button class="send" id="zero-btn">選択軸をゼロ点セット</button>
+    <button class="send" id="zero-btn">選択軸を基準姿勢セット</button>
   </div>
 </fieldset>
 
@@ -200,7 +201,7 @@ $("off").onclick = () => send("off", {}, "all");
 $("zero-btn").onclick = async () => {
   const axis = selectedAxis();
   const label = axis === "all" ? "全軸" : `軸 ${axis}`;
-  if (!confirm(`${label} の現在姿勢を reset_position としてゼロ点セットします。よろしいですか？`)) return;
+  if (!confirm(`${label} をストッパーに押し当てていますか？\n現在姿勢のエンコーダ読みを reset_position (ストッパー角) にセットします。`)) return;
   await send("off", {}, axis);
   await new Promise(r => setTimeout(r, 300));
   await send("reset", {}, axis);
