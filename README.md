@@ -131,8 +131,12 @@ cmake .. && make
 ```
 
 Python 側 dora-rs も更新：このリポジトリは `src/python/pyproject.toml` の
-`[tool.uv.sources]` で `dora-rs` を `~/dora/apis/python/node` のローカルパスに向けている
-(rc コミットには対応する PyPI wheel が無いため)。`uv sync` するとそのソースから maturin で
+`[tool.uv.sources]` で `dora-rs` を `/opt/dora/apis/python/node` のローカルパスに向けている
+(rc コミットには対応する PyPI wheel が無いため)。`/opt/dora` はマシン非依存パスにする
+ための symlink で、各マシンで初回に1度だけ張る (dora 本体は `~/dora` のまま)：
+```bash
+sudo ln -s ~/dora /opt/dora
+````uv sync` するとそのソースから maturin で
 ビルドされ、CLI と同じバージョンに揃う。初回は Rust 拡張をフルコンパイルするため数分〜十数分
 かかる (止まって見えるが進行中。`uv sync -v` で確認可)。
 ```bash

@@ -22,4 +22,5 @@ dependencies = [
 members = ["dummy_input", "data_viewer", "mujoco_node", "sysid_controller", "data_recorder"]
 
 [tool.uv.sources]
-dora-rs = { path = "/home/jetmimic/dora/apis/python/node" }
+# /opt/dora は各マシンで `sudo ln -s ~/dora /opt/dora` した symlink (マシン非依存パス)
+dora-rs = { path = "/opt/dora/apis/python/node" }

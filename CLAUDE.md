@@ -29,7 +29,7 @@ cd src/python && uv sync     # runtime nodes (dora-rs, pyarrow, mujoco, ...)
 cd scripts && uv sync        # offline analysis (LQR gain calc, A/B matrix calc)
 ```
 
-The `dora-rs` Python package version must exactly match the dora CLI version (1.0.0-rc1), otherwise you get "message format version mismatch" errors. It is installed from source — `pyproject.toml` points `dora-rs` at `~/dora/apis/python/node`, so that path must be valid on the machine.
+The `dora-rs` Python package version must exactly match the dora CLI version (1.0.0-rc1), otherwise you get "message format version mismatch" errors. It is installed from source — `pyproject.toml` points `dora-rs` at `/opt/dora/apis/python/node`, a machine-independent symlink each machine creates once with `sudo ln -s ~/dora /opt/dora` (dora itself stays at `~/dora`). Without the symlink, `uv sync` fails.
 
 ### Data-format code generation
 

@@ -42,10 +42,11 @@ cargo build --release -p dora-node-api-cxx
 
 **a. ピン解除**:`dora-rs==0.4.1` → `dora-rs`(PyPI に 1.0.0-rc1 が無いため)
 
-**b. main ソースを指定**(ルート `src/python/pyproject.toml`):
+**b. main ソースを指定**(ルート `src/python/pyproject.toml`)。パスはユーザー名を
+含まない `/opt/dora` (各マシンで `sudo ln -s ~/dora /opt/dora` した symlink) を使う:
 ```toml
 [tool.uv.sources]
-dora-rs = { path = "/home/tama/dora/apis/python/node" }
+dora-rs = { path = "/opt/dora/apis/python/node" }
 ```
 
 **c. 宣言をルートに1本化**:`sysid_controller` / `data_recorder` の個別 `dora-rs` を削除。
