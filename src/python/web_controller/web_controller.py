@@ -48,6 +48,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 MOTOR_OFF = 0
 MOTOR_POSITION = 2          # 位置(インピーダンス)
 MOTOR_VELOCITY = 3          # 速度(インピーダンス)
+MOTOR_SET_POSITION = 5      # エンコーダ位置リセット(ゼロ点セット、OFF時のみ)
 MOTOR_CURRENT = 6
 MOTOR_VOLTAGE = 7
 MOTOR_POSITION_PD = 8       # インピーダンス (pos/vel/torq)
@@ -93,6 +94,9 @@ def with_axis_limits(rec, ax):
             velocity_limit=rec.velocity_limit or ax.velocity_limit,
             accel_limit=rec.accel_limit or ax.accel_limit,
         )
+    if rec.motor_state == MOTOR_SET_POSITION:
+        # ゼロ点: config の reset_position を注入 (RCM L162-163 と同じ)
+        return rec._replace(ref_val=ax.reset_position)
     return rec
 
 # HTTP スレッド → node ループへ渡す送信キュー。要素 = (axis指定, AxisRef, 説明文字列)
@@ -115,6 +119,12 @@ def build_ref(typ, p):
 
     if typ in ("off", "f"):
         return AxisRef(motor_state=MOTOR_OFF), "SERVO OFF"
+    if typ == "reset":
+        # ゼロ点セット (robot_control_manager の INIT_POSITION_RESET と同じ):
+        # 現在の物理姿勢を config の reset_position と定義する。ref_val は
+        # UI からではなく apply 時に per-axis reset_position を注入する。
+        # モータは無通電のまま (moteus: OutputExact)。OFF 状態で使うこと。
+        return AxisRef(motor_state=MOTOR_SET_POSITION), "ZERO SET (reset_position)"
     if typ == "v":    # 電圧: ref_val=volt_d, ref_val_1=volt_q, ref_val_2=vir_ang_freq
         d, q, fr = n("volt_d"), n("volt_q"), n("vir_ang_freq")
         return (AxisRef(motor_state=MOTOR_VOLTAGE, ref_val=d, ref_val_1=q, ref_val_2=fr,
@@ -186,6 +196,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
+            if body.get("type") == "reset" and AXES is None:
+                raise ValueError("reset requires ROBOT_CONFIG (reset_position)")
             axis = parse_axis(body)
             rec, desc = build_ref(body.get("type"), body.get("params", {}))
             axis_label = "ALL" if axis == "all" else f"[{axis}] {AXIS_NAMES[axis]}"

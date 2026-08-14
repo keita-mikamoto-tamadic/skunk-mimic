@@ -50,6 +50,15 @@
   </label>
 </div>
 
+<fieldset id="zero" style="display:none">
+  <legend>ゼロ点セット (SET_POSITION)</legend>
+  <p class="note" style="display:block">現在の物理姿勢を config の reset_position と定義する
+    (エンコーダ位置リセット。モータは無通電のまま)。対象軸を OFF → 300ms 後に SET_POSITION を送る。</p>
+  <div class="row">
+    <button class="send" id="zero-btn">選択軸をゼロ点セット</button>
+  </div>
+</fieldset>
+
 <fieldset data-type="v">
   <legend>電圧制御 (VOLTAGE) ― キャリブ不要</legend>
   <div class="row">
@@ -170,19 +179,32 @@ const FOCTIVE_ONLY = ["v", "c", "pd", "cpos", "cvel"];
       o.value = "all"; o.textContent = "全軸 (all)";
       sel.appendChild(o);
     }
-    // moteus は速度/位置/OFF のみ対応。非対応 fieldset は隠す
+    // moteus は速度/位置/OFF/ゼロ点のみ対応。非対応 fieldset は隠す
     if (j.protocol === "moteus") {
       FOCTIVE_ONLY.forEach(t => {
         const fs = document.querySelector(`fieldset[data-type="${t}"]`);
         if (fs) fs.style.display = "none";
       });
-      document.querySelectorAll(".note").forEach(n => n.style.display = "none");
+      document.querySelectorAll("p.note:not(#zero .note)").forEach(n => n.style.display = "none");
+      $("zero").style.display = "";
     }
   } catch (e) { setStatus("config load error", "err"); }
 })();
 
 // 大きい OFF ボタンは常に全軸 OFF (緊急用)
 $("off").onclick = () => send("off", {}, "all");
+
+// ゼロ点: robot_control_manager の INIT_POSITION_RESET 相当。
+// 「OFF 時のみ」の前提を守るため、対象軸を OFF してから SET_POSITION を送る
+// (同一 tick にまとめられないよう 300ms あける)。
+$("zero-btn").onclick = async () => {
+  const axis = selectedAxis();
+  const label = axis === "all" ? "全軸" : `軸 ${axis}`;
+  if (!confirm(`${label} の現在姿勢を reset_position としてゼロ点セットします。よろしいですか？`)) return;
+  await send("off", {}, axis);
+  await new Promise(r => setTimeout(r, 300));
+  await send("reset", {}, axis);
+};
 
 // 各 fieldset[data-type] の Send: 中の input[data-p] を params dict に集めて送る
 document.querySelectorAll("fieldset[data-type] button.send").forEach(btn => {
