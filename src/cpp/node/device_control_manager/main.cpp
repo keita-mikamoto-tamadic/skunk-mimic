@@ -134,6 +134,7 @@ int main() {
     // コマンドバッファ
     std::vector<AxisRef> latest_commands(axis_count);
     bool has_new_commands = false;
+    std::vector<AxisRef> logged_commands;  // 変化検出してログを間引く用
 
     // レイテンシ計測
     int can_count = 0;
@@ -191,12 +192,18 @@ int main() {
                 }
                 latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
                 has_new_commands = true;
-                // コマンド到達の確認ログ(送信時のみの低頻度なので常設)。
+                // コマンド到達の確認ログ。moteus watchdog 対策で送信側は
+                // 同一コマンドをストリームし続けるため、内容が変わった時だけ出す。
                 // 分散構成で「送ったのに動かない」ときの切り分けに使う。
-                std::cout << "recv motor_commands: state="
-                          << static_cast<int>(latest_commands[0].motor_state)
-                          << " ref=" << latest_commands[0].ref_val
-                          << " ref1=" << latest_commands[0].ref_val_1 << std::endl;
+                if (logged_commands.size() != latest_commands.size() ||
+                    std::memcmp(logged_commands.data(), latest_commands.data(),
+                                latest_commands.size() * sizeof(AxisRef)) != 0) {
+                    logged_commands = latest_commands;
+                    std::cout << "recv motor_commands: state="
+                              << static_cast<int>(latest_commands[0].motor_state)
+                              << " ref=" << latest_commands[0].ref_val
+                              << " ref1=" << latest_commands[0].ref_val_1 << std::endl;
+                }
             }
             else if (id == kInputTick) {
                 auto t0 = std::chrono::steady_clock::now();
