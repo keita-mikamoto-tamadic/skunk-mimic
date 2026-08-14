@@ -1,4 +1,4 @@
-"""FOCTIVE Web 操作ノード (web_controller)。
+"""Web 操作ノード (web_controller)。
 
 foctive_controller(端末版) のブラウザ版。stdin の代わりに HTTP で指令を受け、
 AxisRef(motor_commands) を送る本物の dora ノード ―― バイナリ指令を正しく
@@ -7,14 +7,21 @@ AxisRef(motor_commands) を送る本物の dora ノード ―― バイナリ指
   ブラウザ(PC) ──POST /cmd──▶ web_controller (PC daemon) ──motor_commands──▶ device_control_manager (robot)
 
 分散構成: web_controller は dataflow で PC 側 daemon に deploy される
-(dataflow_foctive_web_control.yaml の _unstable_deploy.machine: pc)。
+(dataflow_*_web_control.yaml の _unstable_deploy.machine: pc)。
 動的ノードは localhost daemon にアタッチするので、必ず PC 上で起動すること。
+
+多軸対応: ROBOT_CONFIG の axes 数だけ AxisRef を保持し、送信は常に全軸分の
+dense array (device_control_manager の ReceiveStructArray は axis_count 分の
+バイト長がないと無言でゼロ埋めするため、部分送信は不可)。/cmd の "axis" で
+対象軸 (int) か "all" を指定し、該当スロットだけ更新して全軸分を送る。
 
 送信はスレッド安全のため「HTTP スレッドはキューに積む / node ループ(tick)で
 まとめて send_output」する。送信は node メインスレッドからのみ。
 
 環境変数:
   WEB_CONTROLLER_PORT   HTTP ポート (既定 8770)
+  ROBOT_CONFIG          robot_config JSON (相対パスはリポジトリルート基準)。
+                        未指定/読込失敗時は 1 軸フォールバック (従来挙動)
 """
 
 import json
@@ -30,10 +37,12 @@ from dora import Node
 # lib (axis_data.json 正本から自動生成) を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.axis_data_format import AxisRef, pack_axis_ref  # noqa: E402
+from lib import robot_config  # noqa: E402
 
 PORT = int(os.environ.get("WEB_CONTROLLER_PORT", "8770"))
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_PATH = os.path.join(SCRIPT_DIR, "web_controller.html")
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 
 # MotorState (enum_def.hpp / foctive_controller.py と一致)
 MOTOR_OFF = 0
@@ -45,7 +54,26 @@ MOTOR_POSITION_PD = 8       # インピーダンス (pos/vel/torq)
 MOTOR_CASCADE_POS_PID = 9   # FOCTIVE ネイティブ位置カスケードPID
 MOTOR_CASCADE_VEL_PID = 10  # FOCTIVE ネイティブ速度カスケードPID
 
-# HTTP スレッド → node ループへ渡す送信キュー。要素 = (AxisRef, 説明文字列)
+
+def _load_axes():
+    """ROBOT_CONFIG から (robot_name, 軸名リスト) を得る。失敗時は 1 軸互換。"""
+    path = os.environ.get("ROBOT_CONFIG", "")
+    if path:
+        if not os.path.isabs(path):
+            path = os.path.join(PROJECT_ROOT, path)
+        try:
+            cfg = robot_config.load_from_file(path)
+            return cfg.robot_name, [ax.name for ax in cfg.axes]
+        except (OSError, KeyError, ValueError, json.JSONDecodeError) as e:
+            print(f"[web_controller] ROBOT_CONFIG 読込失敗 ({e}) → 1軸フォールバック")
+    return "(no config)", ["axis0"]
+
+
+ROBOT_NAME, AXIS_NAMES = _load_axes()
+AXIS_COUNT = len(AXIS_NAMES)
+
+# HTTP スレッド → node ループへ渡す送信キュー。要素 = (axis指定, AxisRef, 説明文字列)
+# axis指定 = int (0..AXIS_COUNT-1) or "all"
 CMD_Q = queue.Queue(maxsize=64)
 LAST_SENT = {"desc": "(none)"}  # /status 用
 
@@ -103,6 +131,16 @@ def build_ref(typ, p):
     raise ValueError(f"unknown command type: {typ}")
 
 
+def parse_axis(body):
+    """/cmd body の "axis" を検証して int か "all" を返す (既定 "all")。"""
+    axis = body.get("axis", "all")
+    if axis == "all":
+        return "all"
+    if isinstance(axis, int) and 0 <= axis < AXIS_COUNT:
+        return axis
+    raise ValueError(f"axis must be 0..{AXIS_COUNT - 1} or \"all\": {axis!r}")
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -112,6 +150,8 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_html()
         elif self.path == "/status":
             self._json(200, {"last_sent": LAST_SENT["desc"]})
+        elif self.path == "/config":
+            self._json(200, {"robot_name": ROBOT_NAME, "axes": AXIS_NAMES})
         else:
             self.send_error(404)
 
@@ -122,12 +162,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
+            axis = parse_axis(body)
             rec, desc = build_ref(body.get("type"), body.get("params", {}))
+            axis_label = "ALL" if axis == "all" else f"[{axis}] {AXIS_NAMES[axis]}"
+            desc = f"{axis_label}: {desc}"
         except (ValueError, TypeError, IndexError, json.JSONDecodeError) as e:
             self._json(400, {"ok": False, "error": str(e)})
             return
         try:
-            CMD_Q.put_nowait((rec, desc))
+            CMD_Q.put_nowait((axis, rec, desc))
         except queue.Full:
             self._json(503, {"ok": False, "error": "queue full"})
             return
@@ -162,23 +205,36 @@ def serve_http():
     httpd.serve_forever()
 
 
-def axis_ref_bytes(rec):
-    return pa.array(list(pack_axis_ref(rec)), type=pa.uint8())
+def axis_refs_bytes(refs):
+    """全軸分の AxisRef を連結した dense array (axis_count * 72 byte)。"""
+    return pa.array(list(b"".join(pack_axis_ref(r) for r in refs)),
+                    type=pa.uint8())
 
 
 def main():
     threading.Thread(target=serve_http, daemon=True).start()
     node = Node("web_controller")
-    print("[web_controller] ready. ブラウザから指令を送ってください。")
+    print(f"[web_controller] ready: {ROBOT_NAME} ({AXIS_COUNT} axes). "
+          "ブラウザから指令を送ってください。")
+    # 全軸の現在指令 (未指令軸は OFF のまま)。送信は常にこの全体を送る
+    refs = [AxisRef(motor_state=MOTOR_OFF) for _ in range(AXIS_COUNT)]
     for event in node:
         if event["type"] == "INPUT" and event["id"] == "tick":
             # tick 毎にキューを drain して送信 (送信は必ずこのメインスレッド)
+            dirty = False
+            desc = None
             while True:
                 try:
-                    rec, desc = CMD_Q.get_nowait()
+                    axis, rec, desc = CMD_Q.get_nowait()
                 except queue.Empty:
                     break
-                node.send_output("motor_commands", axis_ref_bytes(rec))
+                if axis == "all":
+                    refs = [rec] * AXIS_COUNT
+                else:
+                    refs[axis] = rec
+                dirty = True
+            if dirty:
+                node.send_output("motor_commands", axis_refs_bytes(refs))
                 LAST_SENT["desc"] = desc
                 print(f"[web_controller] sent: {desc}")
 

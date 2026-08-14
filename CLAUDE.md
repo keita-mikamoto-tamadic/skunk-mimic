@@ -11,9 +11,11 @@ skunk-mimic is a unified robot controller for a wheeled biped (mimic_v2) built o
 ### C++ nodes
 
 ```bash
+git submodule update --init --recursive   # first checkout: fetches OpenKF (header-only EKF)
 cd src/cpp && mkdir -p build && cd build && cmake .. && make
 ```
 
+- `src/cpp/lib/vendor/OpenKF` is a git submodule (header-only Kalman-filter library) used by `stabilizer`'s `body_state_ekf`. A fresh clone without `submodule update` fails to configure.
 - Requires dora built from source at `~/dora` (v1.0.0-rc1): `libdora_node_api_cxx.a` (`~/dora/target/release/`) and the cxxbridge headers (`~/dora/target/cxxbridge/dora-node-api-cxx/install`; see README.md for the full setup). Also requires `libarrow-dev`.
 - Each node's binary is output to its own directory (`src/cpp/node/<name>/build/<name>`) via `CMAKE_RUNTIME_OUTPUT_DIRECTORY` — the dataflow YAMLs reference those paths.
 - C++20, plain CMake; there is no automated test target. `src/cpp/lib/robot_config_test.cpp` is a standalone assert-based test not wired into the build.
@@ -72,10 +74,15 @@ Dataflows (repo root):
 | `dataflow_sim.yaml` | MuJoCo simulation | `mujoco_backend` (Python) | `stabilizer` (C++) |
 | `dataflow_sysid.yaml` | Real-robot SysID | `device_control_manager` | `sysid_controller` (Python) |
 | `dataflow_sim_sysid.yaml` | Sim SysID | `mujoco_backend` | `sysid_controller` (Python) |
-| `dataflow_foctive_control.yaml` | FOCTIVE single-motor test | `device_control_manager` | `foctive_controller` (Python, bypasses the state machine) |
+| `dataflow_foctive_control.yaml` | Single-motor test (FOCTIVE by default; point `ROBOT_CONFIG` at `moteus_motor_test.json` for a moteus motor) | `device_control_manager` | `foctive_controller` (Python, bypasses the state machine) |
 | `dataflow_foctive_web_control.yaml` | FOCTIVE test driven from a browser | `device_control_manager` (robot) | `web_controller` (Python, deployed to a PC daemon via `_unstable_deploy`) |
+| `dataflow_mimic_web_control.yaml` | mimic 6-axis / 2-CAN-channel test from a browser (`mimic_v2_5.json`: can0 = right leg, can1 = left leg) | `device_control_manager` (robot) | `web_controller` (multi-axis: per-axis selector + all-axes OFF) |
 
-Hardware modes: `bash can_setup.bash` brings up real CAN (can0); `bash vcan_setup.bash` for virtual CAN (see HowToSocketcan.md). Set `"transport": "dummy"` in the robot config to run with no hardware at all.
+Hardware modes: `bash can_setup.bash` brings up the Tegra built-in CAN; `bash vcan_setup.bash` for virtual CAN (see HowToSocketcan.md). Set `"transport": "dummy"` in the robot config to run with no hardware at all.
+
+**PEAK PCAN-M.2 (4ch CAN-FD):** exposed as extra SocketCAN netdevs via an out-of-tree `pcan.ko` built in NETDEV mode (setup + rebuild-after-kernel-update caveats in `docs/pcan_socketcan_driver.md`). Bring channels up with `bash pcan_setup.bash <canX> ...` — by default it holds the interfaces UP and DOWNs them on Ctrl-C (pass `keep` to leave them up, `down`/`all down` to tear down). Which `canX` is PEAK vs Tegra built-in is machine-dependent — check `/proc/pcan`, `dmesg | grep -i pcan`, or `candump`; the header comment in `pcan_setup.bash` records the current machine's mapping. The robot config's `comm_ch` list selects which netdev(s) `device_control_manager` opens — one driver instance per channel, with each axis assigned to a channel by its per-axis `comm_ch` index (e.g. `mimic_v2_5.json`: can0 = right leg, can1 = left leg).
+
+**Real-time scheduling:** the daemon and `device_control_manager` use `SCHED_FIFO` + `mlockall`, which need `CAP_SYS_NICE`/`CAP_IPC_LOCK`. Grant them per-binary with `setcap` (see `docs/rt-enable.md`) — capabilities are tied to the binary file and **are lost on every rebuild**, so re-apply after each `make`. Start the daemon in RT mode with `dora daemon --rt`; `dora_rt_damon.bash` launches a coordinator + `--rt` daemon (and sets `ZENOH_CONFIG` for the distributed web_controller setup). Further docs live in `docs/` (`rt-enable.md`, `dora-upgrade.md`).
 
 ## Architecture
 
@@ -83,7 +90,7 @@ See README_ARCH.md for the full node graph, struct layouts, and Python binary fo
 
 **Node graph (real robot):** `dummy_input` → `robot_control_manager` (state machine: OFF/STOP/READY/RUN, emits motor_commands) → `device_control_manager` (3 ms tick, CAN I/O, IMU fusion) → motor_status/imu_data back to `robot_control_manager`, `stabilizer`, and `data_viewer`. `stabilizer` computes run_command from motor_status + imu_data and feeds it to `robot_control_manager`.
 
-**Configuration:** `robot_config/*.json` selected via the `ROBOT_CONFIG` env var (defaults exist per node; dataflow YAMLs set it under `env:` for spawned nodes — dynamic nodes need it exported in their shell). Key fields: `transport` (`socketcan` | `dummy`), `protocol` (`moteus` default | `foctive`), `controller` (e.g. `angle_pid`, `lqr`), and per-axis limits/IDs.
+**Configuration:** `robot_config/*.json` selected via the `ROBOT_CONFIG` env var (defaults exist per node; dataflow YAMLs set it under `env:` for spawned nodes — dynamic nodes need it exported in their shell). Key fields: `transport` (`socketcan` | `dummy`), `protocol` (`moteus` default | `foctive`), `controller` (e.g. `angle_pid`, `lqr`), `comm_ch` (ordered list of SocketCAN netdevs, default `["can0"]`; each axis picks one via its `comm_ch` index, default 0 — `device_control_manager` opens one driver instance per channel; device_ids must be globally unique across channels), and per-axis limits/IDs.
 
 **Two extension seams:**
 

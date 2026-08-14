@@ -13,6 +13,7 @@
  *   transport="socketcan", protocol="foctive" → FoctiveCanDriver（CAN-FD + FOCTIVE）
  */
 #include <iostream>
+#include <map>
 #include <memory>
 #include <vector>
 #include <chrono>
@@ -78,6 +79,19 @@ static std::unique_ptr<MotorDriver> CreateDriver(const std::string& transport,
     return std::make_unique<MoteusCanDriver>();
 }
 
+// CAN チャンネル単位のドライバ束。ドライバは 1 インスタンス = 1 バス
+// (SocketCanComm を値で保持) なので、comm_ch 毎にインスタンス化して束ねる。
+// axes は config.axes の部分列で全体順序を保持する。ドライバ内部の
+// expected_ids_ / last_frames_ は最初に渡した axes で確定するため、
+// 各インスタンスには常に同じ部分列を渡すこと。
+struct ChannelBundle {
+    std::string netdev;
+    std::unique_ptr<MotorDriver> driver;
+    std::vector<AxisConfig> axes;       // このチャネル所属の軸
+    std::vector<size_t> global_index;   // per-ch 位置 j → config.axes の index
+    std::vector<AxisRef> cmd_buf;       // SendCommands 用の再利用バッファ
+};
+
 int main() {
     SetCpuAffinity(1, 80);
     auto node = init_dora_node();
@@ -87,14 +101,36 @@ int main() {
     std::cout << config.robot_name
               << " (" << config.axis_count << " axes)" << std::endl;
 
-    // ドライバ初期化
-    auto driver = CreateDriver(config.transport, config.protocol);
-    std::string device = (config.transport == "dummy") ? "dummy" : "can0";
-    if (!driver->Open(device)) {
-        std::cerr << "failed to open " << device << std::endl;
-        return 1;
+    // ドライバ初期化: comm_ch 毎に 1 インスタンス
+    std::vector<ChannelBundle> channels(config.comm_ch.size());
+    for (size_t ch = 0; ch < channels.size(); ++ch) {
+        channels[ch].netdev = config.comm_ch[ch];
+        channels[ch].driver = CreateDriver(config.transport, config.protocol);
     }
-    std::cout << config.transport << " opened" << std::endl;
+    for (size_t i = 0; i < config.axes.size(); ++i) {
+        auto& b = channels[config.axes[i].comm_ch];  // 範囲は Parse で検証済み
+        b.axes.push_back(config.axes[i]);
+        b.global_index.push_back(i);
+    }
+    std::map<int, MotorDriver*> driver_by_device;  // settings dispatch 用
+    for (auto& b : channels) {
+        b.cmd_buf.resize(b.axes.size());
+        if (b.axes.empty()) {
+            std::cerr << "Warning: comm_ch " << b.netdev
+                      << " has no axes" << std::endl;
+        }
+        for (const auto& ax : b.axes) {
+            driver_by_device[ax.device_id] = b.driver.get();
+        }
+        std::string device =
+            (config.transport == "dummy") ? "dummy" : b.netdev;
+        if (!b.driver->Open(device)) {
+            std::cerr << "failed to open " << device << std::endl;
+            return 1;
+        }
+        std::cout << config.transport << " opened: " << device
+                  << " (" << b.axes.size() << " axes)" << std::endl;
+    }
 
     const size_t axis_count = config.axes.size();
 
@@ -118,7 +154,9 @@ int main() {
 
         if (type == DoraEventType::Stop ||
             type == DoraEventType::AllInputsClosed) {
-            driver->SendAllOff(config.axes);
+            for (auto& b : channels) {
+                if (!b.axes.empty()) b.driver->SendAllOff(b.axes);
+            }
             std::cout << "stopping (all axes OFF)" << std::endl;
             break;
         }
@@ -166,14 +204,38 @@ int main() {
             else if (id == kInputTick) {
                 auto t0 = std::chrono::steady_clock::now();
 
-                // 送受信
-                if (has_new_commands) {
-                    driver->SendCommands(latest_commands, config.axes);
-                    has_new_commands = false;
-                } else {
-                    driver->SendQueries(config.axes);
+                // 送信は全チャネル先出し (バス往復をオーバーラップさせる)
+                for (auto& b : channels) {
+                    if (b.axes.empty()) continue;
+                    if (has_new_commands) {
+                        for (size_t j = 0; j < b.axes.size(); ++j) {
+                            b.cmd_buf[j] = latest_commands[b.global_index[j]];
+                        }
+                        b.driver->SendCommands(b.cmd_buf, b.axes);
+                    } else {
+                        b.driver->SendQueries(b.axes);
+                    }
                 }
-                auto acts = driver->ReceiveStatus(config.axes, 2);
+                has_new_commands = false;
+
+                // 受信: 共有 2ms デッドライン + 各チャネル最低 1ms 保証。
+                // ReceiveStatus は全 id 受信で早期リターンするため正常系の
+                // コストは単一チャネル時と同等。未返信軸があるときのみ
+                // 最悪 ~2+(N-1) ms まで伸びる。
+                std::vector<AxisAct> acts(axis_count);  // 未返信軸はゼロのまま
+                const auto rx_deadline = t0 + std::chrono::milliseconds(2);
+                for (auto& b : channels) {
+                    if (b.axes.empty()) continue;
+                    long remaining_ms =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            rx_deadline - std::chrono::steady_clock::now()).count();
+                    if (remaining_ms < 1) remaining_ms = 1;
+                    auto part = b.driver->ReceiveStatus(
+                        b.axes, static_cast<int>(remaining_ms));
+                    for (size_t j = 0; j < b.axes.size(); ++j) {
+                        acts[b.global_index[j]] = part[j];  // 全体順に再構成
+                    }
+                }
 
                 // CAN レイテンシ計測
                 long us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -200,6 +262,17 @@ int main() {
                 SettingsResult res{};
                 res.cmd = req.cmd;
                 res.param_index = req.param_index;
+
+                // device_id からチャンネルのドライバを解決
+                auto it = driver_by_device.find(req.device_id);
+                if (it == driver_by_device.end()) {
+                    std::cerr << "settings_request: unknown device_id "
+                              << req.device_id << std::endl;
+                    res.ok = 0;
+                    ZeroCopySendStruct(node, kOutputSettingsResult, res);
+                    continue;
+                }
+                MotorDriver* driver = it->second;
 
                 switch (req.cmd) {
                     case 1: {  // 電気角キャリブ(モータが回り数秒かかる)

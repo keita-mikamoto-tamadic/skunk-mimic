@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>foctive web controller</title>
+<title>web controller</title>
 <!--
-  FOCTIVE 操作 GUI。web_controller.py(同一オリジン) に POST /cmd で指令を送る。
-  body: {"type":"v|c|vel|p|pd|cpos|cvel|off","params":{...}} → ノードが AxisRef を送出。
+  モータ操作 GUI。web_controller.py(同一オリジン) に POST /cmd で指令を送る。
+  body: {"type":"v|c|vel|p|pd|cpos|cvel|off","axis":0|"all","params":{...}}
+  → ノードが全軸分の AxisRef array を送出 (対象軸のスロットだけ更新)。
+  軸リストは GET /config (ROBOT_CONFIG 由来) で取得。
   指令マッピングは foctive_controller.py と一致 (impedance/cascade 対応)。
   ★ 実モータが動きます。SERVO OFF を常に手元に。自動送信はしません(明示 Send のみ)。
 -->
@@ -31,12 +33,22 @@
   #status { padding:.22rem .55rem; border-radius:5px; background:#222732; }
   #status.ok { background:#1d4a36; color:#9f9; } #status.err { background:#4a1d1d; color:#f99; }
   #last { color:#7cc4ff; font-variant-numeric:tabular-nums; }
+  .axisbar { display:flex; gap:.6rem; align-items:center; margin-bottom:.9rem; }
+  .axisbar label { flex-direction:row; align-items:center; gap:.4rem; font-size:.9rem; }
+  select { background:#1b1e26; color:#e6e6e6; border:1px solid #2a2f3a;
+           border-radius:5px; padding:.35rem .5rem; font-size:.95rem; }
 </style>
 </head>
 <body>
-<h1>foctive web controller</h1>
+<h1 id="title">web controller</h1>
 
-<button class="off" id="off">■ SERVO OFF</button>
+<button class="off" id="off">■ SERVO OFF (全軸)</button>
+
+<div class="axisbar">
+  <label>対象軸
+    <select id="axis"></select>
+  </label>
+</div>
 
 <fieldset data-type="v">
   <legend>電圧制御 (VOLTAGE) ― キャリブ不要</legend>
@@ -121,11 +133,11 @@
 const $ = id => document.getElementById(id);
 function setStatus(s, cls){ const e = $("status"); e.textContent = s; e.className = cls || ""; }
 
-async function send(type, params){
+async function send(type, params, axis){
   try {
     const r = await fetch("/cmd", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, params }),
+      body: JSON.stringify({ type, params, axis }),
     });
     const j = await r.json();
     if (j.ok) { setStatus("sent", "ok"); $("last").textContent = j.queued; }
@@ -133,7 +145,33 @@ async function send(type, params){
   } catch (e) { setStatus("network error", "err"); }
 }
 
-$("off").onclick = () => send("off", {});
+// 選択中の軸 (int) or "all"
+function selectedAxis(){
+  const v = $("axis").value;
+  return v === "all" ? "all" : parseInt(v, 10);
+}
+
+// 軸リストを /config から取得してセレクタを構築 (単軸なら選択の余地なし)
+(async () => {
+  try {
+    const j = await (await fetch("/config")).json();
+    $("title").textContent = `web controller — ${j.robot_name}`;
+    const sel = $("axis");
+    j.axes.forEach((name, i) => {
+      const o = document.createElement("option");
+      o.value = i; o.textContent = `[${i}] ${name}`;
+      sel.appendChild(o);
+    });
+    if (j.axes.length > 1) {
+      const o = document.createElement("option");
+      o.value = "all"; o.textContent = "全軸 (all)";
+      sel.appendChild(o);
+    }
+  } catch (e) { setStatus("config load error", "err"); }
+})();
+
+// 大きい OFF ボタンは常に全軸 OFF (緊急用)
+$("off").onclick = () => send("off", {}, "all");
 
 // 各 fieldset[data-type] の Send: 中の input[data-p] を params dict に集めて送る
 document.querySelectorAll("fieldset[data-type] button.send").forEach(btn => {
@@ -143,7 +181,7 @@ document.querySelectorAll("fieldset[data-type] button.send").forEach(btn => {
     fs.querySelectorAll("input[data-p]").forEach(inp => {
       params[inp.dataset.p] = parseFloat(inp.value) || 0;
     });
-    send(fs.dataset.type, params);
+    send(fs.dataset.type, params, selectedAxis());
   };
 });
 </script>

@@ -12,6 +12,7 @@ class AxisConfig:
     index: int
     name: str
     device_id: int
+    comm_ch: int  # index into RobotConfig.comm_ch (default: 0)
     motdir: int
     initial_position: float
     reset_position: float
@@ -27,6 +28,7 @@ class RobotConfig:
     axis_count: int
     interpolation_time: float
     transport: str  # "socketcan" or "dummy"
+    comm_ch: List[str]  # SocketCAN netdev names, e.g. ["can0", "can1"]
     axes: List[AxisConfig]
 
 
@@ -54,6 +56,7 @@ def parse(json_str: str) -> RobotConfig:
             index=ax["index"],
             name=ax["name"],
             device_id=ax["device_id"],
+            comm_ch=ax.get("comm_ch", 0),
             motdir=ax["motdir"],
             initial_position=ax["initial_position"],
             reset_position=ax["reset_position"],
@@ -67,6 +70,7 @@ def parse(json_str: str) -> RobotConfig:
         axis_count=data["axis_count"],
         interpolation_time=data["interpolation_time"],
         transport=data.get("transport", "socketcan"),
+        comm_ch=data.get("comm_ch", ["can0"]),
         axes=axes
     )
 

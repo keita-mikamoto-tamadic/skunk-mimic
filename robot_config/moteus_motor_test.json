@@ -1,8 +1,8 @@
 {
-  "robot_name": "foctive_motor_test",
+  "robot_name": "moteus_motor_test",
   "transport": "socketcan",
-  "protocol": "foctive",
-  "comm_ch": ["can0"],
+  "protocol": "moteus",
+  "comm_ch": ["can1"],
   "axis_count": 1,
   "interpolation_time": 3.0,
   "axes": [
