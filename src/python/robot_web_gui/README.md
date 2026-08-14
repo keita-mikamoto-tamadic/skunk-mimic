@@ -5,19 +5,24 @@ robot_control_manager (RCM) に送り、`state_status` で現在状態を表示�
 motor_commands を直接送る `web_controller` と違い、必ず RCM の状態機械を経由する
 (通常運転はこちら、単軸テスト/ゼロ点直接操作は web_controller)。
 
-## 起動 (dataflow_mimic.yaml、全部 robot 上)
+## 起動 (dataflow_mimic.yaml、robot_web_gui は PC に deploy する分散構成)
 
 ```bash
+# robot
 bash pcan_setup.bash can0 can1 keep
 bash dora_rt_damon.bash
+# PC
+bash dora_pc_daemon.bash <robot-ip>
+# robot
 dora start dataflow_mimic.yaml
+# PC (dynamic ノード attach)
 cd src/python && \
-ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py   # dynamic ノード attach
-# PC のブラウザで http://<robot-ip>:8766/
+ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py
+# PC のブラウザで http://localhost:8766/
 ```
 
-表示 (motor_status/imu_data) は web_monitor:
-`ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 tools/gui/web_monitor.py` → :8765
+表示 (motor_status/imu_data) は web_monitor (PC 上):
+`DORA_COORDINATOR_ADDR=<robot-ip> ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 tools/gui/web_monitor.py` → :8765
 
 ## ボタンと RCM 遷移ガード
 

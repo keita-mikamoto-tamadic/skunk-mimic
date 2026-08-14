@@ -8,15 +8,17 @@
 #        └────────state_status──────────┘  └── run_command ── stabilizer ◀───────┤ motor_status / imu_data
 #                                                                                └◀─ raw_imu ── imu_node
 #
-# 起動 (全部 robot 上):
-#   1) bash pcan_setup.bash can0 can1 keep
-#   2) bash dora_rt_damon.bash
-#   3) dora start dataflow_mimic.yaml
-#   4) cd src/python && \
-#      ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py
-#      (dynamic ノードが attach するまで dataflow は開始バリアで待つ)
-#   5) PC のブラウザで http://<robot-ip>:8766/
-#   表示側:   ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 tools/gui/web_monitor.py
+# 起動:
+#   1) robot: bash pcan_setup.bash can0 can1 keep
+#   2) robot: bash dora_rt_damon.bash
+#   3) PC:    bash dora_pc_daemon.bash <robot-ip>
+#   4) robot: dora start dataflow_mimic.yaml
+#   5) PC:    cd src/python && \
+#             ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py
+#             (dynamic ノードが attach するまで dataflow は開始バリアで待つ)
+#   6) PC のブラウザで http://localhost:8766/
+#   表示側:   DORA_COORDINATOR_ADDR=<robot-ip> ROBOT_CONFIG=robot_config/mimic_v2_5.json \
+#             python3 tools/gui/web_monitor.py
 #
 # 単軸テスト/ゼロ点直接操作は dataflow_mimic_web_control.yaml (state machine バイパス) を使う。
 #
@@ -73,10 +75,14 @@ nodes:
     outputs:
       - raw_imu
 
-  # 操作 GUI ―― 唯一の dynamic ノード (dynamic は全 attach まで開始バリアで待つため、
-  # 常時起動しない data_viewer 等はここに入れない。表示は web_monitor で)。
+  # 操作 GUI ―― PC 側 daemon (machine-id: pc) に配置する分散ノード。
+  # state_command は低レート (ボタン押下) なので WiFi 越しで問題ない。
+  # dynamic は全 attach まで開始バリアで待つため、常時起動しない data_viewer 等は
+  # ここに入れない (表示は web_monitor で)。
   - id: robot_web_gui
     path: dynamic
+    _unstable_deploy:
+      machine: pc
     inputs:
       tick: dora/timer/millis/50          # コマンドキュー drain + RUN リトライ用
       state_status: robot_control_manager/state_status
