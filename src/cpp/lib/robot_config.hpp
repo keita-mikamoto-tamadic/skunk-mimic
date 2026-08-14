@@ -33,5 +33,13 @@ struct RobotConfig {
 namespace robot_config {
   RobotConfig Parse(const std::string& json_str);
   RobotConfig LoadFromFile(const std::string& path);
+
+  // ROBOT_CONFIG 環境変数 (未設定なら default_rel) をパスに解決する。
+  // 相対パスが cwd に無い場合は、実行ファイル位置から導出したリポジトリルート
+  // (<root>/src/cpp/node/<name>/build/<bin> 前提) を基準に解決するので、
+  // dataflow yaml にマシン依存の絶対パスを書く必要はない
+  // (_unstable_deploy 入り dataflow の _work/<session> 実行対策)。
+  std::string ResolveConfigPath(
+      const char* default_rel = "robot_config/mimic_v2.json");
 }
 

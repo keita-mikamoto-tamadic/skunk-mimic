@@ -55,22 +55,45 @@ MOTOR_CASCADE_POS_PID = 9   # FOCTIVE ネイティブ位置カスケードPID
 MOTOR_CASCADE_VEL_PID = 10  # FOCTIVE ネイティブ速度カスケードPID
 
 
-def _load_axes():
-    """ROBOT_CONFIG から (robot_name, 軸名リスト) を得る。失敗時は 1 軸互換。"""
+def _load_config():
+    """ROBOT_CONFIG から RobotConfig を得る。失敗時は None (1 軸互換動作)。"""
     path = os.environ.get("ROBOT_CONFIG", "")
     if path:
         if not os.path.isabs(path):
             path = os.path.join(PROJECT_ROOT, path)
         try:
-            cfg = robot_config.load_from_file(path)
-            return cfg.robot_name, [ax.name for ax in cfg.axes]
+            return robot_config.load_from_file(path)
         except (OSError, KeyError, ValueError, json.JSONDecodeError) as e:
             print(f"[web_controller] ROBOT_CONFIG 読込失敗 ({e}) → 1軸フォールバック")
-    return "(no config)", ["axis0"]
+    return None
 
 
-ROBOT_NAME, AXIS_NAMES = _load_axes()
+CFG = _load_config()
+ROBOT_NAME = CFG.robot_name if CFG else "(no config)"
+AXIS_NAMES = [ax.name for ax in CFG.axes] if CFG else ["axis0"]
+AXES = CFG.axes if CFG else None            # per-axis limits 注入用
+PROTOCOL = CFG.protocol if CFG else None    # "moteus" なら UI/指令を moteus 向けに調整
 AXIS_COUNT = len(AXIS_NAMES)
+
+
+def with_axis_limits(rec, ax):
+    """moteus の位置/速度指令に config の per-axis limits を注入する。
+
+    web UI は torque_limit を持たないため AxisRef が 0 のまま送られるが、
+    moteus 側は cmd.maximum_torque = ref.torque_limit なので 0 だと
+    「サーボは入るのに最大トルク 0 で一切動かない」状態になる。
+    velocity/accel_limit も 0 のままなら config 値 ("nan" は無制限) を使う。
+    foctive はこれらのフィールドを見ないので注入しない (従来挙動)。
+    """
+    if PROTOCOL != "moteus" or ax is None:
+        return rec
+    if rec.motor_state in (MOTOR_POSITION, MOTOR_VELOCITY):
+        return rec._replace(
+            torque_limit=ax.torque_limit,
+            velocity_limit=rec.velocity_limit or ax.velocity_limit,
+            accel_limit=rec.accel_limit or ax.accel_limit,
+        )
+    return rec
 
 # HTTP スレッド → node ループへ渡す送信キュー。要素 = (axis指定, AxisRef, 説明文字列)
 # axis指定 = int (0..AXIS_COUNT-1) or "all"
@@ -151,7 +174,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/status":
             self._json(200, {"last_sent": LAST_SENT["desc"]})
         elif self.path == "/config":
-            self._json(200, {"robot_name": ROBOT_NAME, "axes": AXIS_NAMES})
+            self._json(200, {"robot_name": ROBOT_NAME, "axes": AXIS_NAMES,
+                             "protocol": PROTOCOL})
         else:
             self.send_error(404)
 
@@ -229,9 +253,11 @@ def main():
                 except queue.Empty:
                     break
                 if axis == "all":
-                    refs = [rec] * AXIS_COUNT
+                    refs = [with_axis_limits(rec, AXES[i] if AXES else None)
+                            for i in range(AXIS_COUNT)]
                 else:
-                    refs[axis] = rec
+                    refs[axis] = with_axis_limits(
+                        rec, AXES[axis] if AXES else None)
                 dirty = True
             if dirty:
                 node.send_output("motor_commands", axis_refs_bytes(refs))

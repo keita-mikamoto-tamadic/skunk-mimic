@@ -1,6 +1,8 @@
 #include "robot_config.hpp"
 
 #include "vendor/nlohmann/json.hpp"
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <set>
@@ -74,12 +76,33 @@ RobotConfig Parse(const std::string& json_str) {
   return config;
 }
 
+std::string ResolveConfigPath(const char* default_rel) {
+  const char* env = std::getenv("ROBOT_CONFIG");
+  std::filesystem::path p = (env && *env) ? env : default_rel;
+  if (p.is_absolute() || std::filesystem::exists(p)) {
+    return p.string();
+  }
+  // cwd に無い相対パスはリポジトリルート基準で解決する。
+  // バイナリ配置 <root>/src/cpp/node/<name>/build/<bin> から 5 階層上がルート。
+  std::error_code ec;
+  auto exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+  if (!ec) {
+    auto root = exe.parent_path().parent_path().parent_path()
+                   .parent_path().parent_path().parent_path();
+    auto cand = root / p;
+    if (std::filesystem::exists(cand)) {
+      return cand.string();
+    }
+  }
+  return p.string();  // 未発見でも素通し (LoadFromFile がパス入りでエラーを出す)
+}
+
 RobotConfig LoadFromFile(const std::string& path) {
   std::ifstream ifs(path);
   if (!ifs) {
     // 開けないまま空文字列を Parse すると意味不明な json parse_error になるので
-    // パス入りで明示的に落とす。相対パスは daemon の作業ディレクトリ基準
-    // (_unstable_deploy 入り dataflow では _work/<session-id>) なことに注意。
+    // パス入りで明示的に落とす。相対パスは ResolveConfigPath 経由なら
+    // リポジトリルート基準で解決済みのはず。
     throw std::runtime_error("robot_config: cannot open file: " + path);
   }
   std::string content((std::istreambuf_iterator<char>(ifs)),

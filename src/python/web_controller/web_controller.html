@@ -151,6 +151,9 @@ function selectedAxis(){
   return v === "all" ? "all" : parseInt(v, 10);
 }
 
+// FOCTIVE 専用の指令 (moteus では driver 側で StopMode に落とされ動かない)
+const FOCTIVE_ONLY = ["v", "c", "pd", "cpos", "cvel"];
+
 // 軸リストを /config から取得してセレクタを構築 (単軸なら選択の余地なし)
 (async () => {
   try {
@@ -166,6 +169,14 @@ function selectedAxis(){
       const o = document.createElement("option");
       o.value = "all"; o.textContent = "全軸 (all)";
       sel.appendChild(o);
+    }
+    // moteus は速度/位置/OFF のみ対応。非対応 fieldset は隠す
+    if (j.protocol === "moteus") {
+      FOCTIVE_ONLY.forEach(t => {
+        const fs = document.querySelector(`fieldset[data-type="${t}"]`);
+        if (fs) fs.style.display = "none";
+      });
+      document.querySelectorAll(".note").forEach(n => n.style.display = "none");
     }
   } catch (e) { setStatus("config load error", "err"); }
 })();

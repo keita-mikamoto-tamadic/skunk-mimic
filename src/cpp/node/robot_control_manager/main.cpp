@@ -7,14 +7,8 @@
 #include "../../lib/moteus_fault.hpp"
 #include "../../lib/dora_helpers.hpp"
 
-// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)
-// dataflow yaml の env: ROBOT_CONFIG で切り替える
-constexpr const char* kDefaultConfigPath = "robot_config/mimic_v2.json";
-
-static std::string ResolveConfigPath() {
-    const char* env = std::getenv("ROBOT_CONFIG");
-    return (env && *env) ? env : kDefaultConfigPath;
-}
+// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
+// 相対パスは robot_config::ResolveConfigPath がリポジトリルート基準で解決する。
 
 // 入出力ID
 constexpr const char* kInputStateCommand  = "state_command";
@@ -40,7 +34,7 @@ int main() {
     std::cout << "started" << std::endl;
 
     // 起動時に config ファイルを直接読み込む
-    auto config = robot_config::LoadFromFile(ResolveConfigPath());
+    auto config = robot_config::LoadFromFile(robot_config::ResolveConfigPath());
     std::cout << "loaded config: "
               << config.robot_name << " ("
               << config.axis_count << " axes)" << std::endl;

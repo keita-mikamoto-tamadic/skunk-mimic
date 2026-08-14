@@ -45,10 +45,9 @@ nodes:
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
     env:
-      # _unstable_deploy 入り dataflow はノードが <daemon cwd>/_work/<session-id>
-      # (空ディレクトリ) で実行されるため、相対パスだと config が開けない。
-      # 絶対パスで指定する。
-      ROBOT_CONFIG: /home/jetmimic/skunk-mimic/robot_config/mimic_v2_5.json
+      # 相対パスで OK: C++ 側 (robot_config::ResolveConfigPath) が実行ファイル位置から
+      # リポジトリルートを導出して解決する (_work/<session> 実行でも可、マシン非依存)。
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json
     inputs:
       tick: dora/timer/millis/3    # 実機 dataflow.yaml と同じ周期 (6軸 moteus)
       motor_commands: web_controller/motor_commands

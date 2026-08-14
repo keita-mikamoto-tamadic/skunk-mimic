@@ -28,6 +28,7 @@ class RobotConfig:
     axis_count: int
     interpolation_time: float
     transport: str  # "socketcan" or "dummy"
+    protocol: str  # "moteus" (default) or "foctive"
     comm_ch: List[str]  # SocketCAN netdev names, e.g. ["can0", "can1"]
     axes: List[AxisConfig]
 
@@ -70,6 +71,7 @@ def parse(json_str: str) -> RobotConfig:
         axis_count=data["axis_count"],
         interpolation_time=data["interpolation_time"],
         transport=data.get("transport", "socketcan"),
+        protocol=data.get("protocol", "moteus"),
         comm_ch=data.get("comm_ch", ["can0"]),
         axes=axes
     )

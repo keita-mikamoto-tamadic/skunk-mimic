@@ -31,14 +31,8 @@
 #include "../../driver/foctive_can_driver.hpp"
 #include "../../driver/dummy_driver.hpp"
 
-// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)
-// dataflow yaml の env: ROBOT_CONFIG で切り替える
-constexpr const char* kDefaultConfigPath = "robot_config/mimic_v2.json";
-
-static std::string ResolveConfigPath() {
-    const char* env = std::getenv("ROBOT_CONFIG");
-    return (env && *env) ? env : kDefaultConfigPath;
-}
+// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
+// 相対パスは robot_config::ResolveConfigPath がリポジトリルート基準で解決する。
 
 // 入出力ID
 constexpr const char* kInputTick          = "tick";
@@ -94,12 +88,15 @@ struct ChannelBundle {
 
 int main() {
     SetCpuAffinity(1, 80);
-    auto node = init_dora_node();
-    std::cout << "started" << std::endl;
 
-    auto config = robot_config::LoadFromFile(ResolveConfigPath());
+    // config は dora 接続前に読む: パス解決ミスを fail-fast にし、
+    // dora なしの単体起動 (ROBOT_CONFIG 解決の検証等) も可能にする
+    auto config = robot_config::LoadFromFile(robot_config::ResolveConfigPath());
     std::cout << config.robot_name
               << " (" << config.axis_count << " axes)" << std::endl;
+
+    auto node = init_dora_node();
+    std::cout << "started" << std::endl;
 
     // ドライバ初期化: comm_ch 毎に 1 インスタンス
     std::vector<ChannelBundle> channels(config.comm_ch.size());

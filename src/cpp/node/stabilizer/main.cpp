@@ -16,13 +16,8 @@
 #include "lqr_controller.hpp"
 #include "body_state_ekf.hpp"
 
-// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)
-constexpr const char* kDefaultConfigPath = "robot_config/mimic_v2.json";
-
-static std::string ResolveConfigPath() {
-    const char* env = std::getenv("ROBOT_CONFIG");
-    return (env && *env) ? env : kDefaultConfigPath;
-}
+// config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
+// 相対パスは robot_config::ResolveConfigPath がリポジトリルート基準で解決する。
 
 // 入出力ID
 constexpr const char* kInputMotorStatus  = "motor_status";
@@ -49,7 +44,7 @@ int main() {
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
 
-    auto config = robot_config::LoadFromFile(ResolveConfigPath());
+    auto config = robot_config::LoadFromFile(robot_config::ResolveConfigPath());
     const size_t axis_count = config.axes.size();
     std::cout << config.robot_name
               << " (" << axis_count << " axes)" << std::endl;
