@@ -5,15 +5,24 @@
 - これらは v0.5.0 にも**未搭載**で、**main(= v1.0.0-rc1、未リリース)にのみ**存在する。
 - そのため PyPI / 正式リリース版では入手できず、**C++・Rust・Python すべてを同一の main ソースから揃える**必要がある。
 - バージョンが揃っていないと `dora-message`(シリアライズ形式)の不一致でノード↔daemon 通信が壊れる。
+- ⚠️ **分散構成 (robot + PC) では全マシンを同一コミットに揃えること**。rc1 と rc4 の
+  混在ですら register が通らない (下の「バージョン不一致の症状」参照)。`main` を各マシンが
+  別々のタイミングで pull すると必ずズレるので、**コミットハッシュを決めて全マシンで
+  checkout する**運用にする。
+
+**現在の採用コミット (全マシン共通): `fd1f050b`** (1.0.0-rc1)
 
 ---
 
 ## 手順
 
-### 1. dora 本体を main に更新
+各マシン (robot / PC) で同じ手順を実行する。
+
+### 1. dora 本体を採用コミットに更新
 ```bash
-cd /home/tama/dora
-git checkout main && git pull        # v0.4.1 → v1.0.0-rc1
+cd ~/dora        # 無ければ git clone https://github.com/dora-rs/dora.git ~/dora
+git fetch
+git checkout fd1f050b    # ← 採用コミット。main を pull しない (マシン間でズレる)
 ```
 
 ### 2. CLI / daemon をビルド
@@ -54,8 +63,10 @@ dora-rs = { path = "/opt/dora/apis/python/node" }
 
 **d. 同期**:
 ```bash
-cd /home/tama/skunk-mimic/src/python
-uv sync       # maturin で main から dora-rs 1.0.0rc1 をビルド&インストール
+cd ~/skunk-mimic/src/python
+uv sync       # maturin でソースから dora-rs をビルド&インストール
+# dora のコミットを変えた後は再ビルドを強制:
+uv sync --reinstall-package dora-rs
 ```
 
 ---
@@ -71,9 +82,26 @@ uv sync       # maturin で main から dora-rs 1.0.0rc1 をビルド&インス�
 
 ## 確認コマンド
 ```bash
-target/release/dora --version
-cd /home/tama/skunk-mimic/src/python && uv run python -c "import dora; print(dora.__version__)"
+~/dora/target/release/dora --version              # 全マシンで一致していること
+cd ~/dora && git log -1 --format="%h"             # 採用コミットと一致していること
+cd ~/skunk-mimic/src/python && uv run python -c "import dora; print(dora.__version__)"
 ```
+⚠️ PATH に古い dora (cargo install 版など) が残っていると `dora` コマンドが別物を指す。
+daemon/CLI は `~/dora/target/release/dora` のフルパスで起動するのが確実。
+
+---
+
+## バージョン不一致の症状 (2026-08-14 実例: robot=rc1, PC=rc4)
+
+分散構成でマシン間のコミットがズレると、**TCP は繋がるのに登録が完了しない**:
+
+- PC 側 daemon: `waiting for coordinator: ... timeout waiting for register reply from coordinator` を繰り返す
+- robot 側 `dora start`: `no matching daemon for machine id 'pc'`
+- `ss -tnp | grep 6013` では ESTAB の接続が見える (= ネットワークは正常)
+- `dora cluster status` に相手マシンの daemon が出てこない
+
+原因は `dora-message` のワイヤフォーマット不一致で register 要求が解釈されないこと。
+**対処: 全マシンを採用コミットに checkout → 手順 2〜5 を再実行**。
 
 ---
 
