@@ -96,7 +96,17 @@ int main() {
                 sm.UpdateMotorStatus(acts);
                 sm.RobotController();
                 ZeroCopySendStructArray(node, kOutputMotorCommands, sm.GetCommands());
-                ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
+                // state_status は変化時 + キープアライブ (~10Hz) のみ。
+                // 毎イベント (333Hz) 送ると、WiFi 越しの購読者 (robot_web_gui)
+                // への転送が daemon を詰まらせ motor_status に 30ms 超の穴が開き、
+                // 下の watchdog が誤発動する (実測 max 48ms)。
+                static State last_sent_state = State::OFF;
+                static int status_decim = 0;
+                if (sm.GetState() != last_sent_state || ++status_decim >= 33) {
+                    last_sent_state = sm.GetState();
+                    status_decim = 0;
+                    ZeroCopySendStruct(node, kOutputStateStatus, sm.GetState());
+                }
                 motor_status_received = true;
             }
             else if (id == kInputWatchdog) {
