@@ -51,7 +51,9 @@ std::vector<AxisAct> MoteusCanDriver::ReceiveStatus(
 
         int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - now).count();
-        if (remaining_ms <= 0) break;
+        // ms 切り捨てで 0 になっても最低 1ms は poll する (timeout=1ms 指定時に
+        // 一度も受信せず即 return するのを防ぐ。終了は上の deadline 判定が保証)
+        if (remaining_ms < 1) remaining_ms = 1;
 
         uint32_t can_id;
         if (comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) {

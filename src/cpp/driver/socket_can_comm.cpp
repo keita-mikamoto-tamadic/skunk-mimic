@@ -90,6 +90,8 @@ bool SocketCanComm::ReceiveFrame(int device_id, uint8_t* data, size_t* len, int 
     int remaining_ms = static_cast<int>(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - now).count());
+    // ms 切り捨てで 0 でも最低 1ms は poll (終了は上の deadline 判定が保証)
+    if (remaining_ms < 1) remaining_ms = 1;
 
     struct pollfd pfd = {socket_fd_, POLLIN, 0};
     if (::poll(&pfd, 1, remaining_ms) <= 0) return false;
@@ -123,6 +125,8 @@ bool SocketCanComm::ReceiveAnyFrame(
     int remaining_ms = static_cast<int>(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - now).count());
+    // ms 切り捨てで 0 でも最低 1ms は poll (終了は上の deadline 判定が保証)
+    if (remaining_ms < 1) remaining_ms = 1;
 
     struct pollfd pfd = {socket_fd_, POLLIN, 0};
     if (::poll(&pfd, 1, remaining_ms) <= 0) return false;

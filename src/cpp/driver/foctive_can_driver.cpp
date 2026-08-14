@@ -136,7 +136,7 @@ std::vector<AxisAct> FoctiveCanDriver::ReceiveStatus(
 
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) {
@@ -201,7 +201,7 @@ bool FoctiveCanDriver::ReadParam(
     if (now >= deadline) break;
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
@@ -293,7 +293,7 @@ bool FoctiveCanDriver::ReceiveAllParamsMultiFrame(
     if (now >= deadline) break;
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
@@ -359,7 +359,7 @@ bool FoctiveCanDriver::WriteParam(int device_id, int param_index,
     if (now >= deadline) break;
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
@@ -401,7 +401,7 @@ bool FoctiveCanDriver::SaveAllParams(int device_id, int timeout_ms) {
     if (now >= deadline) break;
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
@@ -439,7 +439,7 @@ bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
     if (now >= deadline) break;
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
@@ -478,7 +478,7 @@ bool FoctiveCanDriver::AnyValPosOffset(int device_id, float target_pos,
     if (now >= deadline) break;
     int remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - now).count();
-    if (remaining_ms <= 0) break;
+    if (remaining_ms < 1) remaining_ms = 1;  // ms 切り捨てで 0 でも最低 1ms は poll (終了は deadline 判定)
 
     uint32_t can_id;
     if (!comm_.ReceiveAnyFrame(&can_id, rx, &rxlen, remaining_ms)) break;
