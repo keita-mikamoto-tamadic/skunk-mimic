@@ -1,26 +1,32 @@
-# mimic 2チャンネル同時テスト + Web 操作 (ロボット完結構成)。
+# mimic 2チャンネル同時テスト + Web 操作 (分散構成)。
 #
 # dataflow_foctive_web_control.yaml の mimic 版。robot_config/mimic_v2_5.json
 # (comm_ch: can0=右脚 / can1=左脚) で device_control_manager がチャンネル毎に
 # ドライバを開き、6軸を2バスに分配する。state machine (robot_control_manager /
 # stabilizer) はバイパスし、ブラウザから直接 motor_commands を送る。
 #
-# foctive 版と違い web_controller も robot 側 daemon で動かす:
-# moteus watchdog (100ms) を食わせる 50Hz ストリームがロボット内で完結するため、
-# WiFi 断でモータは止まらない (止めたい時はブラウザの SERVO OFF)。
-# PC 側に dora daemon も zenoh も不要 ―― ブラウザで http://<robot-ip>:8770/ を開くだけ。
+#   web_controller (PC, ブラウザ操作) ──motor_commands (変化時のみ)──▶ device_control_manager (robot, can0+can1)
 #
-#   ブラウザ(PC) ──HTTP──▶ web_controller (robot) ──motor_commands──▶ device_control_manager (robot, can0+can1)
+# moteus watchdog (100ms) は DCM が最新指令を毎 tick 再送して食わせるため、
+# web_controller は変化時に 1 回送るだけでよい。WiFi 瞬断でモータは止まらない
+# (止めたい時はブラウザの SERVO OFF。WiFi 断中は止める手段がない点に注意)。
 #
 # 設定系(settings_request)は対象外 ―― 必要なら端末版 foctive_controller を使う。
 #
-# 起動 (全部 robot 上):
-#   1) bash pcan_setup.bash can0 can1 keep
-#   2) bash dora_rt_damon.bash
-#   3) dora start dataflow_mimic_web_control.yaml
-#   4) cd src/python && \
-#      ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run web_controller/web_controller.py
-#   5) PC のブラウザで http://<robot-ip>:8770/
+# 前提:
+#   - robot: bash pcan_setup.bash can0 can1 keep で両チャンネル UP、
+#            coordinator + 既定 daemon (machine-id 無し) が稼働
+#   - PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc \
+#                        --zenoh-peer tcp/<robot-ip>:5456
+#            (この pc が下の _unstable_deploy.machine と一致)
+#
+# 起動 (詳細は src/python/web_controller/README.md):
+#   1) PC:    上記 daemon を起動
+#   2) 任意:  dora start dataflow_mimic_web_control.yaml --coordinator-addr <robot-ip>
+#   3) PC:    cd src/python && \
+#             ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run web_controller/web_controller.py
+#             (軸名セレクタ表示のため web_controller にも ROBOT_CONFIG を渡す)
+#   4) PC:    ブラウザで http://localhost:8770/
 #   表示側:   ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 tools/gui/web_monitor.py
 #             (robot 上なら env 追加不要、PC なら DORA_COORDINATOR_ADDR=<robot-ip>)
 #
@@ -30,12 +36,14 @@ _unstable_debug:
 
 nodes:
 
-  # 操作ノード ―― robot 側 daemon に配置 (deploy 指定なし)。path: dynamic なので
-  # robot 上で web_controller.py を手動起動して node id "web_controller" にアタッチ。
+  # 操作ノード ―― PC 側 daemon (machine-id: pc) に配置。path: dynamic なので
+  # PC 上で web_controller.py を手動起動して node id "web_controller" にアタッチ。
   - id: web_controller
     path: dynamic
+    _unstable_deploy:
+      machine: pc
     inputs:
-      tick: dora/timer/millis/20    # 送信キュー drain + 50Hz ストリーム
+      tick: dora/timer/millis/20    # 送信キューを 50Hz で drain
     outputs:
       - motor_commands
 

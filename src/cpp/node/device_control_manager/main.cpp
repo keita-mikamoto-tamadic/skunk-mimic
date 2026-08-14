@@ -134,7 +134,15 @@ int main() {
     // コマンドバッファ
     std::vector<AxisRef> latest_commands(axis_count);
     bool has_new_commands = false;
+    bool have_commands = false;            // 一度でも指令を受けたか
     std::vector<AxisRef> logged_commands;  // 変化検出してログを間引く用
+
+    // moteus は watchdog_timeout (既定 100ms) 以内にコマンドフレームが来続けないと
+    // kPositionTimeout に落ちるため、一度指令を受けたら以降は毎 tick 最新指令を
+    // 再送して DCM が watchdog を食わせ続ける (指令元は変化時に送るだけでよく、
+    // WiFi 越しの指令元でも瞬断でモータが止まらない)。moteus の指令フレームは
+    // query 同梱なので motor_status も従来どおり流れる。foctive は従来挙動。
+    const bool resend_commands = (config.protocol != "foctive");
 
     // レイテンシ計測
     int can_count = 0;
@@ -192,6 +200,7 @@ int main() {
                 }
                 latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
                 has_new_commands = true;
+                have_commands = true;
                 // コマンド到達の確認ログ。moteus watchdog 対策で送信側は
                 // 同一コマンドをストリームし続けるため、内容が変わった時だけ出す。
                 // 分散構成で「送ったのに動かない」ときの切り分けに使う。
@@ -209,9 +218,11 @@ int main() {
                 auto t0 = std::chrono::steady_clock::now();
 
                 // 送信は全チャネル先出し (バス往復をオーバーラップさせる)
+                const bool send_cmd =
+                    has_new_commands || (resend_commands && have_commands);
                 for (auto& b : channels) {
                     if (b.axes.empty()) continue;
-                    if (has_new_commands) {
+                    if (send_cmd) {
                         for (size_t j = 0; j < b.axes.size(); ++j) {
                             b.cmd_buf[j] = latest_commands[b.global_index[j]];
                         }

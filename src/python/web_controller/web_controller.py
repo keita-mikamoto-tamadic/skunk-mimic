@@ -240,16 +240,14 @@ def main():
     node = Node("web_controller")
     print(f"[web_controller] ready: {ROBOT_NAME} ({AXIS_COUNT} axes). "
           "ブラウザから指令を送ってください。")
-    # 全軸の現在指令 (未指令軸は OFF のまま)。送信は常にこの全体を送る
+    # 全軸の現在指令 (未指令軸は OFF のまま)。送信は常にこの全体を送る。
+    # moteus の watchdog (100ms) は DCM 側が最新指令を毎 tick 再送して食わせる
+    # ため、ここは変化があった時だけ送ればよい (WiFi 越しでも低レートで済む)。
     refs = [AxisRef(motor_state=MOTOR_OFF) for _ in range(AXIS_COUNT)]
-    # moteus はコマンドフレームが watchdog_timeout (既定 100ms) 以内に来続けないと
-    # kPositionTimeout に落ちて以降の指令を無視する (解除は Stop = SERVO OFF)。
-    # robot_control_manager と同様に、初回指令以降は毎 tick (20ms) 送信し続ける。
-    # ストリームが途絶えるとモータが止まる deadman としても機能する。
-    active = False
     for event in node:
         if event["type"] == "INPUT" and event["id"] == "tick":
             # tick 毎にキューを drain (送信は必ずこのメインスレッド)
+            dirty = False
             while True:
                 try:
                     axis, rec, desc = CMD_Q.get_nowait()
@@ -261,10 +259,10 @@ def main():
                 else:
                     refs[axis] = with_axis_limits(
                         rec, AXES[axis] if AXES else None)
-                active = True
+                dirty = True
                 LAST_SENT["desc"] = desc
-                print(f"[web_controller] queued: {desc}")
-            if active:
+                print(f"[web_controller] sent: {desc}")
+            if dirty:
                 node.send_output("motor_commands", axis_refs_bytes(refs))
 
 
