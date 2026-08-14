@@ -8,6 +8,12 @@ DORA="$HOME/dora/target/release/dora"
 # linkstate 経路が壊れてリモートノードのデータが最初の 1 件しか届かなくなる。
 # 詳細は robot_config/zenoh_robot.json5 のコメント参照。
 export ZENOH_CONFIG="$HOME/skunk-mimic/robot_config/zenoh_robot.json5"
+# "Received Hello with no locators" WARN の洪水を抑制する。
+# 原因: daemon が spawn したノードは ZENOH_CONFIG 継承で 5456 bind に失敗し
+# listen なし peer になる (意図的、zenoh_robot.json5 参照) → locator 空の Hello を
+# multicast し続け、全セッションが毎回 WARN を出す。実害なしのログ公害なので
+# orchestrator だけ error に落とす (他の WARN は残す)。spawn ノードにも継承される。
+export RUST_LOG="${RUST_LOG:-warn,zenoh::net::runtime::orchestrator=error}"
 pkill -f "dora (coordinator|daemon)"; sleep 1
 $DORA coordinator --interface 0.0.0.0 &
 sleep 2
