@@ -38,12 +38,16 @@ cd ~/skunk-mimic
 # 1) CAN UP (can0=右脚, can1=左脚)。keep = UP したまま
 bash pcan_setup.bash can0 can1 keep
 
-# 2) coordinator + RT daemon (前セッションの孤児ノードも掃除される)
+# 2) coordinator + RT daemon (前セッションの孤児ノードも掃除される)。
+#    起動時に UP 済み CAN の状態も表示 — "!!! CAN canX: ERROR-PASSIVE" が出たら
+#    pcan_setup.bash canX down → 上げ直してから進む
 bash dora_rt_damon.bash
 
 # 3) dataflow 起動 (PC daemon の接続後でも先でも可。ただし start は
 #    PC daemon 接続後でないと "no matching daemon for machine id `pc`" になる)
 dora start dataflow_mimic.yaml
+#    attach モード (既定) のまま使う: そのターミナルの Ctrl-C で dataflow が確実に
+#    止まる。--detach はターミナルを閉じても走り続けるので使わない
 ```
 
 ## 2. PC 側

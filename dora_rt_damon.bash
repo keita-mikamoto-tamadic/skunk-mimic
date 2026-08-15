@@ -14,6 +14,19 @@ export ZENOH_CONFIG="$HOME/skunk-mimic/robot_config/zenoh_robot.json5"
 # multicast し続け、全セッションが毎回 WARN を出す。実害なしのログ公害なので
 # orchestrator だけ error に落とす (他の WARN は残す)。spawn ノードにも継承される。
 export RUST_LOG="${RUST_LOG:-warn,zenoh::net::runtime::orchestrator=error}"
+# --- CAN 健全性チェック (情報表示のみ、起動は止めない) ---
+# UP 済み can インターフェースが ERROR-PASSIVE / BUS-OFF に落ちていないかを
+# 起動時に確認する。落ちていると motor_status が間欠/全ゼロになるが、
+# 症状からは電源断・配線・ID 不一致と区別がつかないため、ここで先に炙り出す。
+# 復旧は `bash pcan_setup.bash <canX> down` → 上げ直し (エラーカウンタもリセット)。
+for dev in $(ip -br link show type can 2>/dev/null | awk '$2=="UP"{print $1}'); do
+  st=$(ip -details link show "$dev" | grep -E "^\s*can " | grep -oE "state [A-Z-]+" | awk '{print $2}')
+  berr=$(ip -details link show "$dev" | grep -oE "berr-counter tx [0-9]+ rx [0-9]+" | head -1)
+  case "$st" in
+    ERROR-ACTIVE) echo "CAN $dev: OK ($st, $berr)";;
+    *)            echo "!!! CAN $dev: $st ($berr) -> pcan_setup.bash $dev down して上げ直しを推奨";;
+  esac
+done
 pkill -f "dora (coordinator|daemon)"; sleep 1
 # daemon を kill するとその daemon が spawn した C++ ノードは孤児化して残る
 # (イベント待ちでブロックしたまま生存し続け、次セッションの動作を乱す)。
