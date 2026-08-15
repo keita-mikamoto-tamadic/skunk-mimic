@@ -144,6 +144,16 @@ int main() {
     // query 同梱なので motor_status も従来どおり流れる。foctive は従来挙動。
     const bool resend_commands = (config.protocol != "foctive");
 
+    // 通信途絶の判定: 全軸が kNoResponseTicks 回連続で無応答なら「バス途絶」
+    // (モータ電源断・配線断・ERROR-PASSIVE)。途絶中は保持している指令を全 OFF に
+    // 上書きし、電源復帰の初回フレームが必ず StopMode になるようにする
+    // (RUN 中の速度指令を保持したまま復帰すると暴走する)。motor_status には
+    // ドライバが立てた fault=NoResponse がそのまま乗るので、RCM の
+    // fault_evaluator が OFF に遷移させ、GUI にも OFF が出る。
+    constexpr int kNoResponseTicks = 33;  // ≒ 100ms @3ms tick
+    int no_response_ticks = 0;
+    bool bus_lost = false;
+
     // レイテンシ計測
     int can_count = 0;
     long can_sum = 0;
@@ -202,6 +212,13 @@ int main() {
                 latest_commands = ReceiveStructArray<AxisRef>(arr, axis_count);
                 has_new_commands = true;
                 have_commands = true;
+                if (bus_lost) {
+                    // 途絶中は何が来ても OFF (復帰時の初回フレームを OFF に保つ)
+                    for (auto& c : latest_commands) {
+                        c = AxisRef{};
+                        c.motor_state = MotorState::OFF;
+                    }
+                }
                 // コマンド到達の確認ログ。moteus watchdog 対策で送信側は
                 // 同一コマンドをストリームし続けるため、内容が変わった時だけ出す。
                 // 分散構成で「送ったのに動かない」ときの切り分けに使う。
@@ -250,6 +267,31 @@ int main() {
                         b.axes, static_cast<int>(remaining_ms));
                     for (size_t j = 0; j < b.axes.size(); ++j) {
                         acts[b.global_index[j]] = part[j];  // 全体順に再構成
+                    }
+                }
+
+                // 途絶判定 (全軸無応答が連続したら bus_lost)
+                bool all_silent = !acts.empty();
+                for (const auto& a : acts) {
+                    if (a.fault != MotorDriver::kFaultNoResponse) { all_silent = false; break; }
+                }
+                if (all_silent) {
+                    if (++no_response_ticks >= kNoResponseTicks && !bus_lost) {
+                        bus_lost = true;
+                        for (auto& c : latest_commands) {
+                            c = AxisRef{};
+                            c.motor_state = MotorState::OFF;
+                        }
+                        std::cerr << "CAN bus lost (all axes silent for "
+                                  << kNoResponseTicks << " ticks) -> holding ALL OFF"
+                                  << std::endl;
+                    }
+                } else {
+                    no_response_ticks = 0;
+                    if (bus_lost) {
+                        bus_lost = false;
+                        std::cout << "CAN bus recovered (commands held at OFF until "
+                                     "new motor_commands arrive)" << std::endl;
                     }
                 }
 

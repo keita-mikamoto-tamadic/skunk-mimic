@@ -7,6 +7,7 @@
 #include <sys/socket.h> // socket(), bind()
 #include <poll.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <cstring>
 #include <chrono>
 
@@ -45,6 +46,15 @@ bool SocketCanComm::Open(const std::string& ifname) {
     Close();
     return false;
   }
+
+  // ノンブロッキング送信: バスが ERROR-PASSIVE 等で送信できない状態になると
+  // ソケットの送信キューが埋まり、ブロッキング write() は無期限にスリープする
+  // (wchan=sock_alloc_send_pskb)。その間 DCM の tick が止まり motor_status /
+  // imu_data / latency の全出力が途絶する (実機で確認)。O_NONBLOCK にして
+  // キュー満杯時は EAGAIN で即戻り、フレームを捨てる (SendFrame は false)。
+  // 受信は元々 poll() で待っているので影響なし。
+  int fl = ::fcntl(socket_fd_, F_GETFL, 0);
+  if (fl >= 0) ::fcntl(socket_fd_, F_SETFL, fl | O_NONBLOCK);
 
   ifname_ = ifname;
   return true;

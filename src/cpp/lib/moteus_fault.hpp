@@ -32,6 +32,10 @@ enum class MoteusFault : uint8_t {
     MotorTemperatureLimit = 101,
     CommandedMaxTorque   = 102,
     PositionBoundsLimit  = 103,
+    // DCM が立てる通信途絶コード (moteus 由来ではない): CAN 応答が一定時間
+    // 連続で無い軸に立てる。RCM の evaluator は error 扱い (即 OFF)。
+    // モータ電源断・配線断・バス ERROR-PASSIVE 等で発生する。
+    NoResponse           = 255,
 };
 
 // moteus 用フォルト判定関数を生成
@@ -43,6 +47,7 @@ inline FaultEvaluator makeMoteusFaultEvaluator(
 {
     return [=](uint8_t fault) -> std::optional<State> {
         if (fault >= 32 && fault <= 48) return error_transition;
+        if (fault == static_cast<uint8_t>(MoteusFault::NoResponse)) return error_transition;
         if (warning_transition && fault >= 96 && fault <= 103) return *warning_transition;
         return std::nullopt;
     };

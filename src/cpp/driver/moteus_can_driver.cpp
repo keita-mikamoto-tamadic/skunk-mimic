@@ -70,6 +70,12 @@ std::vector<AxisAct> MoteusCanDriver::ReceiveStatus(
         }
     }
 
+    // 未応答軸に途絶フォルトを立てる (acts はゼロ埋めのまま)
+    for (size_t i = 0; i < axes.size(); i++) {
+        if (received_ids.count(axes[i].device_id) == 0) {
+            acts[i].fault = kFaultNoResponse;
+        }
+    }
     return acts;
 }
 

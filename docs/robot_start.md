@@ -117,6 +117,7 @@ PC 側は daemon / GUI のターミナルを Ctrl-C。
 | daemon が `memory allocation of N bytes failed` で abort | dora バイナリの setcap 消失 (§0) |
 | dataflow start 後に何も動かない (CPU 0%) | dynamic node (robot_web_gui) 未 attach。全 dynamic node が揃うまで開始バリアで待つ |
 | `multiple dataflows contain dynamic node id ...` | 過去の dataflow が Running のまま残存。`dora list` → 全部 `dora stop` |
+| **モータ電源を落とした / 強制駆動 OFF した後** | CAN が ERROR-PASSIVE に落ち、PEAK ドライバは電源復帰後も自力で送信を再開しない (仕様として受容)。**復旧手順: `pcan_setup.bash can0 can1 down` → `keep` で上げ直し → dora を立ち上げ直す**。電源 OFF 中は DCM が fault=255 (NoResponse) を立てて RCM/GUI が OFF に落ち、復帰時の初回指令は必ず OFF になる (暴走しない) |
 | motor_status が全ゼロ / モータ無応答 | モータ電源、`candump can0/can1` で応答確認、`ip -details link show canX` で ERROR-PASSIVE なら `pcan_setup.bash canX down` → 上げ直し |
 | imu_data が全ゼロ (imu_node は Opened 成功) | Spresense が沈黙している。`timeout 2 dd if=/dev/ttyUSB0 bs=64 count=1 \| xxd` が空なら USB 抜き差しで復帰 → 以後 keep_serial_open.bash を先に立てて close させない。(dialout 追加後まだ再ログインしていない場合のみ、一時しのぎに `sudo chmod 666 /dev/ttyUSB0`) |
 | 指令がロボットに届かない (登録は成功) | PC daemon の `--zenoh-peer` 抜け (`dora_pc_daemon.bash` 経由なら自動で付く) |

@@ -18,6 +18,10 @@ public:
     virtual void SendCommands(const std::vector<AxisRef>& commands,
                               const std::vector<AxisConfig>& axes) = 0;
     virtual void SendQueries(const std::vector<AxisConfig>& axes) = 0;
+    // 応答が無かった軸は AxisAct をゼロ埋めし fault = kFaultNoResponse を
+    // 立てて返す (呼び側が通信途絶を判定できるように)。値は
+    // moteus_fault.hpp の MoteusFault::NoResponse と一致させる。
+    static constexpr uint8_t kFaultNoResponse = 255;
     virtual std::vector<AxisAct> ReceiveStatus(
                               const std::vector<AxisConfig>& axes,
                               int timeout_ms) = 0;
