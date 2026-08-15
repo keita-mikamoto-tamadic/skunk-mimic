@@ -1,13 +1,24 @@
 DORA="$HOME/dora/target/release/dora"
-# 分散構成 (web_controller 等) 用: daemon の Zenoh を listen-only 設定にする
+# 使い方:
+#   bash dora_rt_damon.bash              # ローカル運用 (dataflow_mimic.yaml 等)。既定
+#   bash dora_rt_damon.bash distributed  # 分散運用 (dataflow_*_web_control.yaml、PC daemon あり)
+#
+# 分散運用のときだけ daemon の Zenoh を listen-only 設定にする
 # (robot_config/zenoh_robot.json5 で tcp/0.0.0.0:5456 を listen)。
 # リモート daemon (PC) は --zenoh-peer tcp/<robot-ip>:5456 で明示接続する。
+# ローカル運用では不要 (dora の既定 zenoh 設定で足りる) なので付けない。
 #
 # 注意: robot 側に --zenoh-peer を使ってはいけない。listen と connect の両方に
 # 追加されるため自分自身への接続試行 (CONNECTION_TO_SELF) が 4 秒ごとに走り、
 # linkstate 経路が壊れてリモートノードのデータが最初の 1 件しか届かなくなる。
 # 詳細は robot_config/zenoh_robot.json5 のコメント参照。
-export ZENOH_CONFIG="$HOME/skunk-mimic/robot_config/zenoh_robot.json5"
+if [ "${1:-}" = "distributed" ]; then
+  export ZENOH_CONFIG="$HOME/skunk-mimic/robot_config/zenoh_robot.json5"
+  echo "dora_rt_damon: distributed mode (ZENOH_CONFIG=$ZENOH_CONFIG)"
+else
+  unset ZENOH_CONFIG
+  echo "dora_rt_damon: local mode (no ZENOH_CONFIG)"
+fi
 # "Received Hello with no locators" WARN の洪水を抑制する。
 # 原因: daemon が spawn したノードは ZENOH_CONFIG 継承で 5456 bind に失敗し
 # listen なし peer になる (意図的、zenoh_robot.json5 参照) → locator 空の Hello を
@@ -32,6 +43,10 @@ pkill -f "dora (coordinator|daemon)"; sleep 1
 # (イベント待ちでブロックしたまま生存し続け、次セッションの動作を乱す)。
 # 前回セッションの残骸をここで掃除してから起動する。
 pkill -f "skunk-mimic/src/cpp/node/.*/build/" 2>/dev/null
+# 手動起動した Python dynamic ノードも同様に残る (data_viewer ノード版 /
+# robot_web_gui / web_controller)。zenoh の multicast peer として生き続けて
+# Hello WARN を増やすので一緒に掃除する。
+pkill -f "data_viewer/data_viewer.py|robot_web_gui/robot_web_gui.py|web_controller/web_controller.py" 2>/dev/null
 sleep 1
 $DORA coordinator --interface 0.0.0.0 &
 sleep 2

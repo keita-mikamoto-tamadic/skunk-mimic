@@ -162,6 +162,20 @@ PEAK 専用 API (PCAN-Basic) 版が将来必要になった場合は、`Communic
 コンストラクタ注入化して `PcanBasicComm` を追加する（`robot_config` に `can_backend`:
 `socketcan` | `pcan` を追加）。ただし上記の SocketCAN 経路で足りるなら不要。
 
+## 6b. 割り込み合体 (fdirqcl / fdirqtl) は既定のままにする
+
+pcan.ko の `fdirqcl=16` (16 フレーム溜まるまで IRQ を上げない) / `fdirqtl=10`
+(またはタイムリミット) は割り込み合体で、送信→応答の遅延が ~1.3ms に丸められる。
+これを `fdirqcl=1 fdirqtl=1` にすると遅延は 0.4〜0.6ms に縮むが、**IRQ が
+~4000/s (CPU0 固定、tegra-pcie と共有 INTA) に増えて DCM の 3ms tick が揺れ、
+READY 補間がカクつく** (実測: can_max 1.6→4.5ms、補間中の停止 33→69 回)。
+**既定 (16/10) のままにすること。** 遅延 1.3ms は DCM の 2ms 受信窓に収まっている。
+
+> 参考: パラメータを変えるなら `/etc/modprobe.d/pcan.conf` の `options pcan ...` 行で
+> (コマンドライン `modprobe pcan fdirqcl=…` は末尾の `install pcan modprobe
+> --ignore-install pcan` に引数を捨てられて効かない)。反映は CAN down → rmmod →
+> modprobe → up、確認は `/sys/module/pcan/parameters/fdirqcl`。
+
 ## 7. カーネル更新への対応（DKMS）
 
 `insmod` / `make install` で入れたモジュールはカーネル更新で消える。恒久運用するなら

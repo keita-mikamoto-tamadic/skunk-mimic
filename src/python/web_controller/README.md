@@ -24,9 +24,10 @@ robot-ip は例として `10.42.0.235`、PC daemon の machine-id は `pc`
 (descriptor の `_unstable_deploy.machine` と一致させること)。
 
 ```bash
-# 1) robot: coordinator + 既定 daemon、can0 UP は従来どおり (dora_rt_damon.bash / can_setup)
+# 1) robot: coordinator + 既定 daemon、can0 UP は従来どおり (`bash dora_rt_damon.bash distributed` / can_setup)
 #    ※ robot daemon は ZENOH_CONFIG=robot_config/zenoh_robot.json5 で
-#      tcp/0.0.0.0:5456 を listen させる (dora_rt_damon.bash が設定済み)。
+#      tcp/0.0.0.0:5456 を listen させる (dora_rt_damon.bash に `distributed` 引数を付けると設定される。
+#      引数なしはローカル運用向けで ZENOH_CONFIG を付けない)。
 #      これが無いと daemon の Zenoh は loopback しか listen せず、PC からの
 #      motor_commands が robot に届かない。robot 側に --zenoh-peer を使うのは
 #      禁止 (自己接続チャーンで linkstate が壊れ、最初の 1 コマンドしか

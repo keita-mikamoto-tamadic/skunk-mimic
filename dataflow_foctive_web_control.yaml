@@ -11,6 +11,7 @@
 #
 # 前提:
 #   - robot: can0 UP、coordinator + 既定 daemon (machine-id 無し) が稼働
+#            (`bash dora_rt_damon.bash distributed` — 分散用 ZENOH_CONFIG を有効にする)
 #   - PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc
 #            (この pc が下の _unstable_deploy.machine と一致)
 #

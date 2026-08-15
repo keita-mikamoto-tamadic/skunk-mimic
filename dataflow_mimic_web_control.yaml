@@ -16,6 +16,7 @@
 # 前提:
 #   - robot: bash pcan_setup.bash can0 can1 keep で両チャンネル UP、
 #            coordinator + 既定 daemon (machine-id 無し) が稼働
+#            (`bash dora_rt_damon.bash distributed` — 分散用 ZENOH_CONFIG を有効にする)
 #   - PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc \
 #                        --zenoh-peer tcp/<robot-ip>:5456
 #            (この pc が下の _unstable_deploy.machine と一致)

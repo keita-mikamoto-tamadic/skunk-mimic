@@ -1,7 +1,9 @@
 # mimic_v2_5 起動手順 (dataflow_mimic.yaml / 実機運転)
 
-robot = Jetson (192.168.1.9, coordinator + RT daemon + C++ ノード群)、
-PC = 操作用 (robot_web_gui を deploy、ブラウザ操作)。
+robot = Jetson (192.168.1.9, coordinator + RT daemon + C++ ノード群 + robot_web_gui)、
+PC = ブラウザで操作・表示するだけ (PC 側に dora は不要)。
+※ 以前は robot_web_gui を PC daemon に分散配置していたが、zenoh 経由の
+  state_command が数秒詰まって SERVO_OFF が届かない等の問題が多く、robot ローカルに戻した。
 
 単軸テスト・ゼロ点直接操作 (state machine バイパス) は
 `dataflow_mimic_web_control.yaml` を使う — 手順はそのファイル冒頭コメント参照。
@@ -10,8 +12,9 @@ PC = 操作用 (robot_web_gui を deploy、ブラウザ操作)。
 
 ## 0. 前提 (初回 / リビルド後のみ)
 
-- **dora のバージョン一致**: robot と PC の `~/dora` は同一コミット (`fd1f050b`)。
-  ズレると「TCP は繋がるのに register されない」— docs/dora-upgrade.md 参照。
+- (dataflow_mimic.yaml は robot ローカル完結なので PC 側の dora は不要。分散配置の
+  dataflow_*_web_control.yaml を使う場合のみ) dora のバージョン一致: robot と PC の
+  `~/dora` は同一コミット (`fd1f050b`)。ズレると register されない — docs/dora-upgrade.md
 - **setcap** (バイナリを作り直すたびに消える):
 
   ```bash
@@ -22,6 +25,9 @@ PC = 操作用 (robot_web_gui を deploy、ブラウザ操作)。
   "memory allocation of N bytes failed" で abort する
   ```
 
+- pcan.ko の `fdirqcl`/`fdirqtl` は**既定 (16/10) のまま**にする (1 にすると割り込み負荷で
+  DCM の tick が揺れて補間がカクつく — docs/pcan_socketcan_driver.md §6b)。確認:
+  `cat /sys/module/pcan/parameters/fdirqcl` が 16
 - モータ電源 ON (モータが CAN に応答しないと ACK 不在でバスが ERROR-PASSIVE に落ちる)
 - IMU (Spresense) が /dev/ttyUSB0 に接続されていること (imu_node が使用)
 - **シリアルの権限**: imu_node を動かすユーザーが `dialout` グループに属していること
@@ -48,38 +54,30 @@ bash keep_serial_open.bash
 # 2) coordinator + RT daemon (前セッションの孤児ノードも掃除される)。
 #    起動時に UP 済み CAN の状態も表示 — "!!! CAN canX: ERROR-PASSIVE" が出たら
 #    pcan_setup.bash canX down → 上げ直してから進む
-bash dora_rt_damon.bash
+bash dora_rt_damon.bash          # 引数なし = ローカル運用 (分散 yaml のときだけ `distributed` を付ける)
 
-# 3) dataflow 起動 (PC daemon の接続後でも先でも可。ただし start は
-#    PC daemon 接続後でないと "no matching daemon for machine id `pc`" になる)
+# 3) dataflow 起動
 dora start dataflow_mimic.yaml
 #    attach モード (既定) のまま使う: そのターミナルの Ctrl-C で dataflow が確実に
 #    止まる。--detach はターミナルを閉じても走り続けるので使わない
+
+# 4) 操作 GUI (別ターミナル)。dynamic node が attach するまで dataflow は開始バリアで待つ
+cd src/python
+ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py
+
+# 5) 生データ表示 (別ターミナル、任意。dataflow 非依存の pull 型なので手順に影響しない)
+cd src/python
+ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 data_viewer.py
 ```
 
 ## 2. PC 側
 
-```bash
-cd ~/ws/skunk_mimic
+ブラウザを開くだけ:
 
-# 1) PC daemon を robot の coordinator に接続 (繋ぎっぱなしにする)
-bash dora_pc_daemon.bash 192.168.1.9
-
-# 2) (robot 側で dora start 後) 操作 GUI — dynamic node が attach するまで
-#    dataflow は開始バリアで待つ
-cd src/python
-ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py
-
-# 3) 表示 (別ターミナル、任意)
-cd ~/ws/skunk_mimic
-DORA_COORDINATOR_ADDR=192.168.1.9 ROBOT_CONFIG=robot_config/mimic_v2_5.json \
-  python3 tools/gui/web_monitor.py
-```
-
-ブラウザ:
-
-- 操作: **http://localhost:8766/** (robot_web_gui)
-- 表示: **http://localhost:8765/** (web_monitor、6軸 position/velocity/torque)
+- 操作: **http://192.168.1.9:8766/** (robot_web_gui)
+- 表示 (任意): web_monitor を PC で動かすなら
+  `DORA_COORDINATOR_ADDR=192.168.1.9 ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 tools/gui/web_monitor.py`
+  → **http://localhost:8765/**
 
 ## 3. ブラウザでの運転手順
 
@@ -106,13 +104,13 @@ bash pcan_setup.bash can0 can1 down
 # dora_rt_damon.bash のターミナルを Ctrl-C (coordinator + daemon 終了)
 ```
 
-PC 側は daemon / GUI のターミナルを Ctrl-C。
+PC 側はブラウザを閉じるだけ (web_monitor を動かしていればそのターミナルを Ctrl-C)。
 
 ## 5. トラブルシュート (実際に踏んだもの)
 
 | 症状 | 原因と対処 |
 |---|---|
-| `no matching daemon for machine id 'pc'` | PC daemon 未接続 (coordinator 再起動後は PC 側も再接続が必要)。`dora_pc_daemon.bash` を再実行 |
+| `no matching daemon for machine id 'pc'` | (分散配置していた頃の症状。dataflow_mimic.yaml は robot ローカルに戻したので出ないはず。dataflow_*_web_control.yaml で出たら) PC daemon 未接続。`dora_pc_daemon.bash` を再実行 |
 | PC daemon が `timeout waiting for register reply` を繰り返す | robot 側 coordinator が落ちている、または dora のコミット不一致 (docs/dora-upgrade.md) |
 | daemon が `memory allocation of N bytes failed` で abort | dora バイナリの setcap 消失 (§0) |
 | dataflow start 後に何も動かない (CPU 0%) | dynamic node (robot_web_gui) 未 attach。全 dynamic node が揃うまで開始バリアで待つ |
