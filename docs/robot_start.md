@@ -39,6 +39,12 @@ cd ~/skunk-mimic
 # 1) CAN UP (can0=右脚, can1=左脚)。keep = UP したまま
 bash pcan_setup.bash can0 can1 keep
 
+# 1b) IMU シリアルを掴みっぱなしにする (別ターミナル、セッション中ずっと)。
+#     Spresense は一度 close されると次の open で沈黙し、USB 抜き差しでしか
+#     復帰しない。imu_node の起動/停止をまたいで fd を保持するために必須。
+#     dataflow より先に、電源投入 (USB 接続) 後の最初の open がこれになるように。
+bash keep_serial_open.bash
+
 # 2) coordinator + RT daemon (前セッションの孤児ノードも掃除される)。
 #    起動時に UP 済み CAN の状態も表示 — "!!! CAN canX: ERROR-PASSIVE" が出たら
 #    pcan_setup.bash canX down → 上げ直してから進む
@@ -112,4 +118,5 @@ PC 側は daemon / GUI のターミナルを Ctrl-C。
 | dataflow start 後に何も動かない (CPU 0%) | dynamic node (robot_web_gui) 未 attach。全 dynamic node が揃うまで開始バリアで待つ |
 | `multiple dataflows contain dynamic node id ...` | 過去の dataflow が Running のまま残存。`dora list` → 全部 `dora stop` |
 | motor_status が全ゼロ / モータ無応答 | モータ電源、`candump can0/can1` で応答確認、`ip -details link show canX` で ERROR-PASSIVE なら `pcan_setup.bash canX down` → 上げ直し |
+| imu_data が全ゼロ (imu_node は Opened 成功) | Spresense が沈黙している。`timeout 2 dd if=/dev/ttyUSB0 bs=64 count=1 \| xxd` が空なら USB 抜き差しで復帰 → 以後 keep_serial_open.bash を先に立てて close させない。抜き差し後は権限が戻るので udev ルールか chmod |
 | 指令がロボットに届かない (登録は成功) | PC daemon の `--zenoh-peer` 抜け (`dora_pc_daemon.bash` 経由なら自動で付く) |
