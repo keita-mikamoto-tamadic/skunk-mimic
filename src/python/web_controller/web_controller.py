@@ -256,7 +256,11 @@ def main():
     # moteus の watchdog (100ms) は DCM 側が最新指令を毎 tick 再送して食わせる
     # ため、ここは変化があった時だけ送ればよい (WiFi 越しでも低レートで済む)。
     refs = [AxisRef(motor_state=MOTOR_OFF) for _ in range(AXIS_COUNT)]
-    for event in node:
+    # timeout 付きで回す (daemon 先落ち等でも Ctrl-C が効く。robot_web_gui と同じ)
+    while True:
+        event = node.next(timeout=0.5)
+        if event is None:
+            continue
         if event["type"] == "INPUT" and event["id"] == "tick":
             # tick 毎にキューを drain (送信は必ずこのメインスレッド)
             dirty = False

@@ -241,7 +241,13 @@ def main():
     threading.Thread(target=serve_http, daemon=True).start()
     node = Node("robot_web_gui")
     print(f"[robot_web_gui] ready: {ROBOT_NAME} (interp {INTERP_TIME}s)")
-    for event in node:
+    # `for event in node` (無期限 recv) ではなく timeout 付きで回す:
+    # daemon が先に落ちる等でイベントが二度と来なくなっても 0.5s ごとに
+    # Python に制御が戻り、Ctrl-C (KeyboardInterrupt) が効く。
+    while True:
+        event = node.next(timeout=0.5)
+        if event is None:
+            continue
         if event["type"] != "INPUT":
             continue
         if event["id"] == "state_status":
