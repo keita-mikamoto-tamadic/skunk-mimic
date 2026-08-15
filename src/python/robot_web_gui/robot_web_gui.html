@@ -37,6 +37,11 @@
   #link.ok { background:#1d4a36; color:#9f9; }
   #err { color:#f99; min-height:1.2em; }
   .note { color:#889; font-size:.78rem; margin:.2rem 0 .6rem; }
+  #imu { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums;
+         font-size:.9rem; margin-bottom:.9rem; }
+  #imu th { color:#9aa; font-weight:600; font-size:.78rem; text-align:right; padding:.15rem .5rem; }
+  #imu td { text-align:right; padding:.15rem .5rem; background:#1b1e26; }
+  #imu td.hl { color:#6cf; }
 </style>
 </head>
 <body>
@@ -56,6 +61,13 @@
 
 <p class="note">READY 補間進捗 (完了するまで RUN 不可):</p>
 <div id="progress-wrap"><div id="progress"></div></div>
+
+<p class="note">IMU (ロボット座標系 / 角度 deg・角速度 rad/s):</p>
+<table id="imu">
+  <tr><th>roll</th><th>pitch</th><th>yaw</th><th>gx</th><th>gy</th><th>gz</th></tr>
+  <tr><td id="i-roll">--</td><td id="i-pitch">--</td><td id="i-yaw">--</td>
+      <td id="i-gx">--</td><td id="i-gy">--</td><td id="i-gz">--</td></tr>
+</table>
 
 <div class="bar">
   <span id="link">state_status 未受信</span>
@@ -100,6 +112,18 @@ function applyStatus(s){
   $("link").className = s.link_ok ? "ok" : "";
   $("last").textContent = s.run_pending ? "RUN (リトライ中...)" : s.last_cmd;
   if (s.error) $("err").textContent = s.error;
+  if (s.imu) {
+    const deg = r => (r * 180 / Math.PI).toFixed(1);
+    $("i-roll").textContent = deg(s.imu.roll);
+    $("i-pitch").textContent = deg(s.imu.pitch);
+    $("i-yaw").textContent = deg(s.imu.yaw);
+    $("i-gx").textContent = s.imu.gx.toFixed(3);
+    $("i-gy").textContent = s.imu.gy.toFixed(3);
+    $("i-gz").textContent = s.imu.gz.toFixed(3);
+    // 制御が使う pitch / gy を強調
+    $("i-pitch").className = "hl";
+    $("i-gy").className = "hl";
+  }
 }
 
 setInterval(async () => {

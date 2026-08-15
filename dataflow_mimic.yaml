@@ -89,5 +89,6 @@ nodes:
     inputs:
       tick: dora/timer/millis/50          # コマンドキュー drain + RUN リトライ用
       state_status: robot_control_manager/state_status
+      imu_data: device_control_manager/imu_data   # 角度/角速度の数値表示用
     outputs:
       - state_command

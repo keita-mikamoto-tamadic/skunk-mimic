@@ -34,6 +34,7 @@ from dora import Node
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.enum_def import State, StateCommand  # noqa: E402
+from lib.sensor_data_format import unpack_imu_data  # noqa: E402
 from lib import robot_config  # noqa: E402
 
 PORT = int(os.environ.get("ROBOT_WEB_GUI_PORT", "8766"))
@@ -87,6 +88,7 @@ class GuiState:
         self.last_cmd = "(none)"
         self.error = ""
         self.cmd_q = queue.Queue(maxsize=16)  # 要素 = StateCommand
+        self.imu = None                # 最新 ImuData (namedtuple) / None = 未受信
 
     # --- node ループ側 ---
 
@@ -118,6 +120,16 @@ class GuiState:
     def snapshot(self) -> dict:
         with self.lock:
             now = time.monotonic()
+            imu = None
+            if self.imu is not None:
+                imu = {
+                    "roll": round(self.imu.roll, 4),
+                    "pitch": round(self.imu.pitch, 4),
+                    "yaw": round(self.imu.yaw, 4),
+                    "gx": round(self.imu.gx, 4),
+                    "gy": round(self.imu.gy, 4),
+                    "gz": round(self.imu.gz, 4),
+                }
             return {
                 "robot_name": ROBOT_NAME,
                 "state": State(self.state).name if self.state is not None else "----",
@@ -128,6 +140,7 @@ class GuiState:
                 "interpolation_time": INTERP_TIME,
                 "last_cmd": self.last_cmd,
                 "error": self.error,
+                "imu": imu,
             }
 
     def request(self, name: str):
@@ -235,6 +248,12 @@ def main():
             raw = event["value"].to_pylist()
             if raw:
                 GUI.update_state(raw[0])
+        elif event["id"] == "imu_data":
+            # 最新値を latch するだけ (表示は /status ポーリング 5Hz 側で間引き)
+            raw = bytes(event["value"].to_pylist())
+            if len(raw) >= 112:
+                with GUI.lock:
+                    GUI.imu = unpack_imu_data(raw)
         elif event["id"] == "tick":
             # 通常コマンドを drain (送信は必ずこのメインスレッド)
             while True:
