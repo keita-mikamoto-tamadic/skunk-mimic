@@ -34,13 +34,11 @@
 // config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
 // 相対パスは robot_config::ResolveConfigPath がリポジトリルート基準で解決する。
 
-// 入出力ID
+// 入出力ID (imu は DCM を経由しない — dataflow で imu_node → stabilizer 直結)
 constexpr const char* kInputTick          = "tick";
 constexpr const char* kInputMotorCommands = "motor_commands";
-constexpr const char* kInputImuData       = "raw_imu";
 constexpr const char* kInputSettingsRequest = "settings_request";
 constexpr const char* kOutputMotorStatus  = "motor_status";
-constexpr const char* kOutputImuData      = "imu_data";
 constexpr const char* kOutputLatency      = "latency";
 constexpr const char* kOutputSettingsResult = "settings_result";
 constexpr const char* kOutputParamDump      = "param_dump";
@@ -176,11 +174,10 @@ int main() {
                 reinterpret_cast<uint8_t*>(&c_schema));
             std::string id(info.id);
 
-            // IMU パススルー（ゼロコピー）
-            if (id == kInputImuData) {
-                ForwardOutput(node, kOutputImuData, &c_array, &c_schema);
-                continue;
-            }
+            // 注: 以前ここにあった IMU パススルー (ForwardOutput) は廃止。
+            // 受信 Arrow の re-export は中身がゼロ化するため (dora_helpers.hpp
+            // の ForwardOutput のコメント参照)、imu は dataflow 側で
+            // imu_node → stabilizer 直結に変更した。
 
             // 以下は Arrow Import が必要
             auto import_result = arrow::ImportArray(&c_array, &c_schema);

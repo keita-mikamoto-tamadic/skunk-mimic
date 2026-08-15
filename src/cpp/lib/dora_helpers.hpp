@@ -57,7 +57,15 @@ void ZeroCopySendStruct(DoraNode& node, const char* output_id, const T& data)
         reinterpret_cast<uint8_t*>(&c_schema));
 }
 
-// 受信した Arrow データをそのまま別出力に転送（パススルー）
+// ★使用禁止★ 受信した Arrow データをそのまま別出力に転送（パススルー）
+//
+// dora rc1 (fd1f050b) では event_as_arrow_input_with_info が返す FFI 配列は
+// daemon 所有の共有メモリスロットへの「借用」で (upstream #2149 の clone 削除
+// 以降)、event 消費後に daemon がスロットを再利用すると中身がゼロ化する。
+// 長さは保たれるため受信側では気づけない (旧 DCM の IMU パススルーで
+// imu_data が全ゼロになった実害あり。v1.0.0-rc.4 時点でも未修正)。
+// パススルーが必要な場合は ReceiveStructArray で即コピーしてから
+// ZeroCopySendStruct(Array) で再送すること。
 inline void ForwardOutput(DoraNode& node, const char* output_id,
                           struct ArrowArray* c_array,
                           struct ArrowSchema* c_schema)
