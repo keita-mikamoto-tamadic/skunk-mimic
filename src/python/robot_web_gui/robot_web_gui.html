@@ -62,7 +62,7 @@
 <p class="note">READY 補間進捗 (完了するまで RUN 不可):</p>
 <div id="progress-wrap"><div id="progress"></div></div>
 
-<p class="note">IMU (ロボット座標系 / 角度 deg・角速度 rad/s):</p>
+<p class="note">IMU (ロボット座標系 / 角度 rad・角速度 rad/s — 内部計算と同じ単位):</p>
 <table id="imu">
   <tr><th>roll</th><th>pitch</th><th>yaw</th><th>gx</th><th>gy</th><th>gz</th></tr>
   <tr><td id="i-roll">--</td><td id="i-pitch">--</td><td id="i-yaw">--</td>
@@ -113,10 +113,10 @@ function applyStatus(s){
   $("last").textContent = s.run_pending ? "RUN (リトライ中...)" : s.last_cmd;
   if (s.error) $("err").textContent = s.error;
   if (s.imu) {
-    const deg = r => (r * 180 / Math.PI).toFixed(1);
-    $("i-roll").textContent = deg(s.imu.roll);
-    $("i-pitch").textContent = deg(s.imu.pitch);
-    $("i-yaw").textContent = deg(s.imu.yaw);
+    // 内部計算 (angle_pid の kTargetPitch 等) と同じ rad で表示する
+    $("i-roll").textContent = s.imu.roll.toFixed(4);
+    $("i-pitch").textContent = s.imu.pitch.toFixed(4);
+    $("i-yaw").textContent = s.imu.yaw.toFixed(4);
     $("i-gx").textContent = s.imu.gx.toFixed(3);
     $("i-gy").textContent = s.imu.gy.toFixed(3);
     $("i-gz").textContent = s.imu.gz.toFixed(3);
