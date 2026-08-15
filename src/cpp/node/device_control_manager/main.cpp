@@ -150,8 +150,14 @@ int main() {
     // (RUN 中の速度指令を保持したまま復帰すると暴走する)。motor_status には
     // ドライバが立てた fault=NoResponse がそのまま乗るので、RCM の
     // fault_evaluator が OFF に遷移させ、GUI にも OFF が出る。
+    // 判定は軸ごとの連続無応答カウンタで行う。1〜数 tick の取りこぼし
+    // (2ms 受信窓に間に合わなかった等) は正常運転でも起きるため、閾値未満は
+    // 直前の正常値で埋めて fault を立てない (RCM の evaluator は fault=255 を
+    // 見た瞬間に OFF へ落とすため、1 発で立てると READY/RUN 中に誤停止する)。
     constexpr int kNoResponseTicks = 33;  // ≒ 100ms @3ms tick
-    int no_response_ticks = 0;
+    std::vector<int> axis_silent_ticks(axis_count, 0);   // 連続無応答 (安全判定用、応答で 0 に戻る)
+    std::vector<int> axis_dropped_total(axis_count, 0);  // 累積無応答回数 (観測用、戻らない)
+    std::vector<AxisAct> last_good_acts(axis_count);
     bool bus_lost = false;
 
     // レイテンシ計測
@@ -270,13 +276,30 @@ int main() {
                     }
                 }
 
-                // 途絶判定 (全軸無応答が連続したら bus_lost)
-                bool all_silent = !acts.empty();
-                for (const auto& a : acts) {
-                    if (a.fault != MotorDriver::kFaultNoResponse) { all_silent = false; break; }
+                // 途絶判定 (軸ごとにデバウンス)。閾値未満の無応答は直前の
+                // 正常値で埋めて fault を隠し、閾値以上で初めて fault=255 を通す。
+                size_t axes_lost = 0;
+                for (size_t i = 0; i < axis_count; ++i) {
+                    if (acts[i].fault == MotorDriver::kFaultNoResponse) {
+                        ++axis_dropped_total[i];
+                        if (++axis_silent_ticks[i] < kNoResponseTicks) {
+                            acts[i] = last_good_acts[i];  // 取りこぼし: 前回値
+                        } else {
+                            ++axes_lost;                  // 本当に途絶
+                        }
+                    } else {
+                        axis_silent_ticks[i] = 0;
+                        last_good_acts[i] = acts[i];
+                    }
+                    // 可観測性: 軸ごとの無応答「累積」回数を載せる (255 で飽和)。
+                    // 連続値だと 1〜2 tick の散発的な取りこぼしは描画に映らないため、
+                    // 起動後の累積にして「増えているか / どの軸か」を data_viewer で見る。
+                    // 安全判定 (33 tick) は上の連続カウンタで行い、この値には依存しない。
+                    acts[i].silent_ticks = static_cast<uint8_t>(
+                        axis_dropped_total[i] > 255 ? 255 : axis_dropped_total[i]);
                 }
-                if (all_silent) {
-                    if (++no_response_ticks >= kNoResponseTicks && !bus_lost) {
+                if (axes_lost == axis_count && axis_count > 0) {
+                    if (!bus_lost) {
                         bus_lost = true;
                         for (auto& c : latest_commands) {
                             c = AxisRef{};
@@ -286,13 +309,10 @@ int main() {
                                   << kNoResponseTicks << " ticks) -> holding ALL OFF"
                                   << std::endl;
                     }
-                } else {
-                    no_response_ticks = 0;
-                    if (bus_lost) {
-                        bus_lost = false;
-                        std::cout << "CAN bus recovered (commands held at OFF until "
-                                     "new motor_commands arrive)" << std::endl;
-                    }
+                } else if (bus_lost && axes_lost == 0) {
+                    bus_lost = false;
+                    std::cout << "CAN bus recovered (commands held at OFF until "
+                                 "new motor_commands arrive)" << std::endl;
                 }
 
                 // CAN レイテンシ計測

@@ -164,6 +164,7 @@ bool MoteusConverter::ParseResponse(
     // torque: Nm 共通、変換不要
     act.torque = result.torque;
     act.fault = result.fault;
+    act.mode = static_cast<uint8_t>(result.mode);  // moteus Mode (11=PositionTimeout 等)
 
     return true;
 }

@@ -1,93 +1,337 @@
 {
   "_comment": "dora で C++↔Python 間を生バイト列で交換するアプリ内部構造体の単一正本。tools/gen_data_format.py が C++ヘッダと Python モジュールを生成する(CMake configure 時に自動)。これは FOCTIVE の CAN フレーム(float)ではなく dora/shm の構造体(double)。CAN の float 変換はドライバ側で行う。",
   "types": {
-    "double": {"cpp": "double", "size": 8, "align": 8, "py": "d"},
-    "uint32": {"cpp": "uint32_t", "size": 4, "align": 4, "py": "I"},
-    "uint8": {"cpp": "uint8_t", "size": 1, "align": 1, "py": "B"}
+    "double": {
+      "cpp": "double",
+      "size": 8,
+      "align": 8,
+      "py": "d"
+    },
+    "uint32": {
+      "cpp": "uint32_t",
+      "size": 4,
+      "align": 4,
+      "py": "I"
+    },
+    "uint8": {
+      "cpp": "uint8_t",
+      "size": 1,
+      "align": 1,
+      "py": "B"
+    }
   },
   "structs": [
     {
       "name": "AxisRef",
       "doc": "robot_control_manager → motor_comm: 1軸分の指令値",
       "fields": [
-        {"name": "motor_state", "type": "uint8", "cpp_type": "MotorState", "doc": "制御モード"},
-        {"name": "ref_val", "type": "double", "doc": "第1値: pos/vel/torq, または volt_d/cur_d"},
-        {"name": "ref_val_1", "type": "double", "doc": "第2値: volt_q/cur_q, またはインピーダンスvel"},
-        {"name": "ref_val_2", "type": "double", "doc": "第3値: vir_ang_freq, またはインピーダンスtorq"},
-        {"name": "kp_scale", "type": "double", "doc": "位置ゲインスケール"},
-        {"name": "kv_scale", "type": "double", "doc": "速度ゲインスケール (= moteus の kd_scale)"},
-        {"name": "velocity_limit", "type": "double", "doc": "rad/s"},
-        {"name": "accel_limit", "type": "double", "doc": "rad/s^2"},
-        {"name": "torque_limit", "type": "double", "doc": "Nm"}
+        {
+          "name": "motor_state",
+          "type": "uint8",
+          "cpp_type": "MotorState",
+          "doc": "制御モード"
+        },
+        {
+          "name": "ref_val",
+          "type": "double",
+          "doc": "第1値: pos/vel/torq, または volt_d/cur_d"
+        },
+        {
+          "name": "ref_val_1",
+          "type": "double",
+          "doc": "第2値: volt_q/cur_q, またはインピーダンスvel"
+        },
+        {
+          "name": "ref_val_2",
+          "type": "double",
+          "doc": "第3値: vir_ang_freq, またはインピーダンスtorq"
+        },
+        {
+          "name": "kp_scale",
+          "type": "double",
+          "doc": "位置ゲインスケール"
+        },
+        {
+          "name": "kv_scale",
+          "type": "double",
+          "doc": "速度ゲインスケール (= moteus の kd_scale)"
+        },
+        {
+          "name": "velocity_limit",
+          "type": "double",
+          "doc": "rad/s"
+        },
+        {
+          "name": "accel_limit",
+          "type": "double",
+          "doc": "rad/s^2"
+        },
+        {
+          "name": "torque_limit",
+          "type": "double",
+          "doc": "Nm"
+        }
       ]
     },
     {
       "name": "AxisAct",
       "doc": "motor_comm → robot_control_manager: 1軸分の現在値",
       "fields": [
-        {"name": "position", "type": "double", "doc": "rad"},
-        {"name": "velocity", "type": "double", "doc": "rad/s"},
-        {"name": "torque", "type": "double", "doc": "Nm"},
-        {"name": "cur_d", "type": "double", "doc": "d軸電流 A"},
-        {"name": "cur_q", "type": "double", "doc": "q軸電流 A"},
-        {"name": "fault", "type": "uint8", "doc": "0=正常, それ以外=異常"}
+        {
+          "name": "position",
+          "type": "double",
+          "doc": "rad"
+        },
+        {
+          "name": "velocity",
+          "type": "double",
+          "doc": "rad/s"
+        },
+        {
+          "name": "torque",
+          "type": "double",
+          "doc": "Nm"
+        },
+        {
+          "name": "cur_d",
+          "type": "double",
+          "doc": "d軸電流 A"
+        },
+        {
+          "name": "cur_q",
+          "type": "double",
+          "doc": "q軸電流 A"
+        },
+        {
+          "name": "fault",
+          "type": "uint8",
+          "doc": "0=正常, それ以外=異常"
+        },
+        {
+          "name": "mode",
+          "type": "uint8",
+          "doc": "ドライバの動作モード (moteus: Mode enum。11=PositionTimeout, 0=Stopped 等)。未対応ドライバは 0"
+        },
+        {
+          "name": "silent_ticks",
+          "type": "uint8",
+          "doc": "この軸の無応答 tick の累積回数 (起動後、255 で飽和)。DCM が付与。散発的な取りこぼしの観測用"
+        }
       ]
     },
     {
       "name": "SettingsRequest",
       "doc": "foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)",
       "fields": [
-        {"name": "device_id", "type": "uint8", "doc": "対象デバイス"},
-        {"name": "cmd", "type": "uint8", "doc": "SettingsCmd (104=個別読出, 103=個別設定, 102=全読出, ...)"},
-        {"name": "param_index", "type": "uint8", "doc": "ParamIndex (cmd=103/104)"},
-        {"name": "value", "type": "uint32", "doc": "4byte 生値(cmd=103 設定値。読出は未使用)"}
+        {
+          "name": "device_id",
+          "type": "uint8",
+          "doc": "対象デバイス"
+        },
+        {
+          "name": "cmd",
+          "type": "uint8",
+          "doc": "SettingsCmd (104=個別読出, 103=個別設定, 102=全読出, ...)"
+        },
+        {
+          "name": "param_index",
+          "type": "uint8",
+          "doc": "ParamIndex (cmd=103/104)"
+        },
+        {
+          "name": "value",
+          "type": "uint32",
+          "doc": "4byte 生値(cmd=103 設定値。読出は未使用)"
+        }
       ]
     },
     {
       "name": "SettingsResult",
       "doc": "device_control_manager → foctive_controller: 設定モード結果(scalar)",
       "fields": [
-        {"name": "cmd", "type": "uint8", "doc": "実行した SettingsCmd"},
-        {"name": "param_index", "type": "uint8", "doc": "ParamIndex"},
-        {"name": "ok", "type": "uint8", "doc": "1=成功, 0=失敗/タイムアウト/非対応"},
-        {"name": "value", "type": "uint32", "doc": "4byte 生値(104:読出値 / 103:new 値)"},
-        {"name": "old_value", "type": "uint32", "doc": "4byte 生値(103:old 値。それ以外0)"}
+        {
+          "name": "cmd",
+          "type": "uint8",
+          "doc": "実行した SettingsCmd"
+        },
+        {
+          "name": "param_index",
+          "type": "uint8",
+          "doc": "ParamIndex"
+        },
+        {
+          "name": "ok",
+          "type": "uint8",
+          "doc": "1=成功, 0=失敗/タイムアウト/非対応"
+        },
+        {
+          "name": "value",
+          "type": "uint32",
+          "doc": "4byte 生値(104:読出値 / 103:new 値)"
+        },
+        {
+          "name": "old_value",
+          "type": "uint32",
+          "doc": "4byte 生値(103:old 値。それ以外0)"
+        }
       ]
     },
     {
       "name": "ParamScalars",
       "doc": "device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8",
       "fields": [
-        {"name": "motor_id", "type": "uint32", "index": 0},
-        {"name": "device_id", "type": "uint32", "index": 1},
-        {"name": "rot_dir", "type": "uint32", "index": 2},
-        {"name": "mech_angle_dir", "type": "uint32", "index": 3},
-        {"name": "elec_angle_dir", "type": "uint32", "index": 4},
-        {"name": "mot_pole_pairs", "type": "uint32", "index": 5},
-        {"name": "gear_enable", "type": "uint32", "index": 6},
-        {"name": "gear_ratio", "type": "uint32", "index": 7},
-        {"name": "anyval_pos_offset", "type": "uint32", "index": 9},
-        {"name": "p_gain_cur", "type": "uint32", "index": 10},
-        {"name": "i_gain_cur", "type": "uint32", "index": 11},
-        {"name": "d_gain_cur", "type": "uint32", "index": 12},
-        {"name": "p_gain_vel", "type": "uint32", "index": 13},
-        {"name": "i_gain_vel", "type": "uint32", "index": 14},
-        {"name": "d_gain_vel", "type": "uint32", "index": 15},
-        {"name": "p_gain_pos", "type": "uint32", "index": 16},
-        {"name": "i_gain_pos", "type": "uint32", "index": 17},
-        {"name": "d_gain_pos", "type": "uint32", "index": 18},
-        {"name": "cur_q_mx", "type": "uint32", "index": 19},
-        {"name": "cur_q_mn", "type": "uint32", "index": 20},
-        {"name": "trq_out_mx", "type": "uint32", "index": 21},
-        {"name": "trq_out_mn", "type": "uint32", "index": 22},
-        {"name": "velocity_limit", "type": "uint32", "index": 23},
-        {"name": "accel_limit", "type": "uint32", "index": 24},
-        {"name": "pos_out_mx", "type": "uint32", "index": 25},
-        {"name": "pos_out_mn", "type": "uint32", "index": 26},
-        {"name": "imp_kp", "type": "uint32", "index": 27},
-        {"name": "imp_kd", "type": "uint32", "index": 28},
-        {"name": "torq_const", "type": "uint32", "index": 29},
-        {"name": "elec_angle_ofs", "type": "uint32", "count": 64, "index": 8, "doc": "電気角オフセット LUT (wire index 8, 64要素)"}
+        {
+          "name": "motor_id",
+          "type": "uint32",
+          "index": 0
+        },
+        {
+          "name": "device_id",
+          "type": "uint32",
+          "index": 1
+        },
+        {
+          "name": "rot_dir",
+          "type": "uint32",
+          "index": 2
+        },
+        {
+          "name": "mech_angle_dir",
+          "type": "uint32",
+          "index": 3
+        },
+        {
+          "name": "elec_angle_dir",
+          "type": "uint32",
+          "index": 4
+        },
+        {
+          "name": "mot_pole_pairs",
+          "type": "uint32",
+          "index": 5
+        },
+        {
+          "name": "gear_enable",
+          "type": "uint32",
+          "index": 6
+        },
+        {
+          "name": "gear_ratio",
+          "type": "uint32",
+          "index": 7
+        },
+        {
+          "name": "anyval_pos_offset",
+          "type": "uint32",
+          "index": 9
+        },
+        {
+          "name": "p_gain_cur",
+          "type": "uint32",
+          "index": 10
+        },
+        {
+          "name": "i_gain_cur",
+          "type": "uint32",
+          "index": 11
+        },
+        {
+          "name": "d_gain_cur",
+          "type": "uint32",
+          "index": 12
+        },
+        {
+          "name": "p_gain_vel",
+          "type": "uint32",
+          "index": 13
+        },
+        {
+          "name": "i_gain_vel",
+          "type": "uint32",
+          "index": 14
+        },
+        {
+          "name": "d_gain_vel",
+          "type": "uint32",
+          "index": 15
+        },
+        {
+          "name": "p_gain_pos",
+          "type": "uint32",
+          "index": 16
+        },
+        {
+          "name": "i_gain_pos",
+          "type": "uint32",
+          "index": 17
+        },
+        {
+          "name": "d_gain_pos",
+          "type": "uint32",
+          "index": 18
+        },
+        {
+          "name": "cur_q_mx",
+          "type": "uint32",
+          "index": 19
+        },
+        {
+          "name": "cur_q_mn",
+          "type": "uint32",
+          "index": 20
+        },
+        {
+          "name": "trq_out_mx",
+          "type": "uint32",
+          "index": 21
+        },
+        {
+          "name": "trq_out_mn",
+          "type": "uint32",
+          "index": 22
+        },
+        {
+          "name": "velocity_limit",
+          "type": "uint32",
+          "index": 23
+        },
+        {
+          "name": "accel_limit",
+          "type": "uint32",
+          "index": 24
+        },
+        {
+          "name": "pos_out_mx",
+          "type": "uint32",
+          "index": 25
+        },
+        {
+          "name": "pos_out_mn",
+          "type": "uint32",
+          "index": 26
+        },
+        {
+          "name": "imp_kp",
+          "type": "uint32",
+          "index": 27
+        },
+        {
+          "name": "imp_kd",
+          "type": "uint32",
+          "index": 28
+        },
+        {
+          "name": "torq_const",
+          "type": "uint32",
+          "index": 29
+        },
+        {
+          "name": "elec_angle_ofs",
+          "type": "uint32",
+          "count": 64,
+          "index": 8,
+          "doc": "電気角オフセット LUT (wire index 8, 64要素)"
+        }
       ]
     }
   ]

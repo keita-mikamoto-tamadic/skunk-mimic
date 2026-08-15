@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -43,6 +44,15 @@ int main() {
     sm.Configure(config, makeMoteusFaultEvaluator(State::OFF));
 
     bool motor_status_received = false;
+
+    // 受信レート計測 (診断用): motor_status を実際に何件/秒受け取れているかを
+    // 1 秒ごとにログ出力する。DCM は 333Hz で送っているので、それを大きく
+    // 下回れば daemon での配送落ち (queue 溢れ) が起きている。
+    // 補間は motor_status の到着回数で進むため、落ちると補間が遅く/カクつく。
+    long rx_count = 0;
+    long rx_gap_max_us = 0;
+    auto rx_last = std::chrono::steady_clock::now();
+    auto rx_window_start = rx_last;
 
     while (true) {
         auto event = node.events->next();
@@ -91,6 +101,20 @@ int main() {
                 }
             }
             else if (id == kInputMotorStatus) {
+                // 受信レート計測
+                {
+                    auto now = std::chrono::steady_clock::now();
+                    long gap = std::chrono::duration_cast<std::chrono::microseconds>(now - rx_last).count();
+                    if (rx_count > 0 && gap > rx_gap_max_us) rx_gap_max_us = gap;
+                    rx_last = now;
+                    ++rx_count;
+                    long win = std::chrono::duration_cast<std::chrono::milliseconds>(now - rx_window_start).count();
+                    if (win >= 1000) {
+                        std::cout << "motor_status rx: " << rx_count << "/s, max gap "
+                                  << rx_gap_max_us << "us" << std::endl;
+                        rx_count = 0; rx_gap_max_us = 0; rx_window_start = now;
+                    }
+                }
                 // motor_status 駆動: ステータス更新 → 制御計算 → コマンド出力
                 auto acts = ReceiveStructArray<AxisAct>(arr, sm.GetAxisCount());
                 sm.UpdateMotorStatus(acts);

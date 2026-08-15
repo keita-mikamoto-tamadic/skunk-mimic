@@ -1,5 +1,4 @@
 from dora import Node
-import struct
 import time
 from rich.live import Live
 from rich.table import Table
@@ -10,7 +9,7 @@ import os
 # lib を import パスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib import robot_config
-from lib.axis_data_format import AXIS_ACT_FMT, AXIS_ACT_SIZE  # 自動生成(axis_data.json 正本)
+from lib.axis_data_format import AXIS_ACT_SIZE, unpack_axis_act  # 自動生成(axis_data.json 正本)
 from lib.sensor_data_format import (  # 自動生成(sensor_data.json 正本)
 	IMU_DATA_SIZE, LATENCY_DATA_SIZE, ESTIMATED_STATE_SIZE,
 	unpack_imu_data, unpack_latency_data, unpack_estimated_state,
@@ -55,22 +54,29 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 	table.add_column("i_d", justify="right")
 	table.add_column("i_q", justify="right")
 	table.add_column("fault", justify="center")
+	table.add_column("mode", justify="center")    # moteus Mode (11=PosTimeout)
+	table.add_column("drops", justify="right")    # 無応答 tick の累積回数 (DCM 付与)
 
-	for i, (pos, vel, torq, cur_d, cur_q, fault) in enumerate(axes):
+	for i, a in enumerate(axes):
 		# 軸名と CAN ID を config から取得
 		axis_name = config.axes[i].name if config and i < len(config.axes) else f"#{i}"
 		can_id = str(config.axes[i].device_id) if config and i < len(config.axes) else "-"
 
-		fault_style = "red bold" if fault != 0 else "green"
+		fault_style = "red bold" if a.fault != 0 else "green"
+		# moteus: 10=Position が正常運転。11=PositionTimeout, 1=Fault, 0=Stopped は注意
+		mode_style = "green" if a.mode == 10 else ("dim" if a.mode == 0 else "yellow bold")
+		silent_style = "green" if a.silent_ticks == 0 else ("yellow" if a.silent_ticks < 10 else "red bold")
 		table.add_row(
 			axis_name,
 			can_id,
-			f"{pos:+.4f}",
-			f"{vel:+.4f}",
-			f"{torq:+.4f}",
-			f"{cur_d:+.3f}",
-			f"{cur_q:+.3f}",
-			f"[{fault_style}]{fault}[/]",
+			f"{a.position:+.4f}",
+			f"{a.velocity:+.4f}",
+			f"{a.torque:+.4f}",
+			f"{a.cur_d:+.3f}",
+			f"{a.cur_q:+.3f}",
+			f"[{fault_style}]{a.fault}[/]",
+			f"[{mode_style}]{a.mode}[/]",
+			f"[{silent_style}]{a.silent_ticks}[/]",
 		)
 
 	# State と Time を一番下に追加
@@ -85,7 +91,7 @@ def build_motor_table(axes, timestamp_ns=None, state=None, config=None):
 			info_parts.append(f"Time: [dim]{timestamp_sec:.3f}s[/]")
 
 		info_text = "  |  ".join(info_parts)
-		table.add_row(info_text, "", "", "", "", "", "", "")
+		table.add_row(info_text, "", "", "", "", "", "", "", "", "")
 
 	return table
 
@@ -176,13 +182,27 @@ with Live(initial_display, refresh_per_second=30) as live:
 	current_est_state = None
 	current_axes = []
 	last_render_ns = 0
-	RENDER_INTERVAL_NS = 33_000_000  # ~30fps。高 tick(1kHz)でも描画を間引いて追従
+	RENDER_INTERVAL_NS = 33_000_000  # ~30fps。受信は最新値のみデコードして軽量化済み
 
-	for event in node:
-		if event["type"] == "INPUT":
-			# 受信は最新値の保存だけ(軽量)。描画は下で間引く。
-			raw = bytes(event["value"].to_pylist())
-			eid = event["id"]
+	# イベントは 1 個ずつ取らず、溜まっている分を drain() で一括消費して最新値だけ
+	# 残す。1 個ずつ (for event in node) だと 333Hz の motor_status の流入に
+	# 処理が追いつかず、dora のイベントチャネルが溢れて
+	# "event channel full; dropping zenoh input" が毎イベント出て端末が埋まる。
+	while True:
+		first = node.next(timeout=0.1)     # 1 個は待つ (CPU を回さない)
+		if first is None:
+			events = []
+		else:
+			events = [first] + node.drain()  # 残りを一括で
+		# 入力ごとに「最後の 1 個」だけ残してデコードする (数百 events/s を
+		# 全部 unpack すると Python 側の CPU が無駄。表示は最新値しか使わない)。
+		latest = {}
+		for event in events:
+			if event["type"] == "INPUT":
+				latest[event["id"]] = event["value"]
+		for eid, value in latest.items():
+			# to_pylist() は 1 要素ずつ Python int 化して遅い。numpy 経由でゼロコピー
+			raw = value.to_numpy(zero_copy_only=False).tobytes()
 			if eid == "state_status":
 				if len(raw) > 0:
 					current_state = raw[0]
@@ -198,7 +218,7 @@ with Live(initial_display, refresh_per_second=30) as live:
 			elif eid == "motor_status":
 				axis_count = len(raw) // AXIS_ACT_SIZE
 				current_axes = [
-					struct.unpack_from(AXIS_ACT_FMT, raw, i * AXIS_ACT_SIZE)
+					unpack_axis_act(raw, i * AXIS_ACT_SIZE)
 					for i in range(axis_count)
 				]
 
