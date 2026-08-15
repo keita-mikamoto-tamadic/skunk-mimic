@@ -5,9 +5,8 @@
 #
 #   robot_web_gui ──state_command──▶ robot_control_manager ──motor_commands──▶ device_control_manager (can0+can1)
 #        ▲                              │  ▲                                     │
-#        └────────state_status──────────┘  └── run_command ── stabilizer ◀───────┤ motor_status
-#                                                     ▲
-#                                  imu_node ──raw_imu─┘ (DCM は経由しない)
+#        └────────state_status──────────┘  └── run_command ── stabilizer ◀───────┤ motor_status / imu_data
+#                                                                                └◀─ raw_imu ── imu_node
 #
 # 起動:
 #   1) robot: bash pcan_setup.bash can0 can1 keep
@@ -51,10 +50,7 @@ nodes:
       ROBOT_CONFIG: robot_config/mimic_v2_5.json
     inputs:
       motor_status: device_control_manager/motor_status
-      # imu は DCM を経由せず直結する。DCM の ForwardOutput (受信 Arrow の
-      # ゼロコピー再送) は rc1 で中身がゼロ化する不具合があり、パススルーの
-      # 価値もない (DCM は raw_imu に何も加工しない)。
-      imu_data: imu_node/raw_imu
+      imu_data: device_control_manager/imu_data
       state_status: robot_control_manager/state_status
     outputs:
       - run_command
@@ -67,8 +63,10 @@ nodes:
     inputs:
       tick: dora/timer/millis/3
       motor_commands: robot_control_manager/motor_commands
+      raw_imu: imu_node/raw_imu
     outputs:
       - motor_status
+      - imu_data
       - latency
 
   - id: imu_node

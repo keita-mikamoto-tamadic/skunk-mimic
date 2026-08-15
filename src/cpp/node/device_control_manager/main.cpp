@@ -34,11 +34,13 @@
 // config パスは環境変数 ROBOT_CONFIG で指定(未指定なら mimic_v2.json)。
 // 相対パスは robot_config::ResolveConfigPath がリポジトリルート基準で解決する。
 
-// 入出力ID (imu は DCM を経由しない — dataflow で imu_node → stabilizer 直結)
+// 入出力ID
 constexpr const char* kInputTick          = "tick";
 constexpr const char* kInputMotorCommands = "motor_commands";
+constexpr const char* kInputImuData       = "raw_imu";
 constexpr const char* kInputSettingsRequest = "settings_request";
 constexpr const char* kOutputMotorStatus  = "motor_status";
+constexpr const char* kOutputImuData      = "imu_data";
 constexpr const char* kOutputLatency      = "latency";
 constexpr const char* kOutputSettingsResult = "settings_result";
 constexpr const char* kOutputParamDump      = "param_dump";
@@ -174,18 +176,20 @@ int main() {
                 reinterpret_cast<uint8_t*>(&c_schema));
             std::string id(info.id);
 
-            // 注: 以前ここにあった IMU パススルー (ForwardOutput) は廃止。
-            // 受信 Arrow の re-export は中身がゼロ化するため (dora_helpers.hpp
-            // の ForwardOutput のコメント参照)、imu は dataflow 側で
-            // imu_node → stabilizer 直結に変更した。
-
             // 以下は Arrow Import が必要
             auto import_result = arrow::ImportArray(&c_array, &c_schema);
             if (!import_result.ok()) continue;
             auto arr = std::static_pointer_cast<arrow::UInt8Array>(
                 import_result.ValueOrDie());
 
-            if (id == kInputMotorCommands) {
+            // IMU パススルー: 即コピーして自前バッファから再送する。
+            // 受信 Arrow の re-export (旧 ForwardOutput) は中身がゼロ化する
+            // ため不可 (dora_helpers.hpp の ForwardOutput コメント参照)。
+            if (id == kInputImuData) {
+                ImuData imu = ReceiveStructArray<ImuData>(arr, 1)[0];
+                ZeroCopySendStruct(node, kOutputImuData, imu);
+            }
+            else if (id == kInputMotorCommands) {
                 // 制御側計測: motor_status 送信 → motor_commands 受信
                 if (status_pending) {
                     long us = std::chrono::duration_cast<std::chrono::microseconds>(
