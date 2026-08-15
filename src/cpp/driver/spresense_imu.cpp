@@ -69,6 +69,10 @@ bool SpresenseImu::Open(const std::string& device)
     options.c_cflag &= ~CSIZE;
     options.c_cflag |= CS8;
     options.c_cflag |= CREAD | CLOCAL;
+    // HUPCL を無効化: close 時に DTR を落とさない。落とすと Spresense が
+    // リセットされ、ノード再起動のたびに Madgwick の収束待ちが発生する
+    // (従来は keep_serial_open.bash で fd を掴み続けて回避していた)。
+    options.c_cflag &= ~HUPCL;
 
     // Raw入力
     options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
