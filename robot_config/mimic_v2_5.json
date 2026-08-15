@@ -5,6 +5,7 @@
   "axis_count": 6,
   "controller": "angle_pid",
   "interpolation_time": 3.0,
+  "imu_mount_rpy_deg": [0.0, 0.0, 0.0],
   "comm_ch": ["can0", "can1"],
   "axes": [
     {"index": 0, "name": "hip_pitch_r", "device_id": 50, "comm_ch": 0, "motdir": 1, "initial_position": 1.2, "reset_position": -0.130899, "velocity_limit": 100.0, "accel_limit": 20.0, "torque_limit": 15.0},

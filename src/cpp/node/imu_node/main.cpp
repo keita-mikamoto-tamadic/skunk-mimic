@@ -1,6 +1,7 @@
 // src/cpp/node/imu_node/main.cpp
 #include "dora-node-api.h"
 #include "../../driver/spresense_imu.hpp"
+#include "../../lib/robot_config.hpp"
 #include "../../lib/shm_data_format.hpp"
 #include "../../lib/dora_helpers.hpp"
 #include <iostream>
@@ -8,11 +9,24 @@
 static constexpr const char* kOutputImuData = "raw_imu";
 
 int main() {
+    // 取り付け回転を config (imu_mount_rpy_deg) から取得。
+    // config が読めなくても IMU 自体は動かす (恒等のまま warning のみ)
+    std::array<double, 3> mount_rpy{0.0, 0.0, 0.0};
+    try {
+        auto config = robot_config::LoadFromFile(robot_config::ResolveConfigPath());
+        mount_rpy = config.imu_mount_rpy_deg;
+        std::cout << config.robot_name << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: config load failed (" << e.what()
+                  << "), imu mount = identity" << std::endl;
+    }
+
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
 
     // IMU 初期化
     SpresenseImu imu("/dev/ttyUSB0", 921600);
+    imu.SetMountRotation(mount_rpy[0], mount_rpy[1], mount_rpy[2]);
     if (!imu.Open("/dev/ttyUSB0")) {
         std::cerr << "Failed to open IMU, continuing without sensor" << std::endl;
     } else {

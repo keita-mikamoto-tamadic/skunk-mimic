@@ -10,39 +10,10 @@
 #include <iostream>
 #include <cmath>
 
-namespace {
-// クォータニオン → オイラー角変換 (Roll, Pitch, Yaw)
-// w=q0, x=q1, y=q2, z=q3 (Madgwickフィルタ出力順)
-// IMU取り付け補正: Z軸周りに+90°回転
-void QuaternionToEuler(double w, double x, double y, double z,
-                       double& roll, double& pitch, double& yaw)
-{
-    // まずIMU座標系でのオイラー角を計算
-    // Roll (X軸回転)
-    double sinr_cosp = 2.0 * (w * x + y * z);
-    double cosr_cosp = 1.0 - 2.0 * (x * x + y * y);
-    double imu_roll = std::atan2(sinr_cosp, cosr_cosp);
-
-    // Pitch (Y軸回転)
-    double sinp = 2.0 * (w * y - z * x);
-    double imu_pitch;
-    if (std::abs(sinp) >= 1.0)
-        imu_pitch = std::copysign(M_PI / 2.0, sinp);  // ジンバルロック時
-    else
-        imu_pitch = std::asin(sinp);
-
-    // Yaw (Z軸回転)
-    double siny_cosp = 2.0 * (w * z + x * y);
-    double cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
-    double imu_yaw = std::atan2(siny_cosp, cosy_cosp);
-
-    // Z軸周りに+90°回転の座標変換
-    // IMUのX軸 → ロボットのY軸、IMUのY軸 → ロボットの-X軸
-    roll  = imu_pitch;
-    pitch = -imu_roll;
-    yaw   = imu_yaw;
-}
-} // anonymous namespace
+// 取り付け回転の数学は lib/imu_mount.hpp (header-only)。
+// 旧実装にあった Euler レベルの Z+90° ハードコード補正は廃止 ——
+// robot_config の imu_mount_rpy_deg + SetMountRotation で指定する
+// (取り付けがロボット座標系と一致なら既定の恒等のまま)。
 
 SpresenseImu::SpresenseImu(const std::string& port, int baudrate)
     : port_(port),
@@ -145,6 +116,17 @@ ImuData SpresenseImu::GetLatestData()
 {
     std::lock_guard<std::mutex> lock(data_mutex_);
     return latest_data_;
+}
+
+void SpresenseImu::SetMountRotation(double roll_deg, double pitch_deg,
+                                    double yaw_deg)
+{
+    mount_quat_ = imu_mount::RpyDegToQuat(roll_deg, pitch_deg, yaw_deg);
+    mount_identity_ =
+        (roll_deg == 0.0 && pitch_deg == 0.0 && yaw_deg == 0.0);
+    std::cout << "IMU mount rotation: rpy_deg = ["
+              << roll_deg << ", " << pitch_deg << ", " << yaw_deg << "]"
+              << (mount_identity_ ? " (identity)" : "") << std::endl;
 }
 
 bool SpresenseImu::Read(uint8_t* data, size_t* len, int timeout_ms)
@@ -262,22 +244,37 @@ bool SpresenseImu::ParsePacket(const uint8_t* packet, size_t len)
     std::memcpy(&ay, &packet[34], sizeof(float));
     std::memcpy(&az, &packet[38], sizeof(float));
 
-    // shm_data_format.hpp の ImuData にマッピング
-    data.timestamp = GetNowSec();
-    data.ax = static_cast<double>(ax);
-    data.ay = static_cast<double>(ay);
-    data.az = static_cast<double>(az);
-    data.gx = static_cast<double>(gx);
-    data.gy = static_cast<double>(gy);
-    data.gz = static_cast<double>(gz);
-    data.q0 = static_cast<double>(q0);  // w
-    data.q1 = static_cast<double>(q1);  // x
-    data.q2 = static_cast<double>(q2);  // y
-    data.q3 = static_cast<double>(q3);  // z
+    // 取り付け回転を accel / gyro / quaternion の全部に適用してから
+    // ImuData に格納する (全フィールドがロボット座標系に揃う。
+    // 旧実装は euler だけ補正して生ベクトルは IMU 座標系のままだった)。
+    imu_mount::Quat q_imu{static_cast<double>(q0), static_cast<double>(q1),
+                          static_cast<double>(q2), static_cast<double>(q3)};
+    std::array<double, 3> acc{static_cast<double>(ax), static_cast<double>(ay),
+                              static_cast<double>(az)};
+    std::array<double, 3> gyr{static_cast<double>(gx), static_cast<double>(gy),
+                              static_cast<double>(gz)};
 
-    // クォータニオン → オイラー角変換（座標系変換込み）
-    QuaternionToEuler(data.q0, data.q1, data.q2, data.q3,
-                      data.roll, data.pitch, data.yaw);
+    imu_mount::Quat q_robot = q_imu;
+    if (!mount_identity_) {
+        acc = imu_mount::RotateVec(mount_quat_, acc);
+        gyr = imu_mount::RotateVec(mount_quat_, gyr);
+        q_robot = imu_mount::Multiply(q_imu, imu_mount::Conjugate(mount_quat_));
+    }
+
+    data.timestamp = GetNowSec();
+    data.ax = acc[0];
+    data.ay = acc[1];
+    data.az = acc[2];
+    data.gx = gyr[0];
+    data.gy = gyr[1];
+    data.gz = gyr[2];
+    data.q0 = q_robot.w;
+    data.q1 = q_robot.x;
+    data.q2 = q_robot.y;
+    data.q3 = q_robot.z;
+
+    // クォータニオン (回転適用後) → オイラー角
+    imu_mount::QuatToEuler(q_robot, data.roll, data.pitch, data.yaw);
 
     // データ更新
     {

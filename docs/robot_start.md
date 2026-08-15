@@ -24,6 +24,11 @@ PC = 操作用 (robot_web_gui を deploy、ブラウザ操作)。
 
 - モータ電源 ON (モータが CAN に応答しないと ACK 不在でバスが ERROR-PASSIVE に落ちる)
 - IMU (Spresense) が /dev/ttyUSB0 に接続されていること (imu_node が使用)
+- **シリアルの権限**: imu_node を動かすユーザーが `dialout` グループに属していること
+  (`sudo usermod -aG dialout <user>` → 再ログインで有効)。無いと imu_node が
+  `Permission denied` で IMU なし続行になり **imu_data が全ゼロ**になる
+- IMU の取り付け回転は robot_config の `imu_mount_rpy_deg` (v2_5 は [0,0,0] =
+  ロボット座標系一致)。取り付きを変えたら json のこの 1 行を更新
 
 ## 1. robot 側
 

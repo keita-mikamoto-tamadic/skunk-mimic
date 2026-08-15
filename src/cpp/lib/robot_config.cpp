@@ -29,6 +29,13 @@ RobotConfig Parse(const std::string& json_str) {
   config.protocol = j.value("protocol", "moteus");
   config.controller = j.value("controller", "angle_pid");
   config.comm_ch = j.value("comm_ch", std::vector<std::string>{"can0"});
+  {
+    auto rpy = j.value("imu_mount_rpy_deg", std::vector<double>{0.0, 0.0, 0.0});
+    if (rpy.size() != 3) {
+      throw std::runtime_error("robot_config: imu_mount_rpy_deg must have 3 elements");
+    }
+    config.imu_mount_rpy_deg = {rpy[0], rpy[1], rpy[2]};
+  }
 
   if (config.comm_ch.empty()) {
     throw std::runtime_error("robot_config: comm_ch must not be empty");

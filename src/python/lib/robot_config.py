@@ -29,6 +29,7 @@ class RobotConfig:
     interpolation_time: float
     transport: str  # "socketcan" or "dummy"
     protocol: str  # "moteus" (default) or "foctive"
+    imu_mount_rpy_deg: List[float]  # IMU mount rotation [roll, pitch, yaw] deg
     comm_ch: List[str]  # SocketCAN netdev names, e.g. ["can0", "can1"]
     axes: List[AxisConfig]
 
@@ -72,6 +73,7 @@ def parse(json_str: str) -> RobotConfig:
         interpolation_time=data["interpolation_time"],
         transport=data.get("transport", "socketcan"),
         protocol=data.get("protocol", "moteus"),
+        imu_mount_rpy_deg=data.get("imu_mount_rpy_deg", [0.0, 0.0, 0.0]),
         comm_ch=data.get("comm_ch", ["can0"]),
         axes=axes
     )

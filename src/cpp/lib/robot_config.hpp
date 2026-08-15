@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,9 @@ struct RobotConfig {
   std::string transport;    // "socketcan" or "dummy"
   std::string protocol;     // "moteus" or "foctive" (default: "moteus")
   std::string controller;   // "angle_pid" etc. (default: "angle_pid")
+  std::array<double, 3> imu_mount_rpy_deg;  // IMU 取り付け回転 RPY [deg]
+                            //   v_robot = Rz(yaw)·Ry(pitch)·Rx(roll) · v_imu
+                            //   (default: {0,0,0} = ロボット座標系と一致)
   std::vector<std::string> comm_ch; // SocketCAN netdev 名リスト (default: {"can0"})
                             //   例: ["can0", "can1"]。各軸は AxisConfig::comm_ch で
                             //   このリストのインデックスを指す (PEAK PCAN-M.2 等の

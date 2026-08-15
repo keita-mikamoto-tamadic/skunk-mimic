@@ -18,6 +18,7 @@ set(DORA_NODE_API_LIB "${DORA_ROOT}/target/release/libdora_node_api_cxx.a")
 add_executable(imu_node
   main.cpp
   ../../driver/spresense_imu.cpp
+  ../../lib/robot_config.cpp
   ${DORA_NODE_API_INC}/dora-node-api.cc
 )
 
