@@ -107,18 +107,16 @@ class Latest:
     def __init__(self):
         self.lock = threading.Lock()
         self.raw = {}       # topic key -> bytes
-        self.count = {}     # topic key -> 受信数 (レート表示用)
-        self.t_last = {}    # topic key -> 最終受信 monotonic
+        self.t_last = {}    # topic key -> 最終受信 monotonic (途絶表示用)
 
     def put(self, key, raw):
         with self.lock:
             self.raw[key] = raw
-            self.count[key] = self.count.get(key, 0) + 1
             self.t_last[key] = time.monotonic()
 
     def snapshot(self):
         with self.lock:
-            return dict(self.raw), dict(self.count), dict(self.t_last)
+            return dict(self.raw), dict(self.t_last)
 
 
 LATEST = Latest()
@@ -160,8 +158,8 @@ def fmt_state(raw):
         return f"?{raw[0]}"
 
 
-def render(robot_name, axis_meta, prev_count, prev_t):
-    raw, count, t_last = LATEST.snapshot()
+def render(robot_name, axis_meta):
+    raw, t_last = LATEST.snapshot()
     now = time.monotonic()
     lines = []
     A = lines.append
@@ -207,33 +205,24 @@ def render(robot_name, axis_meta, prev_count, prev_t):
     else:
         A("latency  (なし)")
 
-    # ---- topic rates ----
+    # ---- 途絶表示 (topic ごとに 0.5s 以上更新が無ければ stale) ----
+    stale = [k for k in TOPICS if (now - t_last.get(k, 0)) >= 0.5 or k not in t_last]
     A("")
-    dt = max(1e-6, now - prev_t)
-    parts = []
-    for key in TOPICS:
-        c = count.get(key, 0)
-        hz = (c - prev_count.get(key, 0)) / dt
-        age = now - t_last.get(key, 0) if key in t_last else float("inf")
-        stale = "" if age < 0.5 else " (stale)"
-        parts.append(f"{key} {hz:5.0f}Hz{stale}")
-    A("rate: " + "  ".join(parts))
+    A(("stale: " + " ".join(stale)) if stale else "all topics live")
     A("Ctrl-C で終了")
 
     # 画面クリアして描く (ANSI: home + clear-to-end)
     sys.stdout.write("\x1b[H\x1b[J" + "\n".join(lines) + "\n")
     sys.stdout.flush()
-    return count, now
 
 
 def main():
     robot_name, axis_meta = load_axis_meta()
     for key, topic in TOPICS.items():
         threading.Thread(target=echo_thread, args=(key, topic), daemon=True).start()
-    prev_count, prev_t = {}, time.monotonic()
     try:
         while True:
-            prev_count, prev_t = render(robot_name, axis_meta, prev_count, prev_t)
+            render(robot_name, axis_meta)
             time.sleep(1.0 / RENDER_HZ)
     except KeyboardInterrupt:
         STOP.set()
