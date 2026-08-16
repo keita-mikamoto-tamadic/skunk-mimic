@@ -1,4 +1,5 @@
 #include <chrono>
+#include <ctime>
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -57,13 +58,30 @@ int main() {
     //   proc = 制御計算〜送信完了 (RCM 自身の処理時間) と
     //   wait = 送信完了 → 次イベント取り出し (next() で待っていた時間 = 配送 + スケジューリング)
     // に分解して、どちらが gap を作っているかを見る。
+    // transit = 送信側 (DCM) が付けた HLC タイムスタンプ → RCM が next() で
+    // 手にした時刻。同一ホストなので CLOCK_REALTIME 共通で直接引ける。
+    // wait と違い「経路にかかった時間」だけを切り出す (RCM の処理や起床の待ちを
+    // 含まない)。metadata.timestamp は uhlc の NTP64 (上位 32bit = UNIX 秒、
+    // 下位 32bit = 秒の 1/2^32)。
     long rx_count = 0;
     long rx_gap_max_us = 0;
     long proc_max_us = 0, proc_sum_us = 0;
-    long wait_max_us = 0;
+    long wait_max_us = 0, wait_sum_us = 0;
+    long transit_max_us = 0, transit_sum_us = 0;
     auto rx_last = std::chrono::steady_clock::now();
     auto rx_window_start = rx_last;
     auto proc_end = rx_last;  // 直前の motor_status 処理が終わった時刻
+    auto ntp64_now_us = []() -> long {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        return static_cast<long>(ts.tv_sec) * 1000000L + ts.tv_nsec / 1000L;
+    };
+    auto ntp64_to_us = [](uint64_t ntp) -> long {
+        uint64_t sec = ntp >> 32;
+        uint64_t frac = ntp & 0xffffffffULL;
+        return static_cast<long>(sec) * 1000000L
+             + static_cast<long>((frac * 1000000ULL) >> 32);
+    };
 
     while (true) {
         auto event = node.events->next();
@@ -113,14 +131,18 @@ int main() {
                 }
             }
             else if (id == kInputMotorStatus) {
-                // 受信レート計測 (gap / wait)
+                // 受信レート計測 (gap / wait / transit)
                 {
                     long gap = std::chrono::duration_cast<std::chrono::microseconds>(t_recv - rx_last).count();
                     long wait = std::chrono::duration_cast<std::chrono::microseconds>(t_recv - proc_end).count();
                     if (rx_count > 0) {
                         if (gap > rx_gap_max_us) rx_gap_max_us = gap;
                         if (wait > wait_max_us) wait_max_us = wait;
+                        wait_sum_us += wait;
                     }
+                    long transit = ntp64_now_us() - ntp64_to_us(info.metadata->timestamp());
+                    if (transit > transit_max_us) transit_max_us = transit;
+                    transit_sum_us += transit;
                     rx_last = t_recv;
                     ++rx_count;
                 }
@@ -137,13 +159,16 @@ int main() {
                     if (proc > proc_max_us) proc_max_us = proc;
                     long win = std::chrono::duration_cast<std::chrono::milliseconds>(proc_end - rx_window_start).count();
                     if (win >= 1000) {
+                        long n = rx_count ? rx_count : 1;
                         std::cout << "motor_status rx: " << rx_count << "/s"
-                                  << "  gap max " << rx_gap_max_us << "us"
-                                  << "  proc avg " << (rx_count ? proc_sum_us / rx_count : 0)
-                                  << " max " << proc_max_us << "us"
-                                  << "  wait max " << wait_max_us << "us" << std::endl;
+                                  << "  gap max " << rx_gap_max_us
+                                  << "  proc avg " << proc_sum_us / n << " max " << proc_max_us
+                                  << "  wait avg " << wait_sum_us / n << " max " << wait_max_us
+                                  << "  transit avg " << transit_sum_us / n << " max " << transit_max_us
+                                  << " (us)" << std::endl;
                         rx_count = 0; rx_gap_max_us = 0; proc_max_us = 0; proc_sum_us = 0;
-                        wait_max_us = 0; rx_window_start = proc_end;
+                        wait_max_us = 0; wait_sum_us = 0; transit_max_us = 0; transit_sum_us = 0;
+                        rx_window_start = proc_end;
                     }
                 }
                 // state_status は変化時 + キープアライブ (~10Hz) のみ。
