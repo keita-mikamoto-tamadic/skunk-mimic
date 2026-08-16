@@ -15,15 +15,26 @@ PC = ブラウザで操作・表示するだけ (PC 側に dora は不要)。
 - (dataflow_mimic.yaml は robot ローカル完結なので PC 側の dora は不要。分散配置の
   dataflow_*_web_control.yaml を使う場合のみ) dora のバージョン一致: robot と PC の
   `~/dora` は同一コミット (`fd1f050b`)。ズレると register されない — docs/dora-upgrade.md
-- **setcap** (バイナリを作り直すたびに消える):
+- **RT 権限は limits.conf で与える** (setcap は使わない。初回のみ、再ログインで有効):
 
   ```bash
-  # robot 側
-  sudo setcap cap_sys_nice,cap_ipc_lock+ep ~/dora/target/release/dora
-  sudo setcap cap_sys_nice,cap_ipc_lock+ep ~/skunk-mimic/src/cpp/node/device_control_manager/build/device_control_manager
-  getcap で確認。dora 側が無いと --rt daemon が dataflow spawn 時に
-  "memory allocation of N bytes failed" で abort する
+  sudo tee /etc/security/limits.d/50-skunk-rt.conf >/dev/null <<'EOF'
+  jetmimic  -  rtprio   90
+  jetmimic  -  memlock  unlimited
+  EOF
+  # 再ログイン後に確認: ulimit -r → 90、ulimit -l → unlimited
   ```
+
+  これで device_control_manager (SCHED_FIFO 80、メインスレッドのみ) も dora daemon
+  (`--rt`) も setcap なしで RT を取れる。**リビルドしても何もしなくてよい**。
+  ノードに setcap すると secure-exec になり不利 (以前 DCM に付けていた
+  `cap_sys_nice,cap_ipc_lock` は外した — `getcap` で何も出ないのが正)。
+  `dora_rt_damon.bash` は limits が効いた新しいログインシェルから起動すること
+  (spawn されるノードが継承する)。
+- **DCM の CPU 隔離は dataflow yaml の `cpu_affinity: [1]`** (dora が起動時に全スレッドへ
+  適用)。SCHED_FIFO は DCM が `init_dora_node()` の後にメインスレッドだけに付ける
+  (init 前だと zenoh ワーカーまで FIFO になり、起動時のピア接続が失敗して
+  motor_status が daemon 中継に落ちる)
 
 - pcan.ko の `fdirqcl`/`fdirqtl` は**既定 (16/10) のまま**にする (1 にすると割り込み負荷で
   DCM の tick が揺れて補間がカクつく — docs/pcan_socketcan_driver.md §6b)。確認:
@@ -112,7 +123,7 @@ PC 側はブラウザを閉じるだけ (web_monitor を動かしていればそ
 |---|---|
 | `no matching daemon for machine id 'pc'` | (分散配置していた頃の症状。dataflow_mimic.yaml は robot ローカルに戻したので出ないはず。dataflow_*_web_control.yaml で出たら) PC daemon 未接続。`dora_pc_daemon.bash` を再実行 |
 | PC daemon が `timeout waiting for register reply` を繰り返す | robot 側 coordinator が落ちている、または dora のコミット不一致 (docs/dora-upgrade.md) |
-| daemon が `memory allocation of N bytes failed` で abort | dora バイナリの setcap 消失 (§0) |
+| daemon が `memory allocation of N bytes failed` で abort | RT 権限なしで `--rt` の mlockall が失敗 (limits.conf の memlock、§0。または旧運用の dora バイナリ setcap 消失) |
 | dataflow start 後に何も動かない (CPU 0%) | dynamic node (robot_web_gui) 未 attach。全 dynamic node が揃うまで開始バリアで待つ |
 | `multiple dataflows contain dynamic node id ...` | 過去の dataflow が Running のまま残存。`dora list` → 全部 `dora stop` |
 | **モータ電源を落とした / 強制駆動 OFF した後** | CAN が ERROR-PASSIVE に落ち、PEAK ドライバは電源復帰後も自力で送信を再開しない (仕様として受容)。**復旧手順: `pcan_setup.bash can0 can1 down` → `keep` で上げ直し → dora を立ち上げ直す**。電源 OFF 中は DCM が fault=255 (NoResponse) を立てて RCM/GUI が OFF に落ち、復帰時の初回指令は必ず OFF になる (暴走しない) |
