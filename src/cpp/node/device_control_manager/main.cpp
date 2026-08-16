@@ -134,7 +134,7 @@ int main() {
     std::vector<AxisRef> latest_commands(axis_count);
     bool has_new_commands = false;
     bool have_commands = false;            // 一度でも指令を受けたか
-    std::vector<AxisRef> logged_commands;  // 変化検出してログを間引く用
+    std::vector<uint8_t> logged_states;    // 変化検出してログを間引く用 (motor_state のみ)
 
     // moteus は watchdog_timeout (既定 100ms) 以内にコマンドフレームが来続けないと
     // kPositionTimeout に落ちるため、一度指令を受けたら以降は毎 tick 最新指令を
@@ -234,14 +234,20 @@ int main() {
                 // コマンド到達の確認ログ。moteus watchdog 対策で送信側は
                 // 同一コマンドをストリームし続けるため、内容が変わった時だけ出す。
                 // 分散構成で「送ったのに動かない」ときの切り分けに使う。
-                if (logged_commands.size() != latest_commands.size() ||
-                    std::memcmp(logged_commands.data(), latest_commands.data(),
-                                latest_commands.size() * sizeof(AxisRef)) != 0) {
-                    logged_commands = latest_commands;
-                    std::cout << "recv motor_commands: state="
-                              << static_cast<int>(latest_commands[0].motor_state)
-                              << " ref=" << latest_commands[0].ref_val
-                              << " ref1=" << latest_commands[0].ref_val_1 << std::endl;
+                // ログは各軸の motor_state (モード) が変わった時だけ。ref_val は
+                // STOP/READY 中に毎 tick 微小変化する (現在位置追従・補間) ので
+                // 全体比較すると 333Hz で出続けてしまう。
+                {
+                    std::vector<uint8_t> states(latest_commands.size());
+                    for (size_t i = 0; i < states.size(); ++i)
+                        states[i] = static_cast<uint8_t>(latest_commands[i].motor_state);
+                    if (states != logged_states) {
+                        logged_states = states;
+                        std::cout << "recv motor_commands: states=[";
+                        for (size_t i = 0; i < states.size(); ++i)
+                            std::cout << (i ? "," : "") << static_cast<int>(states[i]);
+                        std::cout << "] ref0=" << latest_commands[0].ref_val << std::endl;
+                    }
                 }
             }
             else if (id == kInputTick) {
