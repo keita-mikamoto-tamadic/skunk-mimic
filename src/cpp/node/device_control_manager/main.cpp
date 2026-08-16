@@ -45,20 +45,18 @@ constexpr const char* kOutputLatency      = "latency";
 constexpr const char* kOutputSettingsResult = "settings_result";
 constexpr const char* kOutputParamDump      = "param_dump";
 
-static void SetCpuAffinity(uint32_t core, int32_t priority) {
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(core, &cpuset);
-
-    pthread_t current_thread = pthread_self();
-    if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
-        std::cerr << "Warning: Failed to set CPU affinity" << std::endl;
-    }
-
+// 制御ループ (メインスレッド) だけを SCHED_FIFO にする。
+//   - CPU の割り当ては dataflow yaml の cpu_affinity (dora が pre_exec で全スレッドに適用)
+//   - SCHED_FIFO は dora が配布しない設計 (docs/realtime-tuning.md) なのでノード側で付ける
+//   - init_dora_node() の後で呼ぶこと: 前に呼ぶと dora ランタイム (zenoh の
+//     rx/tx ワーカー) が FIFO を継承し、同一 CPU でメインループと競合して起動時の
+//     ピア接続が完了せず、motor_status が daemon 中継 (遅延 +数 ms) になる (実測)
+//   - 権限は limits.conf の rtprio (setcap 不要。setcap だと secure-exec になる)
+static void SetRealtimePriority(int32_t priority) {
     struct sched_param param;
     param.sched_priority = priority;
-    if (pthread_setschedparam(current_thread, SCHED_FIFO, &param) != 0) {
-        std::cerr << "Warning: Failed to set RT Process priority" << std::endl;
+    if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+        std::cerr << "Warning: Failed to set RT priority (check limits.conf rtprio)" << std::endl;
     }
 }
 
@@ -87,8 +85,6 @@ struct ChannelBundle {
 };
 
 int main() {
-    SetCpuAffinity(1, 80);
-
     // config は dora 接続前に読む: パス解決ミスを fail-fast にし、
     // dora なしの単体起動 (ROBOT_CONFIG 解決の検証等) も可能にする
     auto config = robot_config::LoadFromFile(robot_config::ResolveConfigPath());
@@ -97,6 +93,9 @@ int main() {
 
     auto node = init_dora_node();
     std::cout << "started" << std::endl;
+
+    // dora ランタイム生成後にメインスレッドだけ RT 化 (理由は SetRealtimePriority のコメント)
+    SetRealtimePriority(80);
 
     // ドライバ初期化: comm_ch 毎に 1 インスタンス
     std::vector<ChannelBundle> channels(config.comm_ch.size());

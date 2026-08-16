@@ -60,6 +60,9 @@ nodes:
 
   - id: device_control_manager
     path: src/cpp/node/device_control_manager/build/device_control_manager
+    # CAN 制御ループを CPU1 に隔離 (dora が pre_exec で全スレッドに適用)。
+    # SCHED_FIFO は DCM 自身がメインスレッドにだけ付ける (init 後)。
+    cpu_affinity: [1]
     env:
       ROBOT_CONFIG: robot_config/mimic_v2_5.json
     inputs:
