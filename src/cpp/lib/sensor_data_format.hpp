@@ -44,12 +44,16 @@ struct LatencyData {
     double can_max_us;  // CAN 送受信の最大レイテンシ (us)
     double ctrl_avg_us;  // 制御側の平均レイテンシ (us)
     double ctrl_max_us;  // 制御側の最大レイテンシ (us)
+    double send_avg_us;  // motor_status の send_output 所要 (呼び出し→戻り) の平均 us。zenoh put の同期部分
+    double send_max_us;  // 同 最大 us (1 秒窓)。transit の max スパイクと一致すれば送信側、しなければ受信側/経路
 };
-static_assert(sizeof(LatencyData) == 32, "LatencyData size mismatch vs sensor_data.json");
+static_assert(sizeof(LatencyData) == 48, "LatencyData size mismatch vs sensor_data.json");
 static_assert(offsetof(LatencyData, can_avg_us) == 0, "LatencyData.can_avg_us offset mismatch vs sensor_data.json");
 static_assert(offsetof(LatencyData, can_max_us) == 8, "LatencyData.can_max_us offset mismatch vs sensor_data.json");
 static_assert(offsetof(LatencyData, ctrl_avg_us) == 16, "LatencyData.ctrl_avg_us offset mismatch vs sensor_data.json");
 static_assert(offsetof(LatencyData, ctrl_max_us) == 24, "LatencyData.ctrl_max_us offset mismatch vs sensor_data.json");
+static_assert(offsetof(LatencyData, send_avg_us) == 32, "LatencyData.send_avg_us offset mismatch vs sensor_data.json");
+static_assert(offsetof(LatencyData, send_max_us) == 40, "LatencyData.send_max_us offset mismatch vs sensor_data.json");
 
 // stabilizer → data_viewer: EKF 推定状態
 struct EstimatedState {

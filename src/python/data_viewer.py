@@ -202,7 +202,8 @@ def render(robot_name, axis_meta, prev_count, prev_t):
     if len(lt) >= LATENCY_DATA_SIZE:
         l = unpack_latency_data(lt)
         A(f"latency  CAN avg {l.can_avg_us:6.0f}us max {l.can_max_us:6.0f}us   "
-          f"CTRL avg {l.ctrl_avg_us:6.0f}us max {l.ctrl_max_us:6.0f}us")
+          f"CTRL avg {l.ctrl_avg_us:6.0f}us max {l.ctrl_max_us:6.0f}us   "
+          f"SEND avg {l.send_avg_us:5.0f}us max {l.send_max_us:5.0f}us")
     else:
         A("latency  (なし)")
 

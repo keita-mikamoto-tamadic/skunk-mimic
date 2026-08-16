@@ -163,6 +163,13 @@ int main() {
     int can_count = 0;
     long can_sum = 0;
     long can_max = 0;
+    // motor_status の send_output 所要 (呼び出し→戻り = zenoh put の同期部分)。
+    // 1 秒窓の avg/max を latency に載せる (RCM 側 transit の max スパイクが
+    // 送信側で発生しているか、受信側/経路かを切り分ける)
+    long send_sum = 0, send_max = 0;
+    int send_count = 0;
+    double send_avg_last = 0, send_max_last = 0;
+    auto send_window_start = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point status_send_time;
     bool status_pending = false;
     int ctrl_count = 0;
@@ -327,11 +334,26 @@ int main() {
                 latency.can_max_us = static_cast<double>(can_max);
                 latency.ctrl_avg_us = (ctrl_count > 0) ? static_cast<double>(ctrl_sum) / ctrl_count : 0;
                 latency.ctrl_max_us = static_cast<double>(ctrl_max);
+                latency.send_avg_us = send_avg_last;   // 直前 1 秒窓の値
+                latency.send_max_us = send_max_last;
                 ZeroCopySendStruct(node, kOutputLatency, latency);
 
+                auto t_send0 = std::chrono::steady_clock::now();
                 ZeroCopySendStructArray(node, kOutputMotorStatus, acts);
                 status_send_time = std::chrono::steady_clock::now();
                 status_pending = true;
+                {
+                    long su = std::chrono::duration_cast<std::chrono::microseconds>(
+                        status_send_time - t_send0).count();
+                    send_sum += su; if (su > send_max) send_max = su; ++send_count;
+                    if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                            status_send_time - send_window_start).count() >= 1000) {
+                        send_avg_last = send_count ? static_cast<double>(send_sum) / send_count : 0;
+                        send_max_last = static_cast<double>(send_max);
+                        send_sum = 0; send_max = 0; send_count = 0;
+                        send_window_start = status_send_time;
+                    }
+                }
             }
             else if (id == kInputSettingsRequest) {
                 // 設定モード要求(サーボOFF前提)。cmd で dispatch。

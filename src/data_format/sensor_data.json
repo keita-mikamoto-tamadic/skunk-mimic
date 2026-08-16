@@ -5,39 +5,133 @@
       "name": "ImuData",
       "doc": "imu_node / mujoco_backend → stabilizer, data_viewer: IMU 姿勢・加速度・角速度",
       "fields": [
-        {"name": "timestamp", "type": "double", "doc": "秒"},
-        {"name": "ax", "type": "double", "doc": "加速度 X"},
-        {"name": "ay", "type": "double", "doc": "加速度 Y"},
-        {"name": "az", "type": "double", "doc": "加速度 Z"},
-        {"name": "gx", "type": "double", "doc": "角速度 X"},
-        {"name": "gy", "type": "double", "doc": "角速度 Y"},
-        {"name": "gz", "type": "double", "doc": "角速度 Z"},
-        {"name": "q0", "type": "double", "doc": "クォータニオン w"},
-        {"name": "q1", "type": "double", "doc": "クォータニオン x"},
-        {"name": "q2", "type": "double", "doc": "クォータニオン y"},
-        {"name": "q3", "type": "double", "doc": "クォータニオン z"},
-        {"name": "roll", "type": "double", "doc": "rad (X軸回転)"},
-        {"name": "pitch", "type": "double", "doc": "rad (Y軸回転)"},
-        {"name": "yaw", "type": "double", "doc": "rad (Z軸回転)"}
+        {
+          "name": "timestamp",
+          "type": "double",
+          "doc": "秒"
+        },
+        {
+          "name": "ax",
+          "type": "double",
+          "doc": "加速度 X"
+        },
+        {
+          "name": "ay",
+          "type": "double",
+          "doc": "加速度 Y"
+        },
+        {
+          "name": "az",
+          "type": "double",
+          "doc": "加速度 Z"
+        },
+        {
+          "name": "gx",
+          "type": "double",
+          "doc": "角速度 X"
+        },
+        {
+          "name": "gy",
+          "type": "double",
+          "doc": "角速度 Y"
+        },
+        {
+          "name": "gz",
+          "type": "double",
+          "doc": "角速度 Z"
+        },
+        {
+          "name": "q0",
+          "type": "double",
+          "doc": "クォータニオン w"
+        },
+        {
+          "name": "q1",
+          "type": "double",
+          "doc": "クォータニオン x"
+        },
+        {
+          "name": "q2",
+          "type": "double",
+          "doc": "クォータニオン y"
+        },
+        {
+          "name": "q3",
+          "type": "double",
+          "doc": "クォータニオン z"
+        },
+        {
+          "name": "roll",
+          "type": "double",
+          "doc": "rad (X軸回転)"
+        },
+        {
+          "name": "pitch",
+          "type": "double",
+          "doc": "rad (Y軸回転)"
+        },
+        {
+          "name": "yaw",
+          "type": "double",
+          "doc": "rad (Z軸回転)"
+        }
       ]
     },
     {
       "name": "LatencyData",
       "doc": "device_control_manager → data_viewer: レイテンシ計測結果",
       "fields": [
-        {"name": "can_avg_us", "type": "double", "doc": "CAN 送受信の平均レイテンシ (us)"},
-        {"name": "can_max_us", "type": "double", "doc": "CAN 送受信の最大レイテンシ (us)"},
-        {"name": "ctrl_avg_us", "type": "double", "doc": "制御側の平均レイテンシ (us)"},
-        {"name": "ctrl_max_us", "type": "double", "doc": "制御側の最大レイテンシ (us)"}
+        {
+          "name": "can_avg_us",
+          "type": "double",
+          "doc": "CAN 送受信の平均レイテンシ (us)"
+        },
+        {
+          "name": "can_max_us",
+          "type": "double",
+          "doc": "CAN 送受信の最大レイテンシ (us)"
+        },
+        {
+          "name": "ctrl_avg_us",
+          "type": "double",
+          "doc": "制御側の平均レイテンシ (us)"
+        },
+        {
+          "name": "ctrl_max_us",
+          "type": "double",
+          "doc": "制御側の最大レイテンシ (us)"
+        },
+        {
+          "name": "send_avg_us",
+          "type": "double",
+          "doc": "motor_status の send_output 所要 (呼び出し→戻り) の平均 us。zenoh put の同期部分"
+        },
+        {
+          "name": "send_max_us",
+          "type": "double",
+          "doc": "同 最大 us (1 秒窓)。transit の max スパイクと一致すれば送信側、しなければ受信側/経路"
+        }
       ]
     },
     {
       "name": "EstimatedState",
       "doc": "stabilizer → data_viewer: EKF 推定状態",
       "fields": [
-        {"name": "velocity", "type": "double", "doc": "s' [m/s] ボディ前進速度"},
-        {"name": "yaw", "type": "double", "doc": "alpha [rad] ヨー角"},
-        {"name": "yaw_rate", "type": "double", "doc": "alpha' [rad/s] ヨーレート"}
+        {
+          "name": "velocity",
+          "type": "double",
+          "doc": "s' [m/s] ボディ前進速度"
+        },
+        {
+          "name": "yaw",
+          "type": "double",
+          "doc": "alpha [rad] ヨー角"
+        },
+        {
+          "name": "yaw_rate",
+          "type": "double",
+          "doc": "alpha' [rad/s] ヨーレート"
+        }
       ]
     }
   ]

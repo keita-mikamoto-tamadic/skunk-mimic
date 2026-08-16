@@ -27,8 +27,14 @@ motor_status rx: 334/s  gap max G  proc avg P max Pm  wait avg W max Wm  transit
 ### 1-2. DCM の latency topic
 
 `device_control_manager/latency` (LatencyData): `can_avg/max` = 1 tick の CAN 送受信
-所要、`ctrl_avg/max` = motor_status 送信 → motor_commands 受信の往復。
-data_viewer.py の latency 行、または `dora topic echo -d <df> device_control_manager/latency --format json`。
+所要、`ctrl_avg/max` = motor_status 送信 → motor_commands 受信の往復、
+`send_avg/max` = motor_status の `send_output` 所要 (呼び出し→戻り = zenoh put の同期
+部分、1 秒窓)。data_viewer.py の latency 行 (`SEND avg/max`)、または
+`dora topic echo -d <df> device_control_manager/latency --format json`。
+
+RCM の transit と同じ時間帯で並べれば、経路遅延のスパイクが**送信側で起きているか
+受信側/経路で起きているか**を切り分けられる (transit max が大きい秒に send max も
+大きければ送信、send max が小さいままなら受信側)。
 
 ### 1-3. スレッド別の scheduling / CPU
 
@@ -83,19 +89,38 @@ ps -eLo pid,tid,cls,rtprio,psr,comm | awk '$3=="FF" && $4>=50'                  
 transit **avg ~0.45ms / max 1.5〜4ms** (毎秒数回)、wait avg ≈ 周期どおり / max 4〜8ms、
 proc avg 0.4ms / max 1〜3ms。
 
+**送信側と受信側の分解** (2026-08-16、send_avg/max を追加して同時計測):
+
+| | avg | max |
+|---|---|---|
+| DCM `send_output` (zenoh put 同期部分) | 162〜171us | **215〜255us (スパイクなし)** |
+| RCM transit (送信 timestamp → 受信) | 440〜565us | 1.5〜4.6ms |
+
+→ 平常時の内訳は送信 ~165us + 受信側 ~285us。**スパイク (1.5〜4.6ms) は送信後、
+すなわち zenoh の受信側 (RCM プロセス内の rx ワーカー → Arrow デコード → mpsc →
+アプリスレッド起床) で発生している。送信側 (DCM) は無罪。**
+
+wait max − transit max の差 (2〜4ms) は RCM 側で失う時間 = 非 RT のアプリスレッドの
+起床遅れ + 直前 tick の proc が伸びた分。RCM を RT にすると proc は安定するが
+transit (zenoh rx 経路) は RT の外なので縮まない (実測どおり)。
+
 ## 3. 結論と残課題
 
 - 平常時の配送は健全 (0.45ms)。スパイク (max 数 ms) は 1〜2 tick 分で、PID バランス制御の
   段階では許容と判断。**PID を先に進める**
-- スパイクの主因は未特定。dora 側 (優先度・トポロジ・件数) では消えない。OS 側は
-  cpuidle と RT 優先度では消えず、残る候補は IPI (Function call 割り込み、RT より上) /
-  arch_timer / softirq。**本気で詰めるなら ftrace (`trace-cmd record -e sched_switch
-  -e irq`) でスパイクの瞬間に CPU を奪っているものを直接見る**のが最短。推測で設定を
-  いじるのはもうやらない
-- **「zenoh の処理が原因」か「OS 由来で任意のプロセス間受け渡しに乗るジッタ」かは未分離**。
-  transit は「送信スレッドが timestamp を押す → 受信スレッドが手にする」の全部を含む。
-  分離するには、同じ 2 プロセス間で zenoh を使わない最小の送受信 (shm+futex や
-  Unix domain socket 直) を並走させて transit を比較する。shm 化の効果見積もりにもなる
+- スパイクの発生箇所は **zenoh の受信側 (RCM プロセス内)** まで絞れた (送信側は無罪)。
+  その先 (zenoh rx ワーカーの処理そのものか、rx ワーカー/アプリスレッドが OS に
+  待たされているか) は未分離。dora 側の設定 (優先度・トポロジ・件数) では消えない。
+  OS 側は cpuidle と RT 優先度では消えず、残る候補は IPI (Function call 割り込み、
+  RT より上) / arch_timer / softirq。**本気で詰めるなら ftrace (`trace-cmd record
+  -e sched_switch -e irq`) で RCM の rx ワーカーがスパイクの瞬間に何に待たされたかを
+  直接見る**のが最短。推測で設定をいじるのはもうやらない
+- 未検証の 1 手: 「直接リンク + RCM 受信側 (zenoh rx ワーカー含む) RT 化」。RCM RT 化を
+  試したときは中継経路だったため条件が違う。ただし RCM も listen する側なので DCM で
+  起きた「init 前 FIFO で起動時ピア接続失敗」が再現しうる
+- 「zenoh の処理が原因」か「OS 由来で任意のプロセス間受け渡しに乗るジッタ」かの完全な
+  分離は、同じ 2 プロセス間で zenoh を使わない最小の送受信 (shm+futex 等) を並走させて
+  比較する。shm 化の効果見積もりにもなる
 - 根本対策は方針として決定済み: 閉ループ (CAN/IMU/PID) を dora メッセージから外し
   shm 直結にする (dora は低レート配線のみ)。着手は「transit avg が ms 級になる /
   遅延に敏感な制御に進む」等、必要になったとき

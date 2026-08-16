@@ -17,11 +17,11 @@ def pack_imu_data(rec):
 def unpack_imu_data(buf, offset=0):
     return ImuData(*struct.unpack_from(IMU_DATA_FMT, buf, offset))
 
-LATENCY_DATA_FMT = "<dddd"
-LATENCY_DATA_SIZE = struct.calcsize(LATENCY_DATA_FMT)  # 32
-LATENCY_DATA_FIELDS = ['can_avg_us', 'can_max_us', 'ctrl_avg_us', 'ctrl_max_us']
+LATENCY_DATA_FMT = "<dddddd"
+LATENCY_DATA_SIZE = struct.calcsize(LATENCY_DATA_FMT)  # 48
+LATENCY_DATA_FIELDS = ['can_avg_us', 'can_max_us', 'ctrl_avg_us', 'ctrl_max_us', 'send_avg_us', 'send_max_us']
 LatencyData = namedtuple("LatencyData", LATENCY_DATA_FIELDS)
-LatencyData.__new__.__defaults__ = (0, 0, 0, 0,)
+LatencyData.__new__.__defaults__ = (0, 0, 0, 0, 0, 0,)
 
 def pack_latency_data(rec):
     return struct.pack(LATENCY_DATA_FMT, *rec)
