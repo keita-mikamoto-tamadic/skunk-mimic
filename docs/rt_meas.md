@@ -92,6 +92,10 @@ proc avg 0.4ms / max 1〜3ms。
   arch_timer / softirq。**本気で詰めるなら ftrace (`trace-cmd record -e sched_switch
   -e irq`) でスパイクの瞬間に CPU を奪っているものを直接見る**のが最短。推測で設定を
   いじるのはもうやらない
+- **「zenoh の処理が原因」か「OS 由来で任意のプロセス間受け渡しに乗るジッタ」かは未分離**。
+  transit は「送信スレッドが timestamp を押す → 受信スレッドが手にする」の全部を含む。
+  分離するには、同じ 2 プロセス間で zenoh を使わない最小の送受信 (shm+futex や
+  Unix domain socket 直) を並走させて transit を比較する。shm 化の効果見積もりにもなる
 - 根本対策は方針として決定済み: 閉ループ (CAN/IMU/PID) を dora メッセージから外し
   shm 直結にする (dora は低レート配線のみ)。着手は「transit avg が ms 級になる /
   遅延に敏感な制御に進む」等、必要になったとき
