@@ -60,9 +60,10 @@ void RobotControlManager::HandleStateCommand(StateCommand cmd) {
             if (state_ != State::OFF) {
                 state_ = State::STOP;
                 for (size_t i = 0; i < commands_.size(); i++) {
+                    // motor_state だけ落とし、kp_scale/kv_scale は直前まで使っていた値を
+                    // そのまま送る。1.0 に書き戻すと、RUN 中に kv_scale=20 で回っていた
+                    // ホイールがゲイン 1/20 に落ちてブレーキが急に変わる。
                     commands_[i].motor_state = MotorState::STOP;
-                    commands_[i].kp_scale = 1.0;
-                    commands_[i].kv_scale = 1.0;
                 }
             }
             break;

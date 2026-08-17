@@ -44,8 +44,25 @@ size_t MoteusConverter::BuildCommandFrame(
     cmd.stop_position = std::numeric_limits<double>::quiet_NaN();
     cmd.watchdog_timeout = std::numeric_limits<double>::quiet_NaN();
     
+    // Format = 「どのレジスタを実際にフレームへ載せるか」。既定は position と
+    // velocity 以外すべて kIgnore = 送らない。moteus 側のコマンドレジスタは
+    // sticky (前回書いた値が残る) なので、送らない = 「既定値になる」ではなく
+    // 「前回値のまま」。つまり cmd に代入しただけで fmt を指定しないと、
+    //   * RCM が計算した velocity/accel/torque limit が一切効かない
+    //   * TORQUE で書いた feedforward_torque が POSITION に戻っても残る
+    // という状態になる。cmd に値を入れるものは必ずここで解像度を指定する。
+    //
+    // stop_position / watchdog_timeout はどのモードでも NaN のまま = 一度も
+    // 書いていないので、送らなくても servo 既定と同じ。フレームを短く保つため
+    // kIgnore のままにしている (watchdog は servo.default_timeout_s = 100ms)。
     moteus::PositionMode::Format fmt;
-    
+    fmt.feedforward_torque = moteus::Resolution::kFloat;
+    fmt.kp_scale           = moteus::Resolution::kFloat;  // kp=0 を正確に送るため float
+    fmt.kd_scale           = moteus::Resolution::kFloat;
+    fmt.maximum_torque     = moteus::Resolution::kFloat;
+    fmt.velocity_limit     = moteus::Resolution::kFloat;
+    fmt.accel_limit        = moteus::Resolution::kFloat;
+
     switch (state) {
       case MotorState::STOP:
         // NaN位置 = 現在位置を保持してブレーキ
@@ -78,9 +95,6 @@ size_t MoteusConverter::BuildCommandFrame(
         cmd.kd_scale = ref.kv_scale;
         cmd.velocity_limit = vlim_rev;
         cmd.accel_limit = alim_rev;
-        // kp = 0を正確にするためfloatにする
-        fmt.kp_scale = moteus::Resolution::kFloat;
-        fmt.kd_scale = moteus::Resolution::kFloat;
         break;
 
       case MotorState::TORQUE:
@@ -93,10 +107,6 @@ size_t MoteusConverter::BuildCommandFrame(
         cmd.kd_scale = 0.0;
         cmd.velocity_limit = std::numeric_limits<double>::quiet_NaN();
         cmd.accel_limit = std::numeric_limits<double>::quiet_NaN();
-        fmt.feedforward_torque = moteus::Resolution::kFloat;
-        fmt.maximum_torque = moteus::Resolution::kFloat;
-        fmt.kp_scale = moteus::Resolution::kFloat;
-        fmt.kd_scale = moteus::Resolution::kFloat;
         break;
 
       default:
