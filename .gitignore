@@ -17,6 +17,10 @@ Makefile
 
 # Dora runtime output
 out/
+# daemon が dataflow yaml を持たない場合 (分散実行の受け側) のログ出力先。
+# daemon の cwd/_work/<session-uuid>/out/<dataflow-uuid>/log_*.jsonl にセッション毎に増える。
+# 中身が out/ だけなので上の行に隠れて git status に出てこない → 明示的に無視する。
+_work/
 
 # IDE / tools
 .vscode/
