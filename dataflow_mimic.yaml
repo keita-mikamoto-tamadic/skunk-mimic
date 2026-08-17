@@ -100,3 +100,22 @@ nodes:
         queue_size: 400                    # channel full 対策 (容量=入力 queue_size 合計、既定10)
     outputs:
       - state_command
+
+  # DualSense (PS5) で操作する版。robot_web_gui と排他なので既定は無効。
+  # dora の入力は 1 つの名前に 1 ソースしか結べず、RCM の state_command に
+  # robot_web_gui と両方を繋ぐことはできない。使う時は
+  #   1) 上の robot_web_gui ブロックをコメントアウト
+  #   2) 下のブロックを有効化
+  #   3) RCM の inputs を state_command: dualsense_input/state_command に変える
+  # の 3 点を入れ替える。
+  #
+  # 起動: cd src/python && uv run dualsense_input/dualsense_input.py
+  # パッドが未接続でも起動し、切断しても落ちない (開始バリアを塞がないため)。
+  # 切断時は何も送らず RCM の状態を維持する。走行指令を足したら、そちらは
+  # 切断時に 0 へ戻すこと。
+  # 割り当てと実測根拠は scripts/dualsense_monitor/README.md。
+  #
+  # - id: dualsense_input
+  #   path: dynamic
+  #   outputs:
+  #     - state_command
