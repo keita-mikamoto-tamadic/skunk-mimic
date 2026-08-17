@@ -19,16 +19,16 @@ public:
 
 private:
     // PID 定数
-    static constexpr double kTargetPitch = 0.365;
-    static constexpr double kAngleKp = 70.0;
-    static constexpr double kAngleKi = 0.6;
-    static constexpr double kAngleKd = 0.014;
+    static constexpr double kTargetPitch = 0.165;
+    static constexpr double kAngleKp = 80.0;
+    static constexpr double kAngleKi = 350.0;
+    static constexpr double kAngleKd = 0.0;
     static constexpr double kAngleMaxIntegral = 0.21;
-    static constexpr double kAngleDDeadZone = 0.05;
+    static constexpr double kAngleDDeadZone = 0.03;
 
-    static constexpr double kVelKp = 0.0001;
+    static constexpr double kVelKp = 0.0;
     static constexpr double kVelKi = 0.01;
-    static constexpr double kVelMaxIntegral = 0.5;
+    static constexpr double kVelMaxIntegral = 5.0;
 
     static constexpr double kMaxAngleOffset = 0.05;
     static constexpr double kMaxWheelSpeed = 30.0;
