@@ -39,7 +39,10 @@ nodes:
       # motor_status 途絶時は moteus 自身の watchdog (100ms, kPositionTimeout)
       # がモータを止めるので RCM 側の検出は冗長で、配送ジッタでの誤発動
       # (勝手に SERVO_OFF) の実害の方が大きい。
-      state_command: robot_web_gui/state_command
+      # 操作元の切り替え: robot_web_gui / dualsense_input のどちらか一方
+      # (dora の入力は 1 名前 1 ソース)。下の該当ブロックの有効/無効と揃えること。
+      # state_command: robot_web_gui/state_command
+      state_command: dualsense_input/state_command
       motor_status: device_control_manager/motor_status
       run_command: stabilizer/run_command
     outputs:
@@ -90,32 +93,34 @@ nodes:
   # http://<robot-ip>:8766/ を開くだけにする。robot 側の全経路がローカルになる。
   # dynamic は全 attach まで開始バリアで待つため、常時起動しない data_viewer 等は
   # ここに入れない (表示は data_viewer.py / web_monitor で)。
-  - id: robot_web_gui
-    path: dynamic
-    inputs:
-      tick: dora/timer/millis/50          # コマンドキュー drain + RUN リトライ用
-      state_status: robot_control_manager/state_status
-      imu_data:                            # 角度/角速度の数値表示用 (333Hz、最新値のみ要)
-        source: device_control_manager/imu_data
-        queue_size: 400                    # channel full 対策 (容量=入力 queue_size 合計、既定10)
-    outputs:
-      - state_command
-
-  # DualSense (PS5) で操作する版。robot_web_gui と排他なので既定は無効。
-  # dora の入力は 1 つの名前に 1 ソースしか結べず、RCM の state_command に
-  # robot_web_gui と両方を繋ぐことはできない。使う時は
-  #   1) 上の robot_web_gui ブロックをコメントアウト
-  #   2) 下のブロックを有効化
-  #   3) RCM の inputs を state_command: dualsense_input/state_command に変える
-  # の 3 点を入れ替える。
+  # robot_web_gui と dualsense_input は排他 (dora の入力は 1 名前 1 ソース)。
+  # 切り替えるときは RCM の state_command のソースと、この 2 ブロックの
+  # 有効/無効を必ず揃えること。
   #
+  # ブラウザ版 (http://<robot-ip>:8766/)。今は無効。
+  # 起動: cd src/python && ROBOT_CONFIG=robot_config/mimic_v2_5.json \
+  #         uv run robot_web_gui/robot_web_gui.py
+  # - id: robot_web_gui
+  #   path: dynamic
+  #   inputs:
+  #     tick: dora/timer/millis/50          # コマンドキュー drain + RUN リトライ用
+  #     state_status: robot_control_manager/state_status
+  #     imu_data:                            # 角度/角速度の数値表示用 (333Hz、最新値のみ要)
+  #       source: device_control_manager/imu_data
+  #       queue_size: 400                    # channel full 対策 (容量=入力 queue_size 合計、既定10)
+  #   outputs:
+  #     - state_command
+
+  # DualSense (PS5) 版。今はこちらが有効。
   # 起動: cd src/python && uv run dualsense_input/dualsense_input.py
   # パッドが未接続でも起動し、切断しても落ちない (開始バリアを塞がないため)。
   # 切断時は何も送らず RCM の状態を維持する。走行指令を足したら、そちらは
   # 切断時に 0 へ戻すこと。
   # 割り当てと実測根拠は scripts/dualsense_monitor/README.md。
-  #
-  # - id: dualsense_input
-  #   path: dynamic
-  #   outputs:
-  #     - state_command
+  # 状態/IMU の表示は持たないので、見たいときは別途 pull 型のビューアを使う:
+  #   robot: cd src/python && ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 data_viewer.py
+  #   PC:    DORA_COORDINATOR_ADDR=<robot-ip> python3 tools/gui/web_monitor.py
+  - id: dualsense_input
+    path: dynamic
+    outputs:
+      - state_command

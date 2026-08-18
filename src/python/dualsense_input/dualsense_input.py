@@ -70,6 +70,13 @@ BTN_L1, BTN_R1 = 4, 5
 BTN_CREATE, BTN_OPTIONS = 8, 9
 BTN_L3, BTN_R3 = 10, 11
 
+BTN_NAMES = {
+    BTN_SQUARE: "□", BTN_CROSS: "×", BTN_CIRCLE: "○", BTN_TRIANGLE: "△",
+    BTN_L1: "L1", BTN_R1: "R1",
+    BTN_CREATE: "Create", BTN_OPTIONS: "Options",
+    BTN_L3: "L3", BTN_R3: "R3",
+}
+
 # 単押し: {button: (StateCommand, 表示名)}
 SINGLE = {
     BTN_CIRCLE:   (StateCommand.SERVO_ON, "SERVO_ON"),
@@ -84,6 +91,8 @@ COMBO = {
 }
 COMBO_MEMBERS = {b for pair in COMBO for b in pair}
 
+def btn_name(n):
+    return BTN_NAMES.get(n, f"BTN{n}")
 
 def log(msg):
     print(f"[dualsense_input] {msg}", flush=True)
@@ -167,9 +176,9 @@ def main():
 
     log(f"device={DEV} (未接続でも起動する / 切断しても落ちない)")
     for b, (_, name) in sorted(SINGLE.items()):
-        log(f"  BTN {b:<2}   -> {name}")
+        log(f"  {btn_name(b):<15} -> {name}")
     for (a, b), (_, name) in COMBO.items():
-        log(f"  BTN {a}+{b:<2} -> {name}")
+        log(f"  {btn_name(a)}+{btn_name(b):<12} -> {name}")
 
     # `for event in node` (無期限 recv) ではなく timeout 付きで回す:
     # daemon が先に落ちる等でイベントが二度と来なくなっても LOOP_TIMEOUT ごとに
