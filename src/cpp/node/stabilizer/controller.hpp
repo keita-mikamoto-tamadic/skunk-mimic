@@ -20,4 +20,9 @@ public:
 
     // run_command を計算して返す
     virtual std::vector<AxisRef> Compute(const RobotConfig& config) = 0;
+
+    // 走行指令 (オペレータ入力)。使わないコントローラは無視してよいよう
+    // デフォルト no-op (lqr は未対応のまま通る)。呼び出し側 (main) が
+    // 途絶時に 0 の DriveCommand を渡す — 実装側で staleness は見なくてよい。
+    virtual void SetDriveCommand(const DriveCommand& /*cmd*/) {}
 };

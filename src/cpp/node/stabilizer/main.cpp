@@ -2,6 +2,7 @@
 // バランス制御ノード: IMU + モーター状態から run_command を生成
 // state_status が RUN の時のみ制御計算＋送信
 // Controller 実装は robot_config の "controller" フィールドで選択
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -23,6 +24,7 @@
 constexpr const char* kInputMotorStatus  = "motor_status";
 constexpr const char* kInputImuData      = "imu_data";
 constexpr const char* kInputStateStatus  = "state_status";
+constexpr const char* kInputDriveCommand = "drive_command";
 constexpr const char* kOutputRunCommand  = "run_command";
 constexpr const char* kOutputEstState    = "estimated_state";
 
@@ -56,6 +58,13 @@ int main() {
     State state = State::OFF;
     State prev_state = State::OFF;
     ImuData imu_data = {};
+
+    // 走行指令 (dualsense_input など)。300ms 途絶で 0 扱い — 送り側が
+    // 生きていれば ~50Hz で来る。パッド切断時は送り側が 0 を送るが、
+    // プロセスごと死んだ場合 (SIGKILL 等) はそれも来ないため受け側でも守る
+    DriveCommand drive_command = {};
+    auto last_drive_rx = std::chrono::steady_clock::time_point{};
+    constexpr auto kDriveTimeout = std::chrono::milliseconds(300);
 
     // EKF: コントローラ非依存のボディ状態推定
     BodyStateEkf ekf;
@@ -103,6 +112,10 @@ int main() {
                 }
                 prev_state = state;
             }
+            else if (id == kInputDriveCommand) {
+                drive_command = ReceiveStructArray<DriveCommand>(arr, 1)[0];
+                last_drive_rx = std::chrono::steady_clock::now();
+            }
             else if (id == kInputImuData) {
                 auto imu_vec = ReceiveStructArray<ImuData>(arr, 1);
                 imu_data = imu_vec[0];
@@ -134,6 +147,10 @@ int main() {
                 // RUNのみ: 制御出力
                 if (state != State::RUN) continue;
 
+                if (std::chrono::steady_clock::now() - last_drive_rx > kDriveTimeout) {
+                    drive_command = {};
+                }
+                controller->SetDriveCommand(drive_command);
                 controller->Update(motor_status, imu_data, ekf);
                 auto run_command = controller->Compute(config);
                 ZeroCopySendStructArray(node, kOutputRunCommand, run_command);

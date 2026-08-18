@@ -6,7 +6,9 @@
 // (tools/gen_data_format.py / CMake configure 時に再生成)。
 // このヘッダは「まとめて include する」アグリゲータで、構造体定義は持たない。
 //
-//   axis_data.json   → AxisRef / AxisAct / SettingsRequest / SettingsResult / ParamScalars
-//   sensor_data.json → ImuData / LatencyData / EstimatedState
+//   axis_data.json    → AxisRef / AxisAct / SettingsRequest / SettingsResult / ParamScalars
+//   sensor_data.json  → ImuData / LatencyData / EstimatedState
+//   command_data.json → DriveCommand
 #include "axis_data_format.hpp"
 #include "sensor_data_format.hpp"
+#include "command_data_format.hpp"

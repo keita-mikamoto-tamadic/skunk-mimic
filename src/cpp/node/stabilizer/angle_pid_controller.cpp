@@ -36,6 +36,14 @@ AnglePidController::AnglePidController(const RobotConfig& config)
 void AnglePidController::Reset() {
     angle_pid_.Reset();
     velocity_pid_.Reset();
+    drive_forward_ = 0.0;
+    drive_yaw_ = 0.0;
+}
+
+void AnglePidController::SetDriveCommand(const DriveCommand& cmd) {
+    // forward/yaw は正規化 -1..1。クランプしてからフルスケールを掛ける
+    drive_forward_ = std::clamp(cmd.forward, -1.0, 1.0) * kMaxDriveWheelVel;
+    drive_yaw_     = std::clamp(cmd.yaw,     -1.0, 1.0) * kMaxYawWheelDiff;
 }
 
 void AnglePidController::Update(const std::vector<AxisAct>& motor_status,
@@ -47,10 +55,12 @@ void AnglePidController::Update(const std::vector<AxisAct>& motor_status,
 }
 
 std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
-    // 外側ループ: 速度PI（倒立点自動調整）
+    // 外側ループ: 速度PI（倒立点自動調整 + 走行指令の追従）
+    // 走行指令はここ (目標速度) に入れる。PID 出力への直接加算は、この外側
+    // ループが v=0 に引き戻すため打ち消されて効かない (持続成分は目標側に入れる)
     double wheel_velocity =
         (motor_status_[wheel_r_].velocity + motor_status_[wheel_l_].velocity) / 2.0;
-    double velocity_error = 0.0 - wheel_velocity;
+    double velocity_error = drive_forward_ - wheel_velocity;
     double angle_offset = velocity_pid_.Compute(velocity_error, 0.0, kTickSec);
     angle_offset = std::clamp(angle_offset, -kMaxAngleOffset, kMaxAngleOffset);
 
@@ -60,12 +70,16 @@ std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
     double wheel_vel = angle_pid_.Compute(angle_error, -pitch_rate_, kTickSec);
     wheel_vel = std::clamp(wheel_vel, -kMaxWheelSpeed, kMaxWheelSpeed);
 
-    // 各軸に配分
+    // 各軸に配分。旋回は左右差動 (共通モード = バランス+前後、差動 = 旋回で直交)。
+    // 符号: 右に倒す (drive_yaw_ 正) と右輪減速・左輪増速 = 右旋回のつもり。
+    // 実機で逆だったら drive_yaw_ の符号をここで反転する
     const size_t axis_count = config.axes.size();
     for (size_t i = 0; i < axis_count; i++) {
         if (i == wheel_r_ || i == wheel_l_) {
+            double diff = (i == wheel_r_) ? -drive_yaw_ : +drive_yaw_;
             run_command_[i].motor_state = MotorState::VELOCITY;
-            run_command_[i].ref_val = wheel_vel;
+            run_command_[i].ref_val =
+                std::clamp(wheel_vel + diff, -kMaxWheelSpeed, kMaxWheelSpeed);
             run_command_[i].kp_scale = 0.0;
             run_command_[i].kv_scale = 20.0;
         } else {

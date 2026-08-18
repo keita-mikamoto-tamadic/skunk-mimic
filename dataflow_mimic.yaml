@@ -57,6 +57,9 @@ nodes:
       motor_status: device_control_manager/motor_status
       imu_data: device_control_manager/imu_data
       state_status: robot_control_manager/state_status
+      # 走行指令 (~50Hz)。300ms 途絶で 0 扱い (stabilizer 側の安全網)。
+      # robot_web_gui に戻すときはこの行も外すこと (ソースが消えると起動エラー)
+      drive_command: dualsense_input/drive_command
     outputs:
       - run_command
       - estimated_state
@@ -114,8 +117,9 @@ nodes:
   # DualSense (PS5) 版。今はこちらが有効。
   # 起動: cd src/python && uv run dualsense_input/dualsense_input.py
   # パッドが未接続でも起動し、切断しても落ちない (開始バリアを塞がないため)。
-  # 切断時は何も送らず RCM の状態を維持する。走行指令を足したら、そちらは
-  # 切断時に 0 へ戻すこと。
+  # 切断時: state_command は送らない (RCM の状態を維持)。drive_command は 0 に
+  # 戻して送り続ける (加えて stabilizer 側も 300ms 途絶で 0 扱い)。
+  # 左スティック上下 = 前後 (±0.5 rad/s、上が前進)。
   # 割り当てと実測根拠は scripts/dualsense_monitor/README.md。
   # 状態/IMU の表示は持たないので、見たいときは別途 pull 型のビューアを使う:
   #   robot: cd src/python && ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 data_viewer.py
@@ -124,3 +128,4 @@ nodes:
     path: dynamic
     outputs:
       - state_command
+      - drive_command
