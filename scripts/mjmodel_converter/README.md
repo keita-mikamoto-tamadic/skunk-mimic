@@ -61,25 +61,32 @@ uv run mjmodel_converter/mjmodel_converter.py sim/fusion_param/<robot> [-o sim/<
 
 ## 倒立点の補正 (`com_comp.py`)
 
-CAD の質量特性だけだと、配線・バッテリー・搭載物など CAD に無い質量のぶん倒立点 (standing 姿勢で
-全体重心が車軸の真上に来る base pitch) が実機とずれる。実機の倒立点 (初期姿勢で平衡する pitch の実測
-= angle_pid の `kTargetPitch`) を正とし、`base_link` の重心を body 座標 **x 方向にだけ**動かして合わせる:
+CAD の質量特性だけだと、配線・バッテリー・搭載物など CAD に無い質量のぶん倒立点 (全体重心が車軸の真上に
+来る base pitch) が実機とずれる。実機で平衡する pitch を実測し (立位 = angle_pid の `kTargetPitch`、必要なら
+脚を伸ばした姿勢でも)、それを正として body の重心を body 座標 **x 方向にだけ**動かして合わせる。
+**同定できる未知数の数 = 実測姿勢の数**: 立位だけなら `base_link` の x、立位 + 上げ姿勢なら `base_link` と
+`upper_link` (左右同値) の x。base だけの補正は姿勢を変えると倒立点がずれる (立位 0.165 → 最高点 0.181 rad) ので
+脚にも振る。
 
 ```bash
 cd scripts
-uv run mjmodel_converter/com_comp.py 0.165            # 実測倒立 pitch [rad] → model.json に com_offset を書き、XML を再生成
-uv run mjmodel_converter/com_comp.py 0.165 --dry-run  # 計算だけ
-uv run mjmodel_converter/com_comp.py --reset          # 補正を外して CAD の値に戻す
+uv run mjmodel_converter/com_comp.py 0.165 --at 0.08:0.181     # 立位 0.165 rad、重心 +0.08 m の姿勢で 0.181 rad
+uv run mjmodel_converter/com_comp.py 0.165 --pose 0.6056,-1.1979:0.181   # 姿勢を関節角で指定 (stabilizer の posture ログ)
+uv run mjmodel_converter/com_comp.py 0.165                     # 立位だけ → base_link のみ
+uv run mjmodel_converter/com_comp.py ... --bodies base_link,lower_link    # 補正する body 群を変える (prefix は左右に展開)
+uv run mjmodel_converter/com_comp.py ... --dry-run             # 計算だけ
+uv run mjmodel_converter/com_comp.py --reset                   # 全 com_offset を外して CAD の値に戻す
 ```
 
-- `model.json` の該当 body に `"com_offset": [dx, 0, 0]` と根拠コメント `"_com_offset"` が書かれる
-  (他の行・整形は触らない。再実行は冪等、`--reset` で元のファイルに戻る)。converter はこれを CSV の重心に足すだけ。
+- `model.json` の該当 body に `"com_offset": [dx, 0, 0]` と根拠コメント `"_com_offset"` (実測姿勢・再実行コマンド) が
+  書かれる (他の行・整形は触らない)。converter はこれを CSV の重心に足すだけ。
+- `--at RISE:PITCH` は「実測時にロボットが使っていたモデル (= いまの model.json)」の IK で関節角に換算する。
+  補正後に同じ `--at` を再実行すると別の姿勢になるので、**再実行は `_com_offset` に記録された `--pose` 形式**で。
 - converter は毎回 `balance pitch at standing pose` を表示するので、CAD 更新後に補正量が不自然に膨らんでいないか分かる。
-- 1 姿勢の pitch 1 個からはスカラー 1 個しか同定できないので、補正は 1 body・1 方向に限る。IMU 取り付け角や
-  関節原点のズレもこの補正に吸収される (standing 姿勢では一致するが、他の姿勢での一致は保証しない)。
+- IMU 取り付け角や関節原点のズレもこの補正に吸収される。
 - pitch の符号は `mujoco_backend.quat_to_euler` (= stabilizer が見る `ImuData.pitch`) と同じで、`kTargetPitch` をそのまま渡せる。
-- mimic_v2_5 (2026-08-20): CAD 倒立点 +0.1416 rad (8.11°) → 実測 +0.165 rad (9.45°)、差 1.34° ≒ 全体重心 2.3 mm、
-  `base_link` x **−7.12 mm** (CAD +9.7 mm → +2.6 mm)。
+- mimic_v2_5 (2026-08-20): CAD 倒立点 立位 +0.1416 / +0.08 m 姿勢 +0.1521 rad → 実測 +0.165 / +0.181 rad。
+  `base_link` x **−8.64 mm**、`upper_link_R/L` x **−9.08 mm** で両姿勢とも一致。
 
 ## 出力の互換性
 

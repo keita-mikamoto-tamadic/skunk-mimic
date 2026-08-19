@@ -46,7 +46,7 @@ private:
     // フルスケール [m/s] と、初期姿勢からの上昇量の上限 [m] はここが正。
     // 上限 0.08 m は mimic_v2_5 で hip の可動域下限 (0.6 rad) に当たるところ
     // (scripts/mjmodel_converter/README.md)。モデルの関節リミットでも別途クランプする
-    static constexpr double kMaxComHeightVel = 0.03;
+    static constexpr double kMaxComHeightVel = 0.015;
     static constexpr double kMaxComRise = 0.08;
     static constexpr double kPostureMaxStep = 0.02;   // IK 1 反復あたりの関節角ステップ上限 [rad]
 

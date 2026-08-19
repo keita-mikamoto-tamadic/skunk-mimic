@@ -21,8 +21,8 @@
     {
       "name": "base_link",
       "part": "MIM2_5-A000",
-      "_com_offset": "com_comp.py 2026-08-20: standing 姿勢の倒立 pitch を実測 0.1650 rad に合わせる (CAD 0.1416 rad, 差 +1.34 deg)。x のみ、この body のみ。再計算は `uv run mjmodel_converter/com_comp.py 0.165`",
-      "com_offset": [-0.007117, 0.0, 0.0],
+      "_com_offset": "com_comp.py 2026-08-20: 実測倒立 pitch (hip +1.5533 knee -2.3562 → 0.1650 rad; hip +0.6056 knee -1.1979 → 0.1810 rad) に合わせる補正 (x のみ、base_link に同値)。再計算は `uv run mjmodel_converter/com_comp.py 0.165 --pose 0.6056,-1.1979:0.181`",
+      "com_offset": [-0.008640, 0.0, 0.0],
       "mesh": "base_link",
       "parent": null,
       "pos": [0.0, 0.0, 0.5],
@@ -34,6 +34,8 @@
     {
       "name": "upper_link_R",
       "part": "MIM2_5-A100",
+      "_com_offset": "com_comp.py 2026-08-20: 実測倒立 pitch (hip +1.5533 knee -2.3562 → 0.1650 rad; hip +0.6056 knee -1.1979 → 0.1810 rad) に合わせる補正 (x のみ、upper_link_R+upper_link_L に同値)。再計算は `uv run mjmodel_converter/com_comp.py 0.165 --pose 0.6056,-1.1979:0.181`",
+      "com_offset": [-0.009082, 0.0, 0.0],
       "mesh": "upper_link_R",
       "parent": "base_link",
       "_pos": "v2 と同一 (hip 左右間隔 204 mm)",
@@ -69,6 +71,8 @@
     {
       "name": "upper_link_L",
       "part": "MIM2_5-A400",
+      "_com_offset": "com_comp.py 2026-08-20: 実測倒立 pitch (hip +1.5533 knee -2.3562 → 0.1650 rad; hip +0.6056 knee -1.1979 → 0.1810 rad) に合わせる補正 (x のみ、upper_link_R+upper_link_L に同値)。再計算は `uv run mjmodel_converter/com_comp.py 0.165 --pose 0.6056,-1.1979:0.181`",
+      "com_offset": [-0.009082, 0.0, 0.0],
       "mesh": "upper_link_L",
       "parent": "base_link",
       "pos": [0.0, 0.102, 0.0],
