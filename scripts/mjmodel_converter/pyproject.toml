@@ -1,0 +1,7 @@
+[project]
+name = "mjmodel-converter"
+version = "0.1.0"
+description = "Fusion 360 physical-property CSVs + skeleton JSON -> MuJoCo MJCF (sim/<model>.xml)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["mujoco", "numpy"]

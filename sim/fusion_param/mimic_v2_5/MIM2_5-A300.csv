@@ -1,0 +1,45 @@
+General
+	Part Number	MIM2_5-A300
+	Part Name	MIM2_5-A300 v4
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State
+	Change Order
+
+Physical
+	Mass	671.895 g
+	Volume	5.467E+05 mm^3
+	Density	0.001 g / mm^3
+	Area	1.926E+05 mm^2
+	World X,Y,Z	0.00 mm, 0.00 mm, 0.00 mm
+	Center of Mass	0.00 mm, 22.741 mm, 0.00 mm
+	Bounding Box
+		Length	155.90 mm
+		Width	69.30 mm
+		Height	155.90 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	1.268E+06
+		Ixy	-0.342
+		Ixz	-2876.013
+		Iyx	-0.342
+		Iyy	2.110E+06
+		Iyz	0.454
+		Izx	-2876.013
+		Izy	0.454
+		Izz	1.270E+06
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	1.615E+06
+		Ixy	1.311
+		Ixz	-2876.013
+		Iyx	1.311
+		Iyy	2.110E+06
+		Iyz	-1.804
+		Izx	-2876.013
+		Izy	-1.804
+		Izz	1.617E+06
+

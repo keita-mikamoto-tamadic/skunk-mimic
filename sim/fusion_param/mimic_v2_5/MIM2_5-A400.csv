@@ -1,0 +1,45 @@
+General
+	Part Number	MIM2_5-A400
+	Part Name	MIM2_5-A400 v14
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State
+	Change Order
+
+Physical
+	Mass	1611.626 g
+	Volume	6.715E+05 mm^3
+	Density	0.002 g / mm^3
+	Area	3.513E+05 mm^2
+	World X,Y,Z	0.00 mm, 0.00 mm, 0.00 mm
+	Center of Mass	-3.548 mm, 18.504 mm, -74.778 mm
+	Bounding Box
+		Length	150.845 mm
+		Width	62.177 mm
+		Height	265.966 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	9.205E+06
+		Ixy	-17242.587
+		Ixz	-18259.80
+		Iyx	-17242.587
+		Iyy	9.819E+06
+		Iyz	-1587.521
+		Izx	-18259.80
+		Izy	-1587.521
+		Izz	1.186E+06
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	1.877E+07
+		Ixy	88558.90
+		Ixz	-4.458E+05
+		Iyx	88558.90
+		Iyy	1.885E+07
+		Iyz	2.228E+06
+		Izx	-4.458E+05
+		Izy	2.228E+06
+		Izz	1.758E+06
+

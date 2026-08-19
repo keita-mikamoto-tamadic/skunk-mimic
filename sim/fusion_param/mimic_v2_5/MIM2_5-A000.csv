@@ -1,0 +1,45 @@
+General
+	Part Number	MIM2_5-A000
+	Part Name	MIM2_5-A000 v102
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State	Working
+	Change Order
+
+Physical
+	Mass	2863.556 g
+	Volume	2.358E+06 mm^3
+	Density	0.001 g / mm^3
+	Area	8.099E+05 mm^2
+	World X,Y,Z	0.00 mm, 0.00 mm, 0.00 mm
+	Center of Mass	9.682 mm, -0.174 mm, 11.897 mm
+	Bounding Box
+		Length	209.146 mm
+		Width	214.00 mm
+		Height	235.50 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	1.336E+07
+		Ixy	-41594.836
+		Ixz	-46490.329
+		Iyx	-41594.836
+		Iyy	1.038E+07
+		Iyz	-11355.756
+		Izx	-46490.329
+		Izy	-11355.756
+		Izz	1.120E+07
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	1.376E+07
+		Ixy	-36784.753
+		Ixz	-3.763E+05
+		Iyx	-36784.753
+		Iyy	1.105E+07
+		Iyz	-5444.988
+		Izx	-3.763E+05
+		Izy	-5444.988
+		Izz	1.147E+07
+

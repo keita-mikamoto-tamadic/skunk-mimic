@@ -1,0 +1,137 @@
+{
+  "_comment": [
+    "mimic_v2_5 の骨格定義 (scripts/mjmodel_converter/mjmodel_converter.py の入力)。",
+    "質量・重心・慣性は同じディレクトリの Fusion 物理プロパティ CSV (part → <part>.csv) から読む。",
+    "このファイルが持つのは CSV に無い情報だけ: 親子関係・関節位置/軸/可動域・メッシュ・衝突形状・センサ・アクチュエータ利得。",
+    "初期姿勢 (keyframe) とトルク制限 (forcerange) と軸名/順序は robot_config から取る (二重管理しない)。",
+    "座標系: 各 body の原点 = その関節の回転中心。CSV の Center of Mass は Fusion 部品原点基準なので、",
+    "Fusion 側で部品原点を関節中心に置いておくこと (v2 以来の前提)。",
+    "'_' で始まるキーはコメントとして無視される。",
+    "関節オフセット (各 body の pos)・メッシュ・wheel の衝突円筒は v2 (mimic_v2.urdf / mimic_v2.xml) と同一。",
+    "v2_5 で変わったのは質量・重心・慣性のみ (CSV 側) — 2026-08-19 確認。"
+  ],
+  "model": "mimic_v2_5",
+  "robot_config": "robot_config/mimic_v2_5.json",
+  "meshdir": "meshes/",
+  "timestep": 0.001,
+  "base_height_margin": 0.0,
+
+  "bodies": [
+    {
+      "name": "base_link",
+      "part": "MIM2_5-A000",
+      "_com_offset": "com_comp.py 2026-08-20: standing 姿勢の倒立 pitch を実測 0.1650 rad に合わせる (CAD 0.1416 rad, 差 +1.34 deg)。x のみ、この body のみ。再計算は `uv run mjmodel_converter/com_comp.py 0.165`",
+      "com_offset": [-0.007117, 0.0, 0.0],
+      "mesh": "base_link",
+      "parent": null,
+      "pos": [0.0, 0.0, 0.5],
+      "joint": {"type": "free"},
+      "collision": {"type": "mesh"},
+      "sites": [{"name": "imu", "size": "0.01", "rgba": "1 0 0 1", "type": "box"}]
+    },
+
+    {
+      "name": "upper_link_R",
+      "part": "MIM2_5-A100",
+      "mesh": "upper_link_R",
+      "parent": "base_link",
+      "_pos": "v2 と同一 (hip 左右間隔 204 mm)",
+      "pos": [0.0, -0.102, 0.0],
+      "joint": {"name": "upper_link_R_joint", "axis": [0, 1, 0], "range": [0.6, 1.6]},
+      "axis": "hip_pitch_r",
+      "collision": {"type": "mesh"}
+    },
+    {
+      "name": "lower_link_R",
+      "part": "MIM2_5-A200",
+      "mesh": "lower_link_R",
+      "parent": "upper_link_R",
+      "_pos": "v2 と同一 (hip→knee 150 mm)",
+      "pos": [0.0, 0.0, -0.15],
+      "joint": {"name": "lower_link_R_joint", "axis": [0, 1, 0]},
+      "axis": "knee_r",
+      "collision": {"type": "mesh"}
+    },
+    {
+      "name": "wheel_R",
+      "part": "MIM2_5-A300",
+      "mesh": "wheel_R",
+      "parent": "lower_link_R",
+      "_pos": "v2 と同一 (knee→wheel 180 mm, 横 49.85 mm)",
+      "pos": [0.0, -0.04985, -0.18],
+      "joint": {"name": "wheel_R_joint", "axis": [0, 1, 0], "armature": 0.008361, "damping": 0.047421},
+      "axis": "wheel_r",
+      "_collision": "v2 と同一。半径 77.95 mm は CSV の bounding box (155.9 mm) とも一致",
+      "collision": {"type": "cylinder", "radius": 0.07795, "half_length": 0.024361, "euler": [1.5708, 0, 0]}
+    },
+
+    {
+      "name": "upper_link_L",
+      "part": "MIM2_5-A400",
+      "mesh": "upper_link_L",
+      "parent": "base_link",
+      "pos": [0.0, 0.102, 0.0],
+      "joint": {"name": "upper_link_L_joint", "axis": [0, 1, 0], "range": [0.6, 1.6]},
+      "axis": "hip_pitch_l",
+      "collision": {"type": "mesh"}
+    },
+    {
+      "name": "lower_link_L",
+      "part": "MIM2_5-A500",
+      "mesh": "lower_link_L",
+      "parent": "upper_link_L",
+      "pos": [0.0, 0.0, -0.15],
+      "joint": {"name": "lower_link_L_joint", "axis": [0, 1, 0]},
+      "axis": "knee_l",
+      "collision": {"type": "mesh"}
+    },
+    {
+      "name": "wheel_L",
+      "part": "MIM2_5-A600",
+      "mesh": "wheel_L",
+      "parent": "lower_link_L",
+      "pos": [0.0, 0.04985, -0.18],
+      "joint": {"name": "wheel_L_joint", "axis": [0, 1, 0], "armature": 0.008361, "damping": 0.047421},
+      "axis": "wheel_l",
+      "collision": {"type": "cylinder", "radius": 0.07795, "half_length": 0.024361, "euler": [1.5708, 0, 0]}
+    }
+  ],
+
+  "contact_exclude": [
+    ["upper_link_L", "wheel_L"],
+    ["upper_link_R", "wheel_R"]
+  ],
+
+  "sensors": [
+    {"tag": "gyro", "name": "gyro", "site": "imu"},
+    {"tag": "accelerometer", "name": "accel", "site": "imu"},
+    {"tag": "velocimeter", "name": "linvel", "site": "imu"},
+    {"tag": "framepos", "name": "imu_pos", "objtype": "site", "objname": "imu"},
+    {"tag": "framequat", "name": "imu_quat", "objtype": "site", "objname": "imu"}
+  ],
+
+  "actuators": {
+    "_comment": [
+      "moteus の PID 利得 [kp: Nm/rev, kd: Nm/(rev/s)]。スクリプトが /(2π) で Nm/rad に直す。",
+      "initial_mode は XML に書き込む初期モード (mujoco_backend は biasprm から base_kp/base_kv を読むので、",
+      "velocity にすると base_kp=0 になる — v2 と同じ挙動)。",
+      "forcerange は robot_config の torque_limit から取る。"
+    ],
+    "moteus_gains_per_rev": {
+      "hip_pitch_r": {"kp": 600.0, "kd": 6.0},
+      "knee_r":      {"kp": 600.0, "kd": 6.0},
+      "wheel_r":     {"kp": 140.0, "kd": 0.5},
+      "hip_pitch_l": {"kp": 600.0, "kd": 6.0},
+      "knee_l":      {"kp": 600.0, "kd": 6.0},
+      "wheel_l":     {"kp": 140.0, "kd": 0.5}
+    },
+    "initial_mode": {
+      "hip_pitch_r": "position",
+      "knee_r":      "position",
+      "wheel_r":     "velocity",
+      "hip_pitch_l": "position",
+      "knee_l":      "position",
+      "wheel_l":     "velocity"
+    }
+  }
+}

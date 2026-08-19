@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<!--
+  MuJoCo scene for mimic: lights, cameras, infinite grid ground plane.
+  Hand-maintained (not generated). Includes the robot model via <include>.
+
+  Usage:  cd src/python && MUJOCO_MODEL=scene.xml MUJOCO_VIEWER=1 uv run mujoco_backend/mujoco_backend.py
+  Camera: ビューアの free カメラが base_link を追従 (mujoco_backend が lookat を毎フレーム更新)。
+-->
+<mujoco model="mimic_scene">
+    <!-- ロボット本体 (scripts/mjmodel_converter で生成)。別モデルを見るときはここを差し替える -->
+    <include file="mimic_v2_5.xml"/>
+
+    <!-- free camera の初期フレーミング (center: 注視点, extent: 画角スケール) -->
+    <statistic center="0 0 0.25" extent="1.0"/>
+
+    <visual>
+        <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+        <rgba haze="0.15 0.25 0.35 1"/>
+        <global azimuth="140" elevation="-20" offwidth="1920" offheight="1080"/>
+        <quality shadowsize="4096"/>
+    </visual>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+        <!-- チェッカー + エッジ線 = グリッド風。texrepeat で 1 マスの大きさが決まる (texuniform なので world 単位) -->
+        <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+                 rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+        <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+    </asset>
+
+    <worldbody>
+        <!-- 光源: 上からの平行光 (影あり) + 斜めからの補助光 -->
+        <light name="sun" pos="0 0 1.5" dir="0 0 -1" directional="true" castshadow="true"/>
+        <light name="fill" pos="1 -1 1" dir="-1 1 -1" directional="true" diffuse="0.3 0.3 0.3" castshadow="false"/>
+
+        <!-- 無限遠の床: size の x/y を 0 にすると無限平面 (z は描画用のグリッド間隔)。
+             床はここだけが持つ -->
+        <geom name="floor" type="plane" size="0 0 0.05" material="groundplane"/>
+
+    </worldbody>
+</mujoco>
