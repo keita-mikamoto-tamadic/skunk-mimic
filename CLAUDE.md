@@ -29,6 +29,8 @@ cd src/python && uv sync     # runtime nodes (dora-rs, pyarrow, mujoco, ...)
 cd scripts && uv sync        # offline analysis (LQR gain calc, A/B matrix calc)
 ```
 
+**MuJoCo model generation:** `sim/mimic_v2_5.xml` is generated, not hand-edited — `cd scripts && uv run mjmodel_converter/mjmodel_converter.py` rebuilds it from `sim/fusion_param/mimic_v2_5/` (Fusion 360 physical-property CSVs for mass/CoM/inertia + `model.json` for the skeleton: parent/child, joint offsets/axes, meshes, collision shapes, moteus gains) and `robot_config/mimic_v2_5.json` (axis names/order, `initial_position` → keyframe `standing`, `torque_limit` → forcerange). Joint offsets are **not** in the CSVs; they live in `model.json` (v2_5 shares v2's kinematics, meshes and collision shapes — only mass/CoM/inertia changed). `sim/mimic_v2.xml` predates the converter and is still hand-maintained. See `scripts/mjmodel_converter/README.md`. Simulate with `dataflow_mimic_sim.yaml` + `MUJOCO_MODEL=scene.xml`, not the v2-era `dataflow_sim.yaml`; `sim/scene.xml` is hand-maintained (not generated) — scene-level things (floor, lights, cameras) go there, not into the converter. `scripts/mjmodel_converter/com_comp.py <measured_pitch_rad>` matches the model's balance point to the real robot (writes `com_offset` on `base_link` into `model.json`, then regenerates) — re-run it after any CAD/CSV update.
+
 The `dora-rs` Python package version must exactly match the dora CLI version (1.0.0-rc1), otherwise you get "message format version mismatch" errors. It is installed from source — `pyproject.toml` points `dora-rs` at `/opt/dora/apis/python/node`, a machine-independent symlink each machine creates once with `sudo ln -s ~/dora /opt/dora` (dora itself stays at `~/dora`). Without the symlink, `uv sync` fails.
 
 ### Data-format code generation
@@ -39,8 +41,9 @@ The `dora-rs` Python package version must exactly match the dora CLI version (1.
 |------|-----|--------|---------|
 | `axis_data.json` | `src/cpp/lib/axis_data_format.hpp` | `src/python/lib/axis_data_format.py` | `AxisRef`, `AxisAct`, `SettingsRequest`, `SettingsResult`, `ParamScalars` |
 | `sensor_data.json` | `src/cpp/lib/sensor_data_format.hpp` | `src/python/lib/sensor_data_format.py` | `ImuData`, `LatencyData`, `EstimatedState` |
+| `command_data.json` | `src/cpp/lib/command_data_format.hpp` | `src/python/lib/command_data_format.py` | `DriveCommand` (operator input → stabilizer) |
 
-Adding a domain = drop a new `.json` in `src/data_format/` — output names are always `<spec>_format.hpp` / `<spec>_format.py`, no special cases. Omit `"types"` to use the generator's `DEFAULT_TYPES`. `src/cpp/lib/shm_data_format.hpp` is just an aggregator that includes both generated headers — it defines no structs itself.
+Adding a domain = drop a new `.json` in `src/data_format/` — output names are always `<spec>_format.hpp` / `<spec>_format.py`, no special cases. Omit `"types"` to use the generator's `DEFAULT_TYPES`. `src/cpp/lib/shm_data_format.hpp` is just an aggregator that includes the generated headers — it defines no structs itself.
 
 It runs automatically at CMake configure time; run manually with `python3 tools/gen_data_format.py` from the repo root. Never hand-edit the generated files — edit the JSON and regenerate. Never hand-write a struct format in a node either (that is exactly how `mujoco_backend` silently drifted to a 32 B `AxisAct` / 56 B `AxisRef`); import from the generated module and use named fields, not positional unpacking.
 
@@ -50,7 +53,7 @@ It runs automatically at CMake configure time; run manually with `python3 tools/
 dora up                              # start daemon
 dora start dataflow.yaml             # launch a dataflow
 dora list                            # list running dataflows
-dora logs <dataflow-id> <node-id>    # node logs
+dora logs <dataflow-id> --node <node-id>   # node logs (1.0.0-rc1: positional node id no longer accepted)
 dora stop <dataflow-id>
 dora destroy                         # stop coordinator & daemon
 ```
@@ -58,10 +61,13 @@ dora destroy                         # stop coordinator & daemon
 Nodes with `path: dynamic` in the YAML (dummy_input, robot_web_gui, foctive_controller, ...) are launched manually in separate terminals. **A dataflow blocks at the start barrier until every dynamic node has attached**, so only put a node in the YAML if it will always be started — pull-type viewers are deliberately left out.
 
 ```bash
-cd src/python && uv run dummy_input/dummy_input.py   # state commands: on/ready/run/stop/off/reset/q
-cd src/python && uv run auto_input/auto_input.py     # scripted SERVO_ON → READY → RUN → STOP
-cd src/python && uv run data_viewer/data_viewer.py   # node-type viewer (wired in the YAML)
+cd src/python && uv run dummy_input/dummy_input.py         # state commands: on/ready/run/stop/off/reset/q
+cd src/python && uv run auto_input/auto_input.py           # scripted SERVO_ON → READY → RUN → STOP
+cd src/python && uv run dualsense_input/dualsense_input.py # DualSense pad: state_command + drive_command (current dataflow_mimic input)
+cd src/python && uv run data_viewer/data_viewer.py         # node-type viewer (wired in the YAML)
 ```
+
+**Operator input is exclusive.** `dataflow_mimic.yaml` takes `state_command` from exactly one source (dora allows one source per input name): currently `dualsense_input`, with the `robot_web_gui` block commented out. Switching back means flipping *both* node blocks **and** the RCM `state_command:` line **and** removing the `drive_command:` input on `stabilizer` (a dangling source is a start-time error). `dualsense_input` reads the pad via the plain joystick API (`/dev/input/js0`, `hid-generic` + `joydev`; no `hid-playstation` on this kernel), starts without a pad and survives disconnects so it never blocks the start barrier; on disconnect it keeps sending `drive_command = 0` but does *not* send `state_command`. `scripts/dualsense_monitor/dualsense_monitor.py` (stdlib, not a dora node) shows raw pad input and its README records the axis/button mapping.
 
 **Two kinds of viewer.** `data_viewer/data_viewer.py` is a real dora node wired into the YAML (costs CPU just receiving, and holds the start barrier). The preferred day-to-day tools are the **pull-type** ones — not dora nodes, they shell out to `dora topic echo` and decode the raw struct bytes with `src/python/lib/*_format.py`, so they can be started and Ctrl-C'd at any time without touching the dataflow. Both need `_unstable_debug.enable_debug_inspection: true` on the dataflow (already set in `dataflow_mimic.yaml` / `dataflow_foctive_control.yaml`) and the `dora` CLI:
 
@@ -77,9 +83,10 @@ Dataflows (repo root):
 
 | YAML | Purpose | Device side | Control side |
 |------|---------|-------------|--------------|
-| `dataflow_mimic.yaml` | **mimic_v2_5 real robot (current main flow)** — robot-local, `mimic_v2_5.json`, 2 CAN channels; startup sequence in `docs/robot_start.md` | `device_control_manager` + `imu_node` (C++) | `stabilizer` (C++), state triggered from `robot_web_gui` |
-| `dataflow.yaml` | Real robot (v2) | `device_control_manager` (C++) | `stabilizer` (C++) |
-| `dataflow_sim.yaml` | MuJoCo simulation | `mujoco_backend` (Python) | `stabilizer` (C++) |
+| `dataflow_mimic.yaml` | **mimic_v2_5 real robot (current main flow)** — robot-local, `mimic_v2_5.json`, 2 CAN channels; startup sequence in `docs/robot_start.md` | `device_control_manager` + `imu_node` (C++) | `stabilizer` (C++), state + drive from `dualsense_input` (or `robot_web_gui`, see above) |
+| `dataflow_mimic_sim.yaml` | **MuJoCo sim of `dataflow_mimic.yaml`** — same control side and `mimic_v2_5.json`, DCM + imu_node swapped for `mujoco_backend`; run the backend with `MUJOCO_MODEL=scene.xml` (hand-written `sim/scene.xml` = infinite grid floor + lights + cameras, `<include>`s the generated `mimic_v2_5.xml`, which has **no floor** of its own; the backend defaults to the v2 model) | `mujoco_backend` (Python, dynamic) | `stabilizer` (C++), `dualsense_input` |
+| `dataflow.yaml` | Real robot (v2, legacy) | `device_control_manager` (C++) | `stabilizer` (C++) |
+| `dataflow_sim.yaml` | MuJoCo simulation (v2-era: `mimic_v2.json`, `dummy_input`, 30 ms watchdog — not the current flow) | `mujoco_backend` (Python) | `stabilizer` (C++) |
 | `dataflow_sysid.yaml` | Real-robot SysID | `device_control_manager` | `sysid_controller` (Python) |
 | `dataflow_sim_sysid.yaml` | Sim SysID | `mujoco_backend` | `sysid_controller` (Python) |
 | `dataflow_foctive_control.yaml` | Single-motor test (FOCTIVE by default; point `ROBOT_CONFIG` at `moteus_motor_test.json` for a moteus motor) | `device_control_manager` | `foctive_controller` (Python, bypasses the state machine) |
@@ -98,7 +105,7 @@ Hardware modes: `bash can_setup.bash` brings up the Tegra built-in CAN; `bash vc
 
 See README_ARCH.md for the full node graph, struct layouts, and Python binary formats.
 
-**Node graph (real robot):** `dummy_input` / `robot_web_gui` → `robot_control_manager` (state machine: OFF/STOP/READY/RUN, emits motor_commands) → `device_control_manager` (3 ms tick, CAN I/O) → motor_status/imu_data back to `robot_control_manager` and `stabilizer`. `imu_node` (3 ms tick, serial) → raw_imu → DCM, which re-sends it as `imu_data`. `stabilizer` computes run_command from motor_status + imu_data and feeds it to `robot_control_manager`.
+**Node graph (real robot):** `dummy_input` / `robot_web_gui` / `dualsense_input` → `robot_control_manager` (state machine: OFF/STOP/READY/RUN, emits motor_commands) → `device_control_manager` (3 ms tick, CAN I/O) → motor_status/imu_data back to `robot_control_manager` and `stabilizer`. `imu_node` (3 ms tick, serial) → raw_imu → DCM, which re-sends it as `imu_data`. `stabilizer` computes run_command from motor_status + imu_data and feeds it to `robot_control_manager`. `dualsense_input` additionally sends `drive_command` (`DriveCommand`: normalized forward/yaw in -1..1 at ~50 Hz) straight to `stabilizer`, which zeroes it after 300 ms of silence and feeds it into the *outer* loop's target velocity (`angle_pid`'s `kMaxDriveWheelVel` / `kMaxYawWheelDiff` own the physical scaling — adding to the PID output instead is cancelled by the outer loop).
 
 Two deliberate omissions in `dataflow_mimic.yaml` versus the older `dataflow.yaml`, both undone on purpose — don't "fix" them without reading the YAML comments: there is **no 30 ms RCM watchdog** (moteus's own 100 ms watchdog already stops the motors, and delivery jitter made the RCM one fire spuriously into SERVO_OFF), and `robot_web_gui` is **not** PC-deployed.
 
