@@ -126,10 +126,29 @@ class MuJoCoSim:
 
         self.viewer = None
         self._viewer_lock = threading.Lock()
+        self._track_bid = -1   # launch_viewer で設定 (追従対象 body id、-1 = 追従なし)
 
     def launch_viewer(self):
         self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
-        print("Viewer launched")
+        # カメラはロボット (base_link) 追従。cam.type=TRACKING にすると viewer の UI がキー操作の
+        # たびに自分のカメラ選択 (Free) を書き戻して追従が外れるので、そうではなく free カメラのまま
+        # 毎フレーム lookat を body 位置に置く (sync_viewer)。UI が何をしても追従は続き、マウスの
+        # 回転/ズームはそのまま効く (右ドラッグの注視点移動だけは毎フレーム上書きされる)。
+        # MUJOCO_TRACK=0 で追従なし、MUJOCO_TRACK_BODY で対象変更。
+        track_body = os.environ.get("MUJOCO_TRACK_BODY", "base_link")
+        bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, track_body)
+        self._track_bid = bid if (os.environ.get("MUJOCO_TRACK", "1") == "1" and bid >= 0) else -1
+        if self._track_bid >= 0:
+            with self._viewer_lock:
+                cam = self.viewer.cam
+                cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+                cam.lookat[:] = self.data.xpos[bid]
+                cam.distance = 1.5
+                cam.azimuth = 140.0
+                cam.elevation = -20.0
+            print(f"Viewer launched (camera follows '{track_body}'; MUJOCO_TRACK=0 to disable)")
+        else:
+            print("Viewer launched")
 
     def _set_actuator_mode(self, axis_idx, motor_state, kp_scale, kv_scale, torque_limit):
         aid = self.actuator_ids[axis_idx]
@@ -247,6 +266,10 @@ class MuJoCoSim:
     def sync_viewer(self):
         if self.viewer is not None:
             with self._viewer_lock:
+                cam = self.viewer.cam
+                # free カメラのときだけ注視点を body に追従させる (固定カメラ等を選んでいれば触らない)
+                if self._track_bid >= 0 and cam.type == mujoco.mjtCamera.mjCAMERA_FREE:
+                    cam.lookat[:] = self.data.xpos[self._track_bid]
                 self.viewer.sync()
 
 

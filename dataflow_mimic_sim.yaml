@@ -1,0 +1,107 @@
+# mimic_v2_5 の MuJoCo シミュレーション (dataflow_mimic.yaml のシム版)。
+#
+# dataflow_mimic.yaml (実機) と同じ制御側 (robot_control_manager + stabilizer + dualsense_input)
+# のまま、デバイス側 (device_control_manager + imu_node) だけを mujoco_backend に差し替える。
+# 制御側の差分は作らない — 実機 yaml を変えたらこちらも揃えること (入力名・ソース・env)。
+# dataflow_sim.yaml は v2 時代 (mimic_v2.json / dummy_input / 30ms watchdog) のもので、こちらとは別物。
+#
+#   dualsense_input ──state_command──▶ robot_control_manager ──motor_commands──▶ mujoco_backend
+#        │                              │  ▲                                       │
+#        │                              └── state_status ──▶ stabilizer ◀──────────┤ motor_status / imu_data
+#        └────────drive_command─────────────────────────────▶ stabilizer ── run_command ──▶ RCM
+#
+# 実機との違い:
+#   - mujoco_backend が motor_status と imu_data の両方を出す (imu_node / raw_imu は無い)。
+#     IMU は base_link の site なのでボディ座標で出る。実機の imu_mount_rpy_deg は imu_node が
+#     吸収していて下流には出てこないので、stabilizer から見える imu_data の座標系は同じ。
+#   - DCM の latency 出力・cpu_affinity・SCHED_FIFO は無い。
+#   - モデルは sim/scene.xml (手書き: 無限グリッド床・光源・base_link 追従カメラ) が
+#     sim/mimic_v2_5.xml (scripts/mjmodel_converter で生成。床は持たない) を <include> したもの。
+#     関節名・actuator 名・keyframe "standing" は mujoco_backend が参照する名前に合わせてある。
+#
+# 起動 (全部 PC 上):
+#   1) dora up
+#   2) dora start dataflow_mimic_sim.yaml
+#   3) cd src/python && MUJOCO_MODEL=scene.xml uv run mujoco_backend/mujoco_backend.py
+#        (ビューア付き: MUJOCO_VIEWER=1 を追加。dynamic ノードなので env はシェルで渡す。
+#         カメラは base_link 追従 (マウスで回転/ズーム可)、MUJOCO_TRACK=0 で追従なし)
+#   4) cd src/python && uv run dualsense_input/dualsense_input.py
+#        (パッド未接続でも起動する。attach しないと開始バリアで dataflow が待つ)
+#   生データ表示 (任意、pull 型): cd src/python && ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 data_viewer.py
+#                                 python3 tools/gui/web_monitor.py
+#
+# topic inspection (web_monitor / data_viewer.py の dora topic echo) 用に true を維持。
+_unstable_debug:
+  enable_debug_inspection: true
+
+nodes:
+
+  - id: robot_control_manager
+    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json
+    inputs:
+      # 実機 (dataflow_mimic.yaml) と同じく 30ms watchdog は繋がない。
+      # 操作元の切り替え: robot_web_gui / dualsense_input のどちらか一方
+      # (dora の入力は 1 名前 1 ソース)。下の該当ブロックの有効/無効と揃えること。
+      # state_command: robot_web_gui/state_command
+      state_command: dualsense_input/state_command
+      motor_status: mujoco_backend/motor_status
+      run_command: stabilizer/run_command
+    outputs:
+      - motor_commands
+      - state_status
+
+  - id: stabilizer
+    path: src/cpp/node/stabilizer/build/stabilizer
+    env:
+      ROBOT_CONFIG: robot_config/mimic_v2_5.json
+    inputs:
+      motor_status: mujoco_backend/motor_status
+      imu_data: mujoco_backend/imu_data
+      state_status: robot_control_manager/state_status
+      # 走行指令 (~50Hz)。300ms 途絶で 0 扱い (stabilizer 側の安全網)。
+      # robot_web_gui に戻すときはこの行も外すこと (ソースが消えると起動エラー)
+      drive_command: dualsense_input/drive_command
+    outputs:
+      - run_command
+      - estimated_state
+
+  # device_control_manager + imu_node の代わり。3ms tick で物理を進めて motor_status / imu_data を出す。
+  # 起動: cd src/python && MUJOCO_MODEL=scene.xml uv run mujoco_backend/mujoco_backend.py
+  - id: mujoco_backend
+    path: dynamic
+    inputs:
+      tick: dora/timer/millis/3
+      motor_commands: robot_control_manager/motor_commands
+    outputs:
+      - motor_status
+      - imu_data
+
+  # 操作 GUI ―― robot_web_gui と dualsense_input は排他 (dora の入力は 1 名前 1 ソース)。
+  # 切り替えるときは RCM の state_command のソース・stabilizer の drive_command 行・
+  # この 2 ブロックの有効/無効を必ず揃えること (dataflow_mimic.yaml と同じ運用)。
+  #
+  # ブラウザ版 (http://localhost:8766/)。今は無効。
+  # 起動: cd src/python && ROBOT_CONFIG=robot_config/mimic_v2_5.json \
+  #         uv run robot_web_gui/robot_web_gui.py
+  # - id: robot_web_gui
+  #   path: dynamic
+  #   inputs:
+  #     tick: dora/timer/millis/50          # コマンドキュー drain + RUN リトライ用
+  #     state_status: robot_control_manager/state_status
+  #     imu_data:                            # 角度/角速度の数値表示用 (333Hz、最新値のみ要)
+  #       source: mujoco_backend/imu_data
+  #       queue_size: 400                    # channel full 対策 (容量=入力 queue_size 合計、既定10)
+  #   outputs:
+  #     - state_command
+
+  # DualSense (PS5) 版。今はこちらが有効 (実機と同じ操作で試せる)。
+  # 起動: cd src/python && uv run dualsense_input/dualsense_input.py
+  # パッドが未接続でも起動し、切断しても落ちない。割り当ては dualsense_input.py 先頭と
+  # scripts/dualsense_monitor/README.md。
+  - id: dualsense_input
+    path: dynamic
+    outputs:
+      - state_command
+      - drive_command
