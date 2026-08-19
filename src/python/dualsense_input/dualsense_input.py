@@ -21,14 +21,14 @@ STOP を送らない)。**走行指令 (drive_command) は 0 に戻して送り�
 **送信はメインスレッドのみ。** パッドの読み取りは別スレッドでキューに積み、
 dora のイベントループ側で drain して送る (robot_web_gui と同じ方式)。
 
-## 割り当て
+## 割り当て (物理ボタン名。js の番号はドライバ依存なので書かない)
 
-  ○  (2)                SERVO_ON              OFF のみ
-  △  (3)                READY                 STOP のみ
-  □  (0)                RUN                   READY + 補間完了のみ
-  ×  (1)                STOP                  OFF 以外
-  L1+L3 (4+10)          SERVO_OFF             常時 (緊急停止)
-  Create+Options (8+9)  INIT_POSITION_RESET   OFF のみ (ストッパー押し当て後に!)
+  ○                     SERVO_ON              OFF のみ
+  △                     READY                 STOP のみ
+  □                     RUN                   READY + 補間完了のみ
+  ×                     STOP                  OFF 以外
+  L1+L3                 SERVO_OFF             常時 (緊急停止)
+  Create+Options        INIT_POSITION_RESET   OFF のみ (ストッパー押し当て後に!)
   左スティック上下       drive_command.forward 上=前進。正規化 -1..1、デッドゾーン 0.05
   左スティック左右       drive_command.yaw     右=右旋回。正規化 -1..1、デッドゾーン 0.05
                         (何 rad/s になるかは制御側 kMaxDriveWheelVel / kMaxYawWheelDiff)
@@ -39,14 +39,17 @@ dora のイベントループ側で drain して送る (robot_web_gui と同じ�
 同時押しは「両方が押されている状態で、後から押した方の押下イベント」で 1 回だけ
 発火する。同時押しに使うボタンは単押しに割り当てていないので誤爆しない。
 
-割り当ての実測根拠は scripts/dualsense_monitor/README.md。hid-playstation を
-入れると番号が変わるので、その時は両方を直すこと。
+**ボタン番号はドライバで変わる** (ロボットの hid-generic: □0 ×1 ○2 △3 L1 4 L3 10、
+PC の hid_playstation: ×0 ○1 △2 □3 L1 4 L3 11)。番号をハードコードせず、接続のたびに
+lib/dualsense_map が sysfs のドライバ名 + JSIOCGBTNMAP から {物理名 → 番号} を解決する
+(接続ログに出る)。実測根拠は scripts/dualsense_monitor/README.md (hid-generic の番号)。
 
 ## 使い方
 
   cd src/python && uv run dualsense_input/dualsense_input.py
 
-  DUALSENSE_DEV   デバイス (既定 /dev/input/js0)
+  DUALSENSE_DEV      デバイス (既定 /dev/input/js0)
+  DUALSENSE_SCHEME   generic | playstation — ドライバ自動判定を上書き (通常不要)
 """
 
 import os
@@ -63,6 +66,7 @@ from dora import Node
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from lib.enum_def import StateCommand  # noqa: E402
 from lib.command_data_format import DriveCommand, pack_drive_command  # noqa: E402
+from lib import dualsense_map as dsm  # noqa: E402
 
 # struct js_event { __u32 time; __s16 value; __u8 type; __u8 number; }
 JS_FMT = "<IhBB"
@@ -76,38 +80,41 @@ REOPEN_INTERVAL = 1.0     # 切断中の再オープン試行間隔 [s]
 LOOP_TIMEOUT = 0.02       # dora イベント待ち [s] = drain 周期 = drive_command 送信周期 (50Hz)
 
 AXIS_MAX = 32767
-AXIS_LY = 1               # 左スティック上下 (実測: 上が負) → forward
-AXIS_LX = 0               # 左スティック左右 (実測: 右が正) → yaw
 STICK_DEADZONE = 0.05     # 正規化後のデッドゾーン
 
-BTN_SQUARE, BTN_CROSS, BTN_CIRCLE, BTN_TRIANGLE = 0, 1, 2, 3
-BTN_L1, BTN_R1 = 4, 5
-BTN_CREATE, BTN_OPTIONS = 8, 9
-BTN_L3, BTN_R3 = 10, 11
-
-BTN_NAMES = {
-    BTN_SQUARE: "□", BTN_CROSS: "×", BTN_CIRCLE: "○", BTN_TRIANGLE: "△",
-    BTN_L1: "L1", BTN_R1: "R1",
-    BTN_CREATE: "Create", BTN_OPTIONS: "Options",
-    BTN_L3: "L3", BTN_R3: "R3",
-}
-
-# 単押し: {button: (StateCommand, 表示名)}
+# 割り当ては js のボタン番号ではなく物理ボタン名で書く。番号は掴んでいる HID ドライバで
+# 変わる (ロボットの hid-generic: □0 ×1 ○2 △3 L1 4 L3 10 / PC の hid_playstation:
+# ×0 ○1 △2 □3 L1 4 L3 11) ので、接続のたびに lib/dualsense_map が JSIOCGBTNMAP と
+# sysfs のドライバ名から {物理名 → 番号} を解決する。左スティックの軸番号も同様に引く。
+#
+# 単押し: {物理名: (StateCommand, 表示名)}
 SINGLE = {
-    BTN_CIRCLE:   (StateCommand.SERVO_ON, "SERVO_ON"),
-    BTN_TRIANGLE: (StateCommand.READY,    "READY"),
-    BTN_SQUARE:   (StateCommand.RUN,      "RUN"),
-    BTN_CROSS:    (StateCommand.STOP,     "STOP"),
+    dsm.CIRCLE:   (StateCommand.SERVO_ON, "SERVO_ON"),
+    dsm.TRIANGLE: (StateCommand.READY,    "READY"),
+    dsm.SQUARE:   (StateCommand.RUN,      "RUN"),
+    dsm.CROSS:    (StateCommand.STOP,     "STOP"),
 }
-# 同時押し: {(button, button): (StateCommand, 表示名)}
+# 同時押し: {(物理名, 物理名): (StateCommand, 表示名)}
 COMBO = {
-    (BTN_L1, BTN_L3):          (StateCommand.SERVO_OFF, "SERVO_OFF"),
-    (BTN_CREATE, BTN_OPTIONS): (StateCommand.INIT_POSITION_RESET, "INIT_POSITION_RESET"),
+    (dsm.L1, dsm.L3):          (StateCommand.SERVO_OFF, "SERVO_OFF"),
+    (dsm.CREATE, dsm.OPTIONS): (StateCommand.INIT_POSITION_RESET, "INIT_POSITION_RESET"),
 }
 COMBO_MEMBERS = {b for pair in COMBO for b in pair}
+USED_BUTTONS = set(SINGLE) | COMBO_MEMBERS
 
-def btn_name(n):
-    return BTN_NAMES.get(n, f"BTN{n}")
+
+def resolve_map(f, dev):
+    """開いた js デバイスから物理名→番号の対応を作る。ioctl が失敗したらロボット既定
+    (hid-generic 番号) に倒して警告する (起動は止めない)。"""
+    try:
+        m = dsm.DualSenseMap.from_fd(f.fileno(), dev)
+    except OSError as e:
+        m = dsm.DualSenseMap.default_generic()
+        log(f"WARNING: button map ioctl failed ({e}); assuming hid-generic numbering")
+    missing = sorted(USED_BUTTONS - set(m.index_of))
+    if missing:
+        log(f"WARNING: buttons not found on this device: {missing} — those commands won't fire")
+    return m
 
 
 def stick_to_norm(raw, invert=False):
@@ -135,17 +142,19 @@ def reader_thread(dev, out_q, drive, stop_ev):
     デバイスが無くても、途中で消えても、決して例外で抜けない。
     """
     f = None
-    pressed = set()
+    m = None                  # 接続中のボタン/軸マップ (lib/dualsense_map.DualSenseMap)
+    pressed = set()           # 押下中の物理名
     next_try = 0.0
 
     def close(reason):
-        nonlocal f
+        nonlocal f, m
         if f is not None:
             try:
                 f.close()
             except OSError:
                 pass
         f = None
+        m = None
         pressed.clear()
         # 切断時: state_command は送らない (RCM の状態を維持) が、
         # 走行指令は 0 に戻す (倒しっぱなしの値を残さない)
@@ -165,7 +174,8 @@ def reader_thread(dev, out_q, drive, stop_ev):
             except OSError:
                 continue
             pressed.clear()
-            log(f"connected: {dev}")
+            m = resolve_map(f, dev)
+            log(f"connected: {dev} — {m.describe()}")
 
         try:
             if not select.select([f], [], [], 0.1)[0]:
@@ -179,32 +189,35 @@ def reader_thread(dev, out_q, drive, stop_ev):
             continue
 
         _, value, etype, number = struct.unpack(JS_FMT, data)
-        if etype & JS_EVENT_AXIS and number == AXIS_LY:
+        if etype & JS_EVENT_AXIS and number == m.axis_ly:
             # 軸は INIT (オープン直後の現在値) も受ける — 実際の位置なので
-            drive["forward"] = stick_to_norm(value, invert=True)  # 上=前進=正
+            drive["forward"] = stick_to_norm(value, invert=True)  # 上=前進=正 (上が負の生値)
             continue
-        if etype & JS_EVENT_AXIS and number == AXIS_LX:
+        if etype & JS_EVENT_AXIS and number == m.axis_lx:
             drive["yaw"] = stick_to_norm(value)                   # 右=右旋回=正
             continue
         if etype & JS_EVENT_INIT or not (etype & JS_EVENT_BUTTON):
             # ボタンの INIT は無視 (押下イベントでのみ発火させる)。他の軸も未使用
             continue
+        name = m.name_of.get(number)
+        if name is None:
+            continue                      # この割り当てで使わないボタン (タッチパッド等)
         if not value:
-            pressed.discard(number)
+            pressed.discard(name)
             continue
 
-        pressed.add(number)
+        pressed.add(name)
         fired = False
         # 同時押しを先に判定。今押したボタンが組の一方で、もう一方も押下中なら発火
         for (a, b), entry in COMBO.items():
-            other = b if number == a else (a if number == b else None)
+            other = b if name == a else (a if name == b else None)
             if other is not None and other in pressed:
                 out_q.put(entry)
                 fired = True
         if fired:
             continue
-        if number in SINGLE and number not in COMBO_MEMBERS:
-            out_q.put(SINGLE[number])
+        if name in SINGLE and name not in COMBO_MEMBERS:
+            out_q.put(SINGLE[name])
 
 
 def main():
@@ -216,10 +229,11 @@ def main():
                      daemon=True).start()
 
     log(f"device={DEV} (未接続でも起動する / 切断しても落ちない)")
-    for b, (_, name) in sorted(SINGLE.items()):
-        log(f"  {btn_name(b):<15} -> {name}")
+    for b, (_, name) in SINGLE.items():
+        log(f"  {dsm.glyph(b):<15} -> {name}")
     for (a, b), (_, name) in COMBO.items():
-        log(f"  {btn_name(a)}+{btn_name(b):<12} -> {name}")
+        log(f"  {dsm.glyph(a)}+{dsm.glyph(b):<12} -> {name}")
+    log("  (js ボタン番号はドライバ依存。接続時に実機の対応を解決して表示する)")
     log(f"  左スティック上下  -> drive_command.forward (上=前進, 正規化 -1..1)")
     log(f"  左スティック左右  -> drive_command.yaw     (右=右旋回, 正規化 -1..1)")
     log(f"  (deadzone {STICK_DEADZONE}; 物理スケールは制御側 angle_pid が持つ)")

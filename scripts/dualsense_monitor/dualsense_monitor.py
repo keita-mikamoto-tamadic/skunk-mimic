@@ -17,7 +17,14 @@ Linux の joystick API (/dev/input/js*) を直接読む。hid-playstation ドラ
   python3 scripts/dualsense_monitor/dualsense_monitor.py [デバイス]
   DUALSENSE_DEV=/dev/input/js1 python3 scripts/dualsense_monitor/dualsense_monitor.py
 
-割り当ての根拠は README.md。実測 (2026-08-18) で確定した対応を持っている。
+割り当ての根拠は README.md (hid-generic での実測 2026-08-18)。
+
+ボタン/軸の番号は掴んでいる HID ドライバで変わる (ロボットの hid-generic: □0 ×1 ○2 △3 …
+L3 10、右スティック axis 2/5、L2/R2 axis 3/4 / PC の hid_playstation: ×0 ○1 △2 □3 … L3 11、
+右スティック axis 3/4、L2/R2 axis 2/5)。番号はハードコードせず、接続のたびに
+src/python/lib/dualsense_map (stdlib のみ) が sysfs のドライバ名 + JSIOCGBTNMAP/AXMAP から
+{物理名 → 番号} を解決する。画面の 1 行目に driver/scheme が出る。
+どのドライバかは `readlink /sys/class/input/js0/device/device/driver` でも分かる。
 """
 
 import os
@@ -25,6 +32,10 @@ import select
 import struct
 import sys
 import time
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "src", "python"))
+from lib import dualsense_map as dsm  # noqa: E402  (stdlib のみ、uv 不要)
 
 # struct js_event { __u32 time; __s16 value; __u8 type; __u8 number; }
 JS_FMT = "<IhBB"
@@ -37,17 +48,24 @@ AXIS_MAX = 32767
 RENDER_HZ = 30
 EVENT_LOG_LINES = 6
 
-# 実測で確定した対応 (README.md 参照)
-BUTTON_NAMES = {
-    0: "□", 1: "×", 2: "○", 3: "△",
-    4: "L1", 5: "R1", 6: "L2", 7: "R2",
-    8: "Create", 9: "Options", 12: "PS",
-}
-# スティック: (表示名, axis 左右, axis 上下)
-STICKS = (("左", 0, 1), ("右", 2, 5))
+# 表示する役割 (番号は接続時に st.map から引く)
+# スティック: (表示名, 役割 左右, 役割 上下)
+STICKS = (("左", dsm.AX_LX, dsm.AX_LY), ("右", dsm.AX_RX, dsm.AX_RY))
 # トリガ: 中立が -32767 なので 0..1 に正規化する
-TRIGGERS = (("L2", 3), ("R2", 4))
-DPAD_X, DPAD_Y = 6, 7
+TRIGGERS = (("L2", dsm.AX_L2), ("R2", dsm.AX_R2))
+# ボタンの表示順 (3 行)
+BUTTON_ROWS = (
+    (dsm.SQUARE, dsm.CROSS, dsm.CIRCLE, dsm.TRIANGLE),
+    (dsm.L1, dsm.R1, dsm.L2, dsm.R2),
+    (dsm.CREATE, dsm.OPTIONS, dsm.L3, dsm.R3, dsm.PS),
+)
+
+
+def resolve_map(f, dev):
+    try:
+        return dsm.DualSenseMap.from_fd(f.fileno(), dev)
+    except OSError:
+        return dsm.DualSenseMap.default_generic()
 
 
 def norm_stick(v):
@@ -96,18 +114,24 @@ class State:
         self.total = 0
         self.connected = False
         self.last_rx = 0.0
+        self.map = dsm.DualSenseMap.default_generic()   # 接続時に実デバイスのものへ差し替え
+
+    def set_map(self, m):
+        self.map = m
+        self.axes.clear()
+        self.buttons.clear()
 
     def apply(self, value, etype, number):
         init = bool(etype & JS_EVENT_INIT)
         if etype & JS_EVENT_BUTTON:
             self.buttons[number] = value
             if not init:
-                name = BUTTON_NAMES.get(number, "?")
+                name = dsm.glyph(self.map.name_of.get(number, "?"))
                 self.log(f"BTN  {number:<2} {name:<7} {'押した' if value else '離した'}")
         elif etype & JS_EVENT_AXIS:
             self.axes[number] = value
             # 軸は動かすと大量に来るのでログには残さない (未知の軸だけ記録)
-            if not init and number not in (0, 1, 2, 5, 3, 4, DPAD_X, DPAD_Y):
+            if not init and number not in self.map.axis_role_of:
                 self.log(f"AXIS {number:<2} {'(未割当)':<7} {value:+6d}")
         self.total += 1
         self.last_rx = time.monotonic()
@@ -123,40 +147,50 @@ def render(st, dev):
     age = time.monotonic() - st.last_rx if st.last_rx else -1.0
     idle = f"{age:5.1f}s 無操作" if age >= 0 else "  --  "
     out.append(f"DualSense monitor   {dev}   [{status}]   {idle}   events={st.total}")
+    m = st.map
+    out.append(f"  driver={m.driver}  scheme={m.scheme}  ({m.reason})  "
+               f"buttons={m.num_buttons} axes={m.num_axes}")
     out.append("")
+    ax = m.axis_index_of   # 役割 → js 軸番号 (無ければ -1 表示)
 
     out.append("── スティック ──────────────────────────────────────")
-    for label, ax_x, ax_y in STICKS:
-        x = norm_stick(st.axes.get(ax_x, 0))
-        y = norm_stick(st.axes.get(ax_y, 0))
-        out.append(f"  {label} (axis {ax_x}/{ax_y})")
+    for label, rx, ry in STICKS:
+        ix, iy = ax.get(rx, -1), ax.get(ry, -1)
+        x = norm_stick(st.axes.get(ix, 0))
+        y = norm_stick(st.axes.get(iy, 0))
+        out.append(f"  {label} (axis {ix}/{iy})")
         out.append(f"      左右 {x:+5.2f} [{bar_signed(x)}]")
         out.append(f"      上下 {y:+5.2f} [{bar_signed(y)}]  (上が負)")
     out.append("")
 
     out.append("── トリガ (中立 -32767) ────────────────────────────")
     cells = []
-    for label, ax in TRIGGERS:
-        t = norm_trigger(st.axes.get(ax, -AXIS_MAX))
-        cells.append(f"{label} (axis {ax}) {t:4.2f} [{bar_unsigned(t)}]")
+    for label, role in TRIGGERS:
+        i = ax.get(role, -1)
+        t = norm_trigger(st.axes.get(i, -AXIS_MAX))
+        cells.append(f"{label} (axis {i}) {t:4.2f} [{bar_unsigned(t)}]")
     out.append("  " + "    ".join(cells))
     out.append("")
 
-    dx = st.axes.get(DPAD_X, 0)
-    dy = st.axes.get(DPAD_Y, 0)
+    idx, idy = ax.get(dsm.AX_DX, -1), ax.get(dsm.AX_DY, -1)
+    dx = st.axes.get(idx, 0)
+    dy = st.axes.get(idy, 0)
     out.append("── 十字キー ────────────────────────────────────────")
-    out.append(f"  axis {DPAD_X}/{DPAD_Y} = {dx:+6d} / {dy:+6d}      {dpad_arrow(dx, dy)}")
+    out.append(f"  axis {idx}/{idy} = {dx:+6d} / {dy:+6d}      {dpad_arrow(dx, dy)}")
     out.append("")
 
     out.append("── ボタン (● = 押下) ───────────────────────────────")
-    known = [(n, BUTTON_NAMES[n]) for n in sorted(BUTTON_NAMES)]
-    for row in (known[0:4], known[4:8], known[8:]):
+    for row in BUTTON_ROWS:
         cells = []
-        for n, name in row:
+        for name in row:
+            n = m.index_of.get(name)
+            if n is None:
+                cells.append(f"{dsm.glyph(name):>7} -- ・")
+                continue
             mark = "●" if st.buttons.get(n) else "・"
-            cells.append(f"{name:>7} {n:<2} {mark}")
+            cells.append(f"{dsm.glyph(name):>7} {n:<2} {mark}")
         out.append("  " + "  ".join(cells))
-    unknown = sorted(n for n in st.buttons if n not in BUTTON_NAMES)
+    unknown = sorted(n for n in st.buttons if n not in m.name_of)
     if unknown:
         cells = [f"{n:<2} {'●' if st.buttons[n] else '・'}" for n in unknown]
         out.append("  未割当: " + "  ".join(cells))
@@ -193,6 +227,9 @@ def main():
             if f is None:
                 f = open_device(dev)
                 st.connected = f is not None
+                if f is not None:
+                    st.set_map(resolve_map(f, dev))
+                    st.log(f"接続: {st.map.describe()}"[:110])
                 if f is None:
                     # 未接続でも画面は出し続ける (抜き差し待ち)
                     sys.stdout.write("\033[H\033[J" + render(st, dev) + "\n")

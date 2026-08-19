@@ -69,7 +69,14 @@ bluetoothctl
 ## 実測した割り当て (2026-08-18, USB / Bluetooth 共通)
 
 hid-generic + joydev による汎用マッピングなので、`hid-playstation` を入れると
-**番号が変わる**。入れ替えたら再測すること。
+**番号が変わる** (PC で実測 2026-08-20: ×0 ○1 △2 □3 L1 4 R1 5 L2 6 R2 7 Create 8 Options 9
+PS 10 L3 11 R3 12、右スティック axis 3/4、L2/R2 axis 2/5、十字キー 6/7)。
+
+このモニタと `dualsense_input` は番号をハードコードせず、接続時に
+`src/python/lib/dualsense_map.py` が sysfs のドライバ名 (`/sys/class/input/js0/device/device/driver`
+→ `playstation` / `hid-generic`) と `JSIOCGBTNMAP` / `JSIOCGAXMAP` から {物理名 → 番号} を
+解決するので、どちらのドライバでも正しい名前で出る (画面 1 行目に driver/scheme 表示)。
+下の表は **hid-generic (ロボット) の番号**で、dualsense_map の generic 表の根拠。
 
 ### ボタン
 
