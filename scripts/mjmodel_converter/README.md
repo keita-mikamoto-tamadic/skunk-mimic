@@ -20,7 +20,7 @@ uv run mjmodel_converter/mjmodel_converter.py sim/fusion_param/<robot> [-o sim/<
 |---|---|
 | `<part>.csv` | Fusion 360 の「物理」タブ書き出し (タブ区切り)。質量・重心・**重心まわり慣性テンソル**を使う。`Mass`, `Center of Mass`, `Moment of Inertia at Center of Mass (g mm^2)` を読む。`at Origin` ブロックは検証にだけ使う |
 | `model.json` | CSV に無い情報: body の親子関係・関節位置 (`pos`) / 軸 / 可動域 / armature / damping・メッシュ名・衝突形状・IMU site・センサ・moteus 利得。各 body の `"part"` が `<part>.csv` を指す |
-| `robot_config/*.json` | `model.json` の `"robot_config"` が指す。**軸名と順序** (actuator 名・順番)、`initial_position` (keyframe `standing`)、`torque_limit` (forcerange) の正本。二重管理しない |
+| `robot_config/*.json` | `model.json` の `"robot_config"` が指す。**軸名と順序** (actuator 名・順番)、`initial_position` (keyframe `standing`)、`torque_limit` (forcerange) の正本。二重管理しない。**駆動軸の joint 名も軸名そのもの**になる (`body.axis`; stabilizer の posture IK / mujoco_backend はそれで引く) |
 
 ### 単位・座標系の前提
 
@@ -42,8 +42,8 @@ uv run mjmodel_converter/mjmodel_converter.py sim/fusion_param/<robot> [-o sim/<
      "sites": [{"name": "imu", "size": "0.01", "rgba": "1 0 0 1", "type": "box"}]},
     {"name": "wheel_R", "part": "MIM2_5-A300", "mesh": "wheel_R", "parent": "lower_link_R",
      "pos": [0,-0.04985,-0.18],
-     "joint": {"name": "wheel_R_joint", "axis": [0,1,0], "armature": 0.008361, "damping": 0.047421},
-     "axis": "wheel_r",                         // robot_config の軸名 → actuator / keyframe の対応付け
+     "joint": {"axis": [0,1,0], "armature": 0.008361, "damping": 0.047421},   // 名前は axis から
+     "axis": "wheel_r",                         // robot_config の軸名 = joint 名 = actuator 名
      "collision": {"type": "cylinder", "radius": 0.07795, "half_length": 0.024361, "euler": [1.5708,0,0]}}
   ],
   "contact_exclude": [["upper_link_L","wheel_L"], ["upper_link_R","wheel_R"]],
@@ -83,7 +83,7 @@ uv run mjmodel_converter/com_comp.py --reset          # 補正を外して CAD �
 
 ## 出力の互換性
 
-`mujoco_backend` が参照する名前をそのまま出す: joint 名 (`upper_link_R_joint` …)、actuator 名 (= robot_config 軸名)、
+`mujoco_backend` / `stabilizer` が参照する名前をそのまま出す: joint 名と actuator 名 (どちらも = robot_config 軸名)、
 keyframe `standing`、センサ `gyro` / `accel` / `linvel` / `imu_pos` / `imu_quat`。
 actuator は `general` で、`mujoco_backend` が `biasprm` から `base_kp = -biasprm[1]`, `base_kv = -biasprm[2]` を読んで
 実行時に POSITION / VELOCITY / TORQUE / OFF を切り替える。`initial_mode: velocity` (ホイール) は v2 と同様 `base_kp = 0` になる。

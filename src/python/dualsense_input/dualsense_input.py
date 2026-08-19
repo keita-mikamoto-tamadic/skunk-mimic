@@ -3,9 +3,10 @@
 robot_web_gui と同じく RCM の状態機械を経由する (motor_commands を直接送る
 web_controller とは別物)。入力トピックは持たない (出力のみ)。
 
-state_command (ボタン、イベント駆動) に加えて drive_command (左スティック上下 →
-前後の走行指令) を約 50Hz で送り続ける。drive_command は stabilizer の外側ループの
-目標ホイール速度に入る (詳細は command_data.json の doc)。
+state_command (ボタン、イベント駆動) に加えて drive_command (左スティック → 前後/旋回、
+右スティック上下 → 姿勢 (重心高さ) の変化レート) を約 50Hz で送り続ける。drive_command は
+stabilizer の外側ループの目標ホイール速度と posture IK の目標高さに入る
+(詳細は command_data.json の doc)。
 
 ## 設計上の約束
 
@@ -32,6 +33,8 @@ dora のイベントループ側で drain して送る (robot_web_gui と同じ�
   左スティック上下       drive_command.forward 上=前進。正規化 -1..1、デッドゾーン 0.05
   左スティック左右       drive_command.yaw     右=右旋回。正規化 -1..1、デッドゾーン 0.05
                         (何 rad/s になるかは制御側 kMaxDriveWheelVel / kMaxYawWheelDiff)
+  右スティック上下       drive_command.height  上=重心を上げる。正規化レート -1..1、デッドゾーン 0.05
+                        (何 m/s になるかは制御側 kMaxComHeightVel。倒立点を変えずに hip/knee が動く)
 
 右の条件は RCM 側のガード (robot_control_manager.cpp の HandleStateCommand)。
 ここでは弾かずに送るだけで、通らなければ RCM が黙って無視する。
@@ -160,6 +163,7 @@ def reader_thread(dev, out_q, drive, stop_ev):
         # 走行指令は 0 に戻す (倒しっぱなしの値を残さない)
         drive["forward"] = 0.0
         drive["yaw"] = 0.0
+        drive["height"] = 0.0
         log(f"disconnected ({reason}) — 走行指令 0、状態は維持。再接続を待つ")
 
     while not stop_ev.is_set():
@@ -196,6 +200,9 @@ def reader_thread(dev, out_q, drive, stop_ev):
         if etype & JS_EVENT_AXIS and number == m.axis_lx:
             drive["yaw"] = stick_to_norm(value)                   # 右=右旋回=正
             continue
+        if etype & JS_EVENT_AXIS and number == m.axis_index_of.get(dsm.AX_RY, -1):
+            drive["height"] = stick_to_norm(value, invert=True)   # 上=上げる=正
+            continue
         if etype & JS_EVENT_INIT or not (etype & JS_EVENT_BUTTON):
             # ボタンの INIT は無視 (押下イベントでのみ発火させる)。他の軸も未使用
             continue
@@ -223,7 +230,7 @@ def reader_thread(dev, out_q, drive, stop_ev):
 def main():
     node = Node("dualsense_input")
     out_q = queue.Queue()
-    drive = {"forward": 0.0, "yaw": 0.0}   # reader が書き、main が送る (GIL で atomic)
+    drive = {"forward": 0.0, "yaw": 0.0, "height": 0.0}   # reader が書き、main が送る (GIL で atomic)
     stop_ev = threading.Event()
     threading.Thread(target=reader_thread, args=(DEV, out_q, drive, stop_ev),
                      daemon=True).start()
@@ -236,6 +243,7 @@ def main():
     log("  (js ボタン番号はドライバ依存。接続時に実機の対応を解決して表示する)")
     log(f"  左スティック上下  -> drive_command.forward (上=前進, 正規化 -1..1)")
     log(f"  左スティック左右  -> drive_command.yaw     (右=右旋回, 正規化 -1..1)")
+    log(f"  右スティック上下  -> drive_command.height  (上=重心を上げる, 正規化レート -1..1)")
     log(f"  (deadzone {STICK_DEADZONE}; 物理スケールは制御側 angle_pid が持つ)")
 
     # `for event in node` (無期限 recv) ではなく timeout 付きで回す:
@@ -258,7 +266,8 @@ def main():
             # 走行指令は毎周期 (~50Hz) 送る。受け側は 300ms 途絶で 0 扱いに
             # するので、値が 0 でも送り続けるのが正しい
             rec = DriveCommand(timestamp=time.time(),
-                               forward=drive["forward"], yaw=drive["yaw"])
+                               forward=drive["forward"], yaw=drive["yaw"],
+                               height=drive["height"])
             node.send_output("drive_command",
                              pa.array(list(pack_drive_command(rec)), type=pa.uint8()))
     except KeyboardInterrupt:

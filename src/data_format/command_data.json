@@ -19,6 +19,11 @@
           "name": "yaw",
           "type": "double",
           "doc": "旋回: 正規化操作量 -1..1 (右に倒すと正 = 右旋回のつもり。実機の回転方向は要確認)。左右ホイールへの差動 [rad/s] へのスケールは制御側 (kMaxYawWheelDiff) が持つ"
+        },
+        {
+          "name": "height",
+          "type": "double",
+          "doc": "姿勢 (重心高さ) の変化レート: 正規化操作量 -1..1 (上げるが正)。制御側 (angle_pid の posture IK) が積分して目標の重心高さにし、倒立点を変えずに hip/knee を動かす。物理スケール [m/s] は制御側 (kMaxComHeightVel) が持つ"
         }
       ]
     }

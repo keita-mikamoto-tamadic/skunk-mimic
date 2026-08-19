@@ -351,7 +351,15 @@ class MjcfBuilder:
             if jt == "free":
                 ET.SubElement(body, "joint", type="free")
             else:
-                je = ET.SubElement(body, "joint", name=j["name"], type=jt, axis=fmt_vec(j.get("axis", [0, 1, 0])))
+                # 駆動軸 (body に "axis" がある) の joint 名は robot_config の軸名そのもの。
+                # stabilizer (posture IK) も mujoco_backend も「軸名 = joint 名」で引くので別名を持たせない
+                jname = b.get("axis") or j.get("name")
+                if not jname:
+                    sys.exit(f"error: body '{b['name']}': hinge joint needs \"axis\" (robot_config axis name) or joint.name")
+                if b.get("axis") and j.get("name") and j["name"] != b["axis"]:
+                    sys.exit(f"error: body '{b['name']}': joint.name '{j['name']}' conflicts with axis '{b['axis']}' "
+                             f"(the joint is named after the axis; drop joint.name)")
+                je = ET.SubElement(body, "joint", name=jname, type=jt, axis=fmt_vec(j.get("axis", [0, 1, 0])))
                 if "range" in j:
                     je.set("range", fmt_vec(j["range"]))
                 for k in ("armature", "damping", "frictionloss", "stiffness"):
@@ -407,7 +415,8 @@ class MjcfBuilder:
 
     # -- アクチュエータ ----------------------------------------------------------
     def _axis_joint_map(self) -> dict[str, str]:
-        return {b["axis"]: b["joint"]["name"] for b in self.bodies if b.get("axis") and b.get("joint")}
+        # 駆動軸の joint 名 = 軸名 (上の _body と同じ規則)
+        return {b["axis"]: b["axis"] for b in self.bodies if b.get("axis") and b.get("joint")}
 
     def _actuators(self):
         act_spec = self.spec.get("actuators")
@@ -518,7 +527,7 @@ def compute_base_height(builder: MjcfBuilder) -> float | None:
     data.qpos[:] = 0
     data.qpos[3] = 1.0  # quat w
     for b, q in zip(builder.joint_order(), hinges):
-        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, b["joint"]["name"])
+        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, (b.get("axis") or b["joint"]["name"]))
         data.qpos[model.jnt_qposadr[jid]] = q
     mujoco.mj_kinematics(model, data)
 
@@ -538,7 +547,7 @@ def set_standing_pose(model, data, builder: MjcfBuilder, pitch: float):
     data.qpos[:] = 0
     data.qpos[3:7] = [math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]
     for b, q in zip(builder.joint_order(), builder.initial_qpos_hinges()):
-        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, b["joint"]["name"])
+        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, (b.get("axis") or b["joint"]["name"]))
         data.qpos[model.jnt_qposadr[jid]] = q
     mujoco.mj_forward(model, data)
 

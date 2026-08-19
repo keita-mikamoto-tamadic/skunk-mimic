@@ -28,6 +28,7 @@ RobotConfig Parse(const std::string& json_str) {
   config.transport = j.value("transport", "socketcan");
   config.protocol = j.value("protocol", "moteus");
   config.controller = j.value("controller", "angle_pid");
+  config.model_mjcf = j.value("model_mjcf", "");
   config.comm_ch = j.value("comm_ch", std::vector<std::string>{"can0"});
   {
     auto rpy = j.value("imu_mount_rpy_deg", std::vector<double>{0.0, 0.0, 0.0});
@@ -85,7 +86,11 @@ RobotConfig Parse(const std::string& json_str) {
 
 std::string ResolveConfigPath(const char* default_rel) {
   const char* env = std::getenv("ROBOT_CONFIG");
-  std::filesystem::path p = (env && *env) ? env : default_rel;
+  return ResolveRepoPath((env && *env) ? env : default_rel);
+}
+
+std::string ResolveRepoPath(const std::string& rel) {
+  std::filesystem::path p = rel;
   if (p.is_absolute() || std::filesystem::exists(p)) {
     return p.string();
   }

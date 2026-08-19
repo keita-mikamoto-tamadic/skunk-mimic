@@ -3,6 +3,7 @@
 #include "controller.hpp"
 #include "../../lib/pid.hpp"
 #include "kalman_filter/kalman_filter.h"
+#include "posture_ik.hpp"
 
 // 倒立振子 PID コントローラ
 // 外側ループ: 速度PI（倒立点自動調整）
@@ -41,6 +42,13 @@ private:
     // どちらにも一次では影響しない — だからこちらは出力への直接加算でよい
     static constexpr double kMaxYawWheelDiff = 0.5;
     static constexpr double kTickSec = 0.003;
+    // 姿勢 (重心高さ) 変更: 右スティックは正規化レート -1..1 で来る。
+    // フルスケール [m/s] と、初期姿勢からの上昇量の上限 [m] はここが正。
+    // 上限 0.08 m は mimic_v2_5 で hip の可動域下限 (0.6 rad) に当たるところ
+    // (scripts/mjmodel_converter/README.md)。モデルの関節リミットでも別途クランプする
+    static constexpr double kMaxComHeightVel = 0.03;
+    static constexpr double kMaxComRise = 0.08;
+    static constexpr double kPostureMaxStep = 0.02;   // IK 1 反復あたりの関節角ステップ上限 [rad]
 
     // ボディ速度推定パラメータ（MuJoCo XMLから算出）
     static constexpr double kWheelRadius = 0.05;  // TODO: XMLから正確な値を確認
@@ -58,4 +66,16 @@ private:
     double drive_forward_ = 0.0;   // 外側ループの目標ホイール速度 [rad/s]
     double drive_yaw_ = 0.0;       // 左右ホイールへの差動 [rad/s] (右旋回が正のつもり)
     std::vector<AxisRef> run_command_;
+
+    // 姿勢 (重心高さ) 変更。posture_ik_ が読めていれば有効 (robot_config の model_mjcf が必要。
+    // MJCF の joint 名は軸名と同じ)。無効なら hip/knee は従来どおり initial_position 固定
+    bool posture_enabled_ = false;
+    PostureIk posture_ik_;
+    size_t hip_r_ = SIZE_MAX, knee_r_ = SIZE_MAX, hip_l_ = SIZE_MAX, knee_l_ = SIZE_MAX;
+    double hip_init_ = 0.0, knee_init_ = 0.0;   // initial_position (左右同じ前提)
+    double h0_ = 0.0;              // 初期姿勢での重心高さ (車軸基準) [m] = 指令の下限
+    double h_cmd_ = 0.0;           // 目標重心高さ [m]
+    double height_rate_ = 0.0;     // [m/s]
+    double hip_cmd_ = 0.0, knee_cmd_ = 0.0;   // IK 解 (左右同じ値を出す)
+    int posture_log_countdown_ = 0;
 };

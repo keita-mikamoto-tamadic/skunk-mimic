@@ -32,6 +32,7 @@ class RobotConfig:
     imu_mount_rpy_deg: List[float]  # IMU mount rotation [roll, pitch, yaw] deg
     comm_ch: List[str]  # SocketCAN netdev names, e.g. ["can0", "can1"]
     axes: List[AxisConfig]
+    model_mjcf: str = ""  # repo-relative MJCF path (e.g. "sim/mimic_v2_5.xml"), default ""
 
 
 def _parse_double(value) -> float:
@@ -75,7 +76,8 @@ def parse(json_str: str) -> RobotConfig:
         protocol=data.get("protocol", "moteus"),
         imu_mount_rpy_deg=data.get("imu_mount_rpy_deg", [0.0, 0.0, 0.0]),
         comm_ch=data.get("comm_ch", ["can0"]),
-        axes=axes
+        axes=axes,
+        model_mjcf=data.get("model_mjcf", ""),
     )
 
 

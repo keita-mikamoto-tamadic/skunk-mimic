@@ -119,7 +119,8 @@ nodes:
   # パッドが未接続でも起動し、切断しても落ちない (開始バリアを塞がないため)。
   # 切断時: state_command は送らない (RCM の状態を維持)。drive_command は 0 に
   # 戻して送り続ける (加えて stabilizer 側も 300ms 途絶で 0 扱い)。
-  # 左スティック上下 = 前後 (±0.5 rad/s、上が前進)。
+  # 左スティック上下 = 前後 (上が前進)、左右 = 旋回。右スティック上下 = 重心高さのレート
+  # (上が上げる。stabilizer の posture IK が倒立点を変えずに hip/knee を動かす)。
   # 割り当てと実測根拠は scripts/dualsense_monitor/README.md。
   # 状態/IMU の表示は持たないので、見たいときは別途 pull 型のビューアを使う:
   #   robot: cd src/python && ROBOT_CONFIG=robot_config/mimic_v2_5.json python3 data_viewer.py

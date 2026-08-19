@@ -97,6 +97,7 @@ nodes:
   #     - state_command
 
   # DualSense (PS5) 版。今はこちらが有効 (実機と同じ操作で試せる)。
+  # 左スティック = 前後/旋回、右スティック上下 = 重心高さ (posture IK、倒立点は変わらない)。
   # 起動: cd src/python && uv run dualsense_input/dualsense_input.py
   # パッドが未接続でも起動し、切断しても落ちない。割り当ては dualsense_input.py 先頭と
   # scripts/dualsense_monitor/README.md。

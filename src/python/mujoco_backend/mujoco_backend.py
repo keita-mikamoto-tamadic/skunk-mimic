@@ -49,17 +49,10 @@ MOTOR_TORQUE = 4
 MOTOR_SET_POSITION = 5
 
 # ---------------------------------------------------------------------------
-# Joint mapping
+# Axis mapping: actuator 名 = robot_config の軸名。joint は actuator の transmission から引く
+# (mimic_v2.xml は joint 名が upper_link_R_joint 等、生成物 mimic_v2_5.xml は joint 名 = 軸名。
+#  どちらでも actuator→joint で辿れるので joint 名をここに持たない)
 # ---------------------------------------------------------------------------
-AXIS_JOINT_NAMES = [
-    "upper_link_R_joint",
-    "lower_link_R_joint",
-    "wheel_R_joint",
-    "upper_link_L_joint",
-    "lower_link_L_joint",
-    "wheel_L_joint",
-]
-
 AXIS_ACTUATOR_NAMES = [
     "hip_pitch_r",
     "knee_r",
@@ -91,15 +84,15 @@ class MuJoCoSim:
         self.dof_addrs = []
         self.actuator_ids = []
         for i in range(NUM_AXES):
-            jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, AXIS_JOINT_NAMES[i])
-            assert jid >= 0, f"Joint '{AXIS_JOINT_NAMES[i]}' not found in model"
-            self.joint_ids.append(jid)
-            self.qpos_addrs.append(self.model.jnt_qposadr[jid])
-            self.dof_addrs.append(self.model.jnt_dofadr[jid])
-
             aid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, AXIS_ACTUATOR_NAMES[i])
             assert aid >= 0, f"Actuator '{AXIS_ACTUATOR_NAMES[i]}' not found in model"
             self.actuator_ids.append(aid)
+            assert self.model.actuator_trntype[aid] == mujoco.mjtTrn.mjTRN_JOINT, \
+                f"Actuator '{AXIS_ACTUATOR_NAMES[i]}' must drive a joint"
+            jid = int(self.model.actuator_trnid[aid][0])
+            self.joint_ids.append(jid)
+            self.qpos_addrs.append(self.model.jnt_qposadr[jid])
+            self.dof_addrs.append(self.model.jnt_dofadr[jid])
 
         key_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_KEY, "standing")
         if key_id >= 0:

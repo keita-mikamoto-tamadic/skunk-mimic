@@ -3,6 +3,7 @@
     "mimic_v2_5 の骨格定義 (scripts/mjmodel_converter/mjmodel_converter.py の入力)。",
     "質量・重心・慣性は同じディレクトリの Fusion 物理プロパティ CSV (part → <part>.csv) から読む。",
     "このファイルが持つのは CSV に無い情報だけ: 親子関係・関節位置/軸/可動域・メッシュ・衝突形状・センサ・アクチュエータ利得。",
+    "駆動軸の joint 名は body の 'axis' (robot_config の軸名) そのもの — stabilizer / mujoco_backend は軸名で joint を引く。",
     "初期姿勢 (keyframe) とトルク制限 (forcerange) と軸名/順序は robot_config から取る (二重管理しない)。",
     "座標系: 各 body の原点 = その関節の回転中心。CSV の Center of Mass は Fusion 部品原点基準なので、",
     "Fusion 側で部品原点を関節中心に置いておくこと (v2 以来の前提)。",
@@ -37,7 +38,7 @@
       "parent": "base_link",
       "_pos": "v2 と同一 (hip 左右間隔 204 mm)",
       "pos": [0.0, -0.102, 0.0],
-      "joint": {"name": "upper_link_R_joint", "axis": [0, 1, 0], "range": [0.6, 1.6]},
+      "joint": {"axis": [0, 1, 0], "range": [0.6, 1.6]},
       "axis": "hip_pitch_r",
       "collision": {"type": "mesh"}
     },
@@ -48,7 +49,7 @@
       "parent": "upper_link_R",
       "_pos": "v2 と同一 (hip→knee 150 mm)",
       "pos": [0.0, 0.0, -0.15],
-      "joint": {"name": "lower_link_R_joint", "axis": [0, 1, 0]},
+      "joint": {"axis": [0, 1, 0]},
       "axis": "knee_r",
       "collision": {"type": "mesh"}
     },
@@ -59,7 +60,7 @@
       "parent": "lower_link_R",
       "_pos": "v2 と同一 (knee→wheel 180 mm, 横 49.85 mm)",
       "pos": [0.0, -0.04985, -0.18],
-      "joint": {"name": "wheel_R_joint", "axis": [0, 1, 0], "armature": 0.008361, "damping": 0.047421},
+      "joint": {"axis": [0, 1, 0], "armature": 0.008361, "damping": 0.047421},
       "axis": "wheel_r",
       "_collision": "v2 と同一。半径 77.95 mm は CSV の bounding box (155.9 mm) とも一致",
       "collision": {"type": "cylinder", "radius": 0.07795, "half_length": 0.024361, "euler": [1.5708, 0, 0]}
@@ -71,7 +72,7 @@
       "mesh": "upper_link_L",
       "parent": "base_link",
       "pos": [0.0, 0.102, 0.0],
-      "joint": {"name": "upper_link_L_joint", "axis": [0, 1, 0], "range": [0.6, 1.6]},
+      "joint": {"axis": [0, 1, 0], "range": [0.6, 1.6]},
       "axis": "hip_pitch_l",
       "collision": {"type": "mesh"}
     },
@@ -81,7 +82,7 @@
       "mesh": "lower_link_L",
       "parent": "upper_link_L",
       "pos": [0.0, 0.0, -0.15],
-      "joint": {"name": "lower_link_L_joint", "axis": [0, 1, 0]},
+      "joint": {"axis": [0, 1, 0]},
       "axis": "knee_l",
       "collision": {"type": "mesh"}
     },
@@ -91,7 +92,7 @@
       "mesh": "wheel_L",
       "parent": "lower_link_L",
       "pos": [0.0, 0.04985, -0.18],
-      "joint": {"name": "wheel_L_joint", "axis": [0, 1, 0], "armature": 0.008361, "damping": 0.047421},
+      "joint": {"axis": [0, 1, 0], "armature": 0.008361, "damping": 0.047421},
       "axis": "wheel_l",
       "collision": {"type": "cylinder", "radius": 0.07795, "half_length": 0.024361, "euler": [1.5708, 0, 0]}
     }

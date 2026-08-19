@@ -11,6 +11,15 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(ARROW REQUIRED arrow)
 find_package(Eigen3 REQUIRED)
 
+# Pinocchio (posture_ik: MJCF を読んで重心 IK)。pip の `pin` (cmeel ビルド) が
+# ~/.local/lib/python3.*/site-packages/cmeel.prefix に C++ ライブラリ・ヘッダ・CMake config を
+# 丸ごと置くので、システムに無ければそこを探す (robotpkg / ソースビルドなら通常の探索で見つかる)。
+# 別の場所なら -DCMAKE_PREFIX_PATH=<prefix> で指定。
+file(GLOB _CMEEL_PREFIXES "$ENV{HOME}/.local/lib/python3*/site-packages/cmeel.prefix")
+list(APPEND CMAKE_PREFIX_PATH ${_CMEEL_PREFIXES})
+find_package(pinocchio REQUIRED)
+message(STATUS "pinocchio ${pinocchio_VERSION} from ${pinocchio_DIR}")
+
 # Dora node api (built from ~/dora)
 set(DORA_ROOT "$ENV{HOME}/dora")
 set(DORA_NODE_API_INC "${DORA_ROOT}/target/cxxbridge/dora-node-api-cxx/install")
@@ -21,6 +30,7 @@ add_executable(stabilizer
   angle_pid_controller.cpp
   lqr_controller.cpp
   body_state_ekf.cpp
+  posture_ik.cpp
   ../../lib/robot_config.cpp
   ${DORA_NODE_API_INC}/dora-node-api.cc
 )
@@ -37,6 +47,7 @@ target_link_libraries(stabilizer PRIVATE
   ${DORA_NODE_API_LIB}
   ${ARROW_LIBRARIES}
   Eigen3::Eigen
+  pinocchio::pinocchio
   pthread
   dl
 )

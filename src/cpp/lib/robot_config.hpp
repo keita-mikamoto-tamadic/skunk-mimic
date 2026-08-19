@@ -31,6 +31,10 @@ struct RobotConfig {
                             //   例: ["can0", "can1"]。各軸は AxisConfig::comm_ch で
                             //   このリストのインデックスを指す (PEAK PCAN-M.2 等の
                             //   複数バス構成用。対応表は /proc/pcan で確認)
+  std::string model_mjcf;   // MuJoCo モデル (MJCF) のパス (default: "")。リポジトリルート
+                            //   相対で書く (例: "sim/mimic_v2_5.xml")。stabilizer の posture IK
+                            //   が Pinocchio で読む。空なら posture IK 無効。MJCF の駆動 joint 名は
+                            //   ここの軸名 (name) と同じにする約束 (mjmodel_converter がそう生成する)
   std::vector<AxisConfig> axes;
 };
 
@@ -45,5 +49,10 @@ namespace robot_config {
   // (_unstable_deploy 入り dataflow の _work/<session> 実行対策)。
   std::string ResolveConfigPath(
       const char* default_rel = "robot_config/mimic_v2.json");
+
+  // リポジトリルート相対のパス (model_mjcf 等) を ResolveConfigPath と同じ規則で
+  // 解決する: 絶対パス/ cwd に存在すればそのまま、無ければ実行ファイル位置から
+  // 導出したリポジトリルート基準。未発見なら素通し
+  std::string ResolveRepoPath(const std::string& rel);
 }
 
