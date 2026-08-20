@@ -55,14 +55,14 @@ AnglePidController::AnglePidController(const RobotConfig& config)
                 std::cerr << "posture IK: WARNING left/right initial_position differ; using right" << std::endl;
             }
             const Eigen::Vector2d c0 = posture_ik_.ComRelAxle(hip_init_, knee_init_, kTargetPitch);
-            h0_ = c0.y();
+            h0_ = c0[1];   // [1] = 車軸からの高さ ([0] は水平オフセット)
             h_cmd_ = h0_;
             hip_cmd_ = hip_init_;
             knee_cmd_ = knee_init_;
             posture_enabled_ = true;
             std::cout << "posture IK: enabled (" << pc.mjcf_path << ", mass "
                       << posture_ik_.total_mass() << " kg; at initial pose CoM is "
-                      << c0.x() * 1000.0 << " mm ahead of the axle, " << h0_ << " m above it;"
+                      << c0[0] * 1000.0 << " mm ahead of the axle, " << h0_ << " m above it;"
                       << " hip range [" << posture_ik_.hip_min() << ", " << posture_ik_.hip_max()
                       << "], knee range [" << posture_ik_.knee_min() << ", " << posture_ik_.knee_max()
                       << "]; h range [" << h0_ << ", " << h0_ + kMaxComRise << "])" << std::endl;

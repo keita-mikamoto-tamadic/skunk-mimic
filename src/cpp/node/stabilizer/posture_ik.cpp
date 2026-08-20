@@ -101,7 +101,8 @@ void PostureIk::Evaluate(Eigen::Vector2d& com_rel, Eigen::Matrix2d& J) {
 
     const Eigen::Vector3d com = data_.com[0];
     const Eigen::Vector3d axle = 0.5 * (data_.oMi[j_wheel_r_].translation() + data_.oMi[j_wheel_l_].translation());
-    com_rel << com.x() - axle.x(), com.z() - axle.z();
+    com_rel << com.x() - axle.x(),   // [0] = 水平オフセット
+               com.z() - axle.z();   // [1] = 高さ
 
     // d(com - axle)/dq の x,z 行、hip/knee 列 (左右を足して対称拘束)
     const auto vh_r = model_.idx_vs[j_hip_r_], vk_r = model_.idx_vs[j_knee_r_];
@@ -120,7 +121,8 @@ Eigen::Vector2d PostureIk::ComRelAxle(double hip, double knee, double pitch) {
     pinocchio::centerOfMass(model_, data_, q_, /*computeSubtreeComs=*/false);
     const Eigen::Vector3d com = data_.com[0];
     const Eigen::Vector3d axle = 0.5 * (data_.oMi[j_wheel_r_].translation() + data_.oMi[j_wheel_l_].translation());
-    return {com.x() - axle.x(), com.z() - axle.z()};
+    return {com.x() - axle.x(),    // [0] = 水平オフセット
+            com.z() - axle.z()};   // [1] = 高さ
 }
 
 double PostureIk::Step(double pitch, double h_target, double& hip, double& knee, double max_step) {
@@ -128,7 +130,7 @@ double PostureIk::Step(double pitch, double h_target, double& hip, double& knee,
     Eigen::Vector2d com_rel;
     Eigen::Matrix2d J;
     Evaluate(com_rel, J);
-    const Eigen::Vector2d r(com_rel.x(), com_rel.y() - h_target);
+    const Eigen::Vector2d r(com_rel[0], com_rel[1] - h_target);
 
     // 2x2 を減衰付きで解く (特異姿勢近くで暴れないように Levenberg-Marquardt 風)
     constexpr double kDamping = 1e-6;

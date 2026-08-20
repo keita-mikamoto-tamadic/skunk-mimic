@@ -36,8 +36,10 @@ public:
     bool Load(const Config& cfg, std::string* err);
     bool loaded() const { return loaded_; }
 
-    // 脚角 (左右同じ) とピッチ θ での、全体重心の車軸からの [水平 x, 鉛直 z] オフセット [m]
-    // (重力座標系。x が 0 なら倒立点)
+    // 脚角 (左右同じ) とピッチ θ での、全体重心の車軸からのオフセット [m]。
+    // [0] = 水平 (world x。0 なら倒立点)、[1] = 高さ (world z)。
+    // 2 成分ベクトルなので .x()/.y() ではなく [0]/[1] でアクセスする
+    // (.y() が空間の y (ロボット左右) と紛らわしいため)
     Eigen::Vector2d ComRelAxle(double hip, double knee, double pitch);
 
     // Newton 1 反復: 残差 r = ComRelAxle - [0, h_target] を減らす方向に hip/knee を更新し、
