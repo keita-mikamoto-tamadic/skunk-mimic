@@ -87,6 +87,8 @@ uv run mjmodel_converter/com_comp.py --reset                   # 全 com_offset 
 - pitch の符号は `mujoco_backend.quat_to_euler` (= stabilizer が見る `ImuData.pitch`) と同じで、`kTargetPitch` をそのまま渡せる。
 - mimic_v2_5 (2026-08-20): CAD 倒立点 立位 +0.1416 / +0.08 m 姿勢 +0.1521 rad → 実測 +0.165 / +0.181 rad。
   `base_link` x **−8.64 mm**、`upper_link_R/L` x **−9.08 mm** で両姿勢とも一致。
+- **base と脚への「割り振り」がどう決まるか (定式化・分離可能条件・数値検算) は
+  [README_COM_COMP.md](README_COM_COMP.md)。**
 
 ## 出力の互換性
 
