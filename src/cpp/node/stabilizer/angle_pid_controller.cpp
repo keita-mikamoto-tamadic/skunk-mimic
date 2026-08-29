@@ -4,7 +4,7 @@
 #include <algorithm>
 
 AnglePidController::AnglePidController(const RobotConfig& config)
-    : angle_pid_(kAngleKp, kAngleKi, kAngleKd, kAngleMaxIntegral, kAngleDDeadZone),
+    : angle_pid_(kAngleKpMin, kAngleKiMin, kAngleKd, kAngleMaxIntegral, kAngleDDeadZone),
       velocity_pid_(kVelKp, kVelKi, 0.0, kVelMaxIntegral)
 {
     const size_t axis_count = config.axes.size();
@@ -119,7 +119,13 @@ std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
     double angle_offset = velocity_pid_.Compute(velocity_error, 0.0, kTickSec);
     angle_offset = std::clamp(angle_offset, -kMaxAngleOffset, kMaxAngleOffset);
 
-    // 内側ループ: 角度PID
+    // 内側ループ: 角度PID。ゲインは重心高さ h_cmd_ で Min→Max を線形補間
+    // (積分クランプは I 項出力上限 35 rad/s を保つよう ki に反比例)
+    const double t_h = posture_enabled_
+        ? std::clamp((h_cmd_ - h0_) / kMaxComRise, 0.0, 1.0) : 0.0;
+    const double a_kp = kAngleKpMin + t_h * (kAngleKpMax - kAngleKpMin);
+    const double a_ki = kAngleKiMin + t_h * (kAngleKiMax - kAngleKiMin);
+    angle_pid_.SetGains(a_kp, a_ki, kAngleKd, kAngleMaxIntegral * kAngleKiMin / a_ki);
     double effective_target = kTargetPitch + angle_offset;
     double angle_error = pitch_ - effective_target;
     double wheel_vel = angle_pid_.Compute(angle_error, -pitch_rate_, kTickSec);
@@ -134,7 +140,10 @@ std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
         if (height_rate_ != 0.0 && --posture_log_countdown_ <= 0) {
             posture_log_countdown_ = 333;   // ~1 s
             std::cout << "posture: h=" << h_cmd_ << " (+" << h_cmd_ - h0_ << ") hip=" << hip_cmd_
-                      << " knee=" << knee_cmd_ << " resid=" << resid * 1000.0 << "mm" << std::endl;
+                      << " knee=" << knee_cmd_ << " resid=" << resid * 1000.0 << "mm"
+                      << " kp=" << kAngleKpMin + (h_cmd_ - h0_) / kMaxComRise * (kAngleKpMax - kAngleKpMin)
+                      << " ki=" << kAngleKiMin + (h_cmd_ - h0_) / kMaxComRise * (kAngleKiMax - kAngleKiMin)
+                      << std::endl;
         }
     }
 

@@ -12,6 +12,13 @@ public:
 
     void Reset() { integral_ = 0.0; }
 
+    // ゲインスケジューリング用: 実行中にゲイン/積分クランプを差し替える。
+    // integral_ (∫e) は保持したまま。ki の変更は I 項出力を ki 比でスケール
+    // するが、呼び出し側が遅いレートで変える前提 (不連続にしない)
+    void SetGains(double kp, double ki, double kd, double max_integral) {
+        kp_ = kp; ki_ = ki; kd_ = kd; max_integral_ = max_integral;
+    }
+
     // error: 制御偏差
     // d_input: 外部微分入力（IMU角速度など。0ならD項無効）
     // dt: 制御周期 [s]

@@ -22,9 +22,20 @@ public:
 private:
     // PID 定数
     static constexpr double kTargetPitch = 0.165;
-    static constexpr double kAngleKp = 70.0;
-    static constexpr double kAngleKi = 350.0;
+    // 内側ループのゲインは重心高さでスケジューリングする:
+    // h_cmd_ を [h0, h0+kMaxComRise] で 0..1 に正規化し Min→Max を線形補間
+    // (posture IK 無効時は常に Min = 従来どおり)。振子は高いほど復元・減衰項が
+    // 1/L で薄まるので、ゲインを高さに比例して上げるのが物理的に自然。
+    // Max の初期値は L 比 (h0≈0.15 → +0.08 で ×1.5) からの当たり — 実機で調整する
+    static constexpr double kAngleKpMin = 70.0;
+    static constexpr double kAngleKpMax = 105.0;
+    static constexpr double kAngleKiMin = 400.0;
+    static constexpr double kAngleKiMax = 555.0;
     static constexpr double kAngleKd = 0.0;
+    // I 項の積分クランプ (Min ゲイン時の値)。I 項の出力上限を高さによらず
+    // kAngleKiMin * kAngleMaxIntegral = 35 rad/s (≈ kMaxWheelSpeed) に保つため、
+    // 実行時は ki に反比例させて縮めて渡す (Ki が上がったのにクランプ据え置きだと
+    // 「出力は飽和しているのに積分は増え続ける」領域が再発する)
     static constexpr double kAngleMaxIntegral = 0.1;
     static constexpr double kAngleDDeadZone = 0.03;
 
