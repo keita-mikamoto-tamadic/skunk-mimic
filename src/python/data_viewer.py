@@ -36,7 +36,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 sys.path.insert(0, SCRIPT_DIR)
 from lib.axis_data_format import AXIS_ACT_SIZE, unpack_axis_act  # noqa: E402
 from lib.sensor_data_format import (  # noqa: E402
-    IMU_DATA_SIZE, LATENCY_DATA_SIZE, unpack_imu_data, unpack_latency_data,
+    IMU_DATA_SIZE, LATENCY_DATA_SIZE, ESTIMATED_STATE_SIZE,
+    unpack_imu_data, unpack_latency_data, unpack_estimated_state,
 )
 from lib.enum_def import State  # noqa: E402
 
@@ -46,6 +47,7 @@ TOPICS = {
     "imu_data": "device_control_manager/imu_data",
     "latency": "device_control_manager/latency",
     "state_status": "robot_control_manager/state_status",
+    "estimated_state": "stabilizer/estimated_state",   # EKF (READY 以降に更新)
 }
 # moteus Mode (moteus_protocol.h) の主なもの
 MOTEUS_MODE = {0: "Stopped", 1: "Fault", 10: "Position", 11: "PosTimeout",
@@ -193,6 +195,14 @@ def render(robot_name, axis_meta):
         A(f"     ax   {d.ax:+.3f}   ay    {d.ay:+.3f}   az  {d.az:+.3f}   [m/s2]")
     else:
         A("IMU  (imu_data なし)")
+
+    # ---- EKF (body_state_ekf: 並進位置/速度。READY 以降に更新、原点は起動時) ----
+    es = raw.get("estimated_state", b"")
+    if len(es) >= ESTIMATED_STATE_SIZE:
+        e = unpack_estimated_state(es)
+        A(f"EKF  pos  {e.position:+8.3f} [m]   vel {e.velocity:+7.3f} [m/s]")
+    else:
+        A("EKF  (estimated_state なし)")
 
     # ---- latency ----
     A("")

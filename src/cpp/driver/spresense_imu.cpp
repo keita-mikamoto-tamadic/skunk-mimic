@@ -248,6 +248,37 @@ bool SpresenseImu::ParsePacket(const uint8_t* packet, size_t len)
     std::memcpy(&ay, &packet[34], sizeof(float));
     std::memcpy(&az, &packet[38], sizeof(float));
 
+    // 角速度は firmware が deg/s で送ってくる (ref/spresense_multi_imu/sub_core/
+    // sub_core.ino:122-124 `(data.gx - bias) * 180 / PI`)。下流 (PID / EKF / viewer)
+    // は rad/s 前提なのでここで変換する。変換を忘れると角速度が 57.3 倍に見え、
+    // 補正済みの微小バイアス (~0.003 deg/s) が EKF で ~1 mm/s のドリフトに化ける
+    constexpr float kDegToRad = static_cast<float>(M_PI / 180.0);
+    gx *= kDegToRad;
+    gy *= kDegToRad;
+    gz *= kDegToRad;
+
+    // 妥当性チェック。チェックサムは XOR 1 バイトなので化けたパケットが 1/256 で
+    // 通る。float が NaN/Inf/桁外れなら下流 (EKF 等) を永久に汚染するため、
+    // ここで捨てる (latest_data_ は前回値のまま = 1 パケット欠けと同じ扱い)
+    {
+        const float vals[] = {q0, q1, q2, q3, gx, gy, gz, ax, ay, az};
+        bool ok = true;
+        for (float v : vals) ok = ok && std::isfinite(v);
+        const float qn = q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3;
+        ok = ok && qn > 0.25f && qn < 4.0f;                        // 単位四元数 ±
+        ok = ok && std::abs(gx) < 35.f && std::abs(gy) < 35.f && std::abs(gz) < 35.f;      // rad/s (2000 dps)
+        ok = ok && std::abs(ax) < 200.f && std::abs(ay) < 200.f && std::abs(az) < 200.f;   // m/s^2
+        if (!ok) {
+            if ((++bad_packets_ & (bad_packets_ - 1)) == 0) {   // 1,2,4,8,... 回目だけログ
+                std::cerr << "IMU: rejected implausible packet (#" << bad_packets_
+                          << ": q=" << q0 << "," << q1 << "," << q2 << "," << q3
+                          << " g=" << gx << "," << gy << "," << gz
+                          << " a=" << ax << "," << ay << "," << az << ")" << std::endl;
+            }
+            return false;
+        }
+    }
+
     // 取り付け回転を accel / gyro / quaternion の全部に適用してから
     // ImuData に格納する (全フィールドがロボット座標系に揃う。
     // 旧実装は euler だけ補正して生ベクトルは IMU 座標系のままだった)。

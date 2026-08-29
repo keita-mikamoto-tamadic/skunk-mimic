@@ -55,14 +55,16 @@ static_assert(offsetof(LatencyData, ctrl_max_us) == 24, "LatencyData.ctrl_max_us
 static_assert(offsetof(LatencyData, send_avg_us) == 32, "LatencyData.send_avg_us offset mismatch vs sensor_data.json");
 static_assert(offsetof(LatencyData, send_max_us) == 40, "LatencyData.send_max_us offset mismatch vs sensor_data.json");
 
-// stabilizer → data_viewer: EKF 推定状態
+// stabilizer → data_viewer: EKF 推定状態 (body_state_ekf: 状態 [p, v]、観測 v_body = r*ω_avg + L*cos(φ)*φ̇)
 struct EstimatedState {
     double velocity;  // s' [m/s] ボディ前進速度
     double yaw;  // alpha [rad] ヨー角
     double yaw_rate;  // alpha' [rad/s] ヨーレート
+    double position;  // s [m] ボディ前進距離 (EKF の位置状態。RUN 開始からの積分なので原点は起動時、ドリフト観察用)
 };
-static_assert(sizeof(EstimatedState) == 24, "EstimatedState size mismatch vs sensor_data.json");
+static_assert(sizeof(EstimatedState) == 32, "EstimatedState size mismatch vs sensor_data.json");
 static_assert(offsetof(EstimatedState, velocity) == 0, "EstimatedState.velocity offset mismatch vs sensor_data.json");
 static_assert(offsetof(EstimatedState, yaw) == 8, "EstimatedState.yaw offset mismatch vs sensor_data.json");
 static_assert(offsetof(EstimatedState, yaw_rate) == 16, "EstimatedState.yaw_rate offset mismatch vs sensor_data.json");
+static_assert(offsetof(EstimatedState, position) == 24, "EstimatedState.position offset mismatch vs sensor_data.json");
 

@@ -3,6 +3,7 @@
 // state_status が RUN の時のみ制御計算＋送信
 // Controller 実装は robot_config の "controller" フィールドで選択
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -69,6 +70,8 @@ int main() {
     // EKF: コントローラ非依存のボディ状態推定
     BodyStateEkf ekf;
     ekf.Init();
+    constexpr uint8_t kNoResponse = 255;   // DCM の無応答マーカー (fault/mode/drops = 255)
+    unsigned ekf_reject_count = 0;
     constexpr double kWheelRadius = 0.07795;
     constexpr double kCoMHeight = 0.2484;
     constexpr double kTickSec = 0.003;
@@ -123,25 +126,64 @@ int main() {
             else if (id == kInputMotorStatus) {
                 auto motor_status = ReceiveStructArray<AxisAct>(arr, axis_count);
 
-                // READY以降: EKF更新（コントローラ非依存）
-                if (state >= State::READY && wheel_r != SIZE_MAX) {
+                // EKF 更新 (コントローラ非依存、状態にもよらず常時)。
+                // 入力は IMU (常時) とホイール速度 (moteus はサーボ OFF でもエンコーダを
+                // 返す) なので、OFF/STOP で止める理由がない。静止時のドリフト観察にも
+                // 常時更新が要る。CAN 無応答の軸は「観測なし」として Correct を飛ばす
+                if (wheel_r != SIZE_MAX) {
                     double pitch = imu_data.pitch;
                     double pitch_rate = imu_data.gy;
                     double ax_forward = imu_data.ax * std::cos(pitch)
                                       + imu_data.az * std::sin(pitch);
-                    ekf.Predict(static_cast<float>(kTickSec),
-                                static_cast<float>(ax_forward));
+                    // 非有限値は EKF を永久に汚染する (NaN は Predict/Correct で消えない)。
+                    // 入力を検査し、それでも状態が壊れたら Init で立て直す
+                    const bool imu_ok = std::isfinite(pitch) && std::isfinite(pitch_rate)
+                                     && std::isfinite(ax_forward);
+                    const bool wheels_ok =
+                        std::isfinite(motor_status[wheel_r].velocity) &&
+                        std::isfinite(motor_status[wheel_l].velocity) &&
+                        motor_status[wheel_r].fault != kNoResponse &&
+                        motor_status[wheel_l].fault != kNoResponse;
+                    if (!imu_ok) {
+                        if (ekf_reject_count++ % 333 == 0)
+                            std::cerr << "EKF: non-finite IMU input rejected (pitch=" << pitch
+                                      << " gy=" << pitch_rate << " ax_f=" << ax_forward << ")" << std::endl;
+                    } else {
+                        ekf.Predict(static_cast<float>(kTickSec),
+                                    static_cast<float>(ax_forward));
 
-                    double wheel_vel_avg =
-                        (motor_status[wheel_r].velocity + motor_status[wheel_l].velocity) / 2.0;
-                    double v_body = kWheelRadius * wheel_vel_avg
-                                  + kCoMHeight * std::cos(pitch) * pitch_rate;
-                    ekf.Correct(static_cast<float>(v_body));
+                        // 観測: 重心の対地前進速度 (前 = +ω の向き = PID と同じ frame)。
+                        //   motor_status.velocity はエンコーダ値 = 車体に対するホイールの
+                        //   相対角速度なので、対地では車体のピッチ回転 φ̇ が加わる:
+                        //     車軸の対地速度  = r * (ω + φ̇)
+                        //     重心はさらに    + L * cosφ * φ̇  (ピッチで重心が前後に動く分)
+                        //   → v_body = r*ω + (r + L*cosφ) * φ̇
+                        //   (以前は r*φ̇ が抜けていて、1 rad/s あたり 7.8 cm/s の系統誤差だった)
+                        //
+                        //   φ̇ = -gy。IMU の gy は d(pitch)/dt と符号が逆 (Spresense firmware の
+                        //   角速度と quaternion の軸規約の違い。取り付け回転は両方に同じく掛かるので
+                        //   config では直らない)。実機で確認済み (2026-08-29): +gy のまま入れると
+                        //   車体を前に倒したとき vel が負に振れる。angle_pid が D 項に -pitch_rate_ を
+                        //   渡しているのも同じ理由と思われる
+                        double wheel_vel_avg =
+                            (motor_status[wheel_r].velocity + motor_status[wheel_l].velocity) / 2.0;
+                        const double pitch_dot = -pitch_rate;
+                        double v_body = kWheelRadius * wheel_vel_avg
+                                      + (kWheelRadius + kCoMHeight * std::cos(pitch)) * pitch_dot;
+                        // ホイールが CAN 無応答 (fault=255, velocity=0) のときは「静止観測」
+                        // ではなく「観測なし」。Predict だけで繋ぐ
+                        if (wheels_ok) ekf.Correct(static_cast<float>(v_body));
+                    }
+                    if (!std::isfinite(ekf.est_velocity()) || !std::isfinite(ekf.est_position())) {
+                        std::cerr << "EKF: state became non-finite, re-initializing" << std::endl;
+                        ekf.Init();
+                    }
                 }
 
                 // EstimatedState は常に送信
-                EstimatedState est_state = {
-                    static_cast<double>(ekf.est_velocity()), 0.0, 0.0};
+                EstimatedState est_state = {};
+                est_state.velocity = static_cast<double>(ekf.est_velocity());
+                est_state.position = static_cast<double>(ekf.est_position());
                 SendStruct(node, kOutputEstState, est_state);
 
                 // RUNのみ: 制御出力

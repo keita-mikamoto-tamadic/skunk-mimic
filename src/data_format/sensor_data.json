@@ -115,7 +115,7 @@
     },
     {
       "name": "EstimatedState",
-      "doc": "stabilizer → data_viewer: EKF 推定状態",
+      "doc": "stabilizer → data_viewer: EKF 推定状態 (body_state_ekf: 状態 [p, v]、観測 v_body = r*ω_avg + L*cos(φ)*φ̇)",
       "fields": [
         {
           "name": "velocity",
@@ -131,6 +131,11 @@
           "name": "yaw_rate",
           "type": "double",
           "doc": "alpha' [rad/s] ヨーレート"
+        },
+        {
+          "name": "position",
+          "type": "double",
+          "doc": "s [m] ボディ前進距離 (EKF の位置状態。RUN 開始からの積分なので原点は起動時、ドリフト観察用)"
         }
       ]
     }

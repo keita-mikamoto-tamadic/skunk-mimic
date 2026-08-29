@@ -5,7 +5,8 @@
 // 状態: x = [p, v]  (位置, 速度)
 // 入力: u = [ax_forward]  (重力除去済み前方加速度)
 // 観測: z = [v_body]
-//   v_body = r*ω_avg + L*cos(φ)*φ̇  (ホイール+振子合成速度)
+//   v_body = r*(ω_avg + φ̇) + L*cos(φ)*φ̇  (ω はエンコーダ = 車体相対なので
+//            対地では φ̇ が加わる。+ ピッチで重心が動く分。φ̇ = -gy: main.cpp 参照)
 class BodyStateEkf {
 public:
     static constexpr size_t DIM_X = 2;  // [p, v]

@@ -29,11 +29,11 @@ def pack_latency_data(rec):
 def unpack_latency_data(buf, offset=0):
     return LatencyData(*struct.unpack_from(LATENCY_DATA_FMT, buf, offset))
 
-ESTIMATED_STATE_FMT = "<ddd"
-ESTIMATED_STATE_SIZE = struct.calcsize(ESTIMATED_STATE_FMT)  # 24
-ESTIMATED_STATE_FIELDS = ['velocity', 'yaw', 'yaw_rate']
+ESTIMATED_STATE_FMT = "<dddd"
+ESTIMATED_STATE_SIZE = struct.calcsize(ESTIMATED_STATE_FMT)  # 32
+ESTIMATED_STATE_FIELDS = ['velocity', 'yaw', 'yaw_rate', 'position']
 EstimatedState = namedtuple("EstimatedState", ESTIMATED_STATE_FIELDS)
-EstimatedState.__new__.__defaults__ = (0, 0, 0,)
+EstimatedState.__new__.__defaults__ = (0, 0, 0, 0,)
 
 def pack_estimated_state(rec):
     return struct.pack(ESTIMATED_STATE_FMT, *rec)

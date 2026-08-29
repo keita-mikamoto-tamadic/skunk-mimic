@@ -48,6 +48,7 @@ private:
     bool mount_identity_ = true;
 
     std::thread read_thread_;
+    unsigned bad_packets_ = 0;   // 妥当性チェックで捨てたパケット数
     std::atomic<bool> running_;
 
     std::mutex data_mutex_;

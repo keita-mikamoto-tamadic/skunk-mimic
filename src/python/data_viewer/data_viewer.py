@@ -100,7 +100,7 @@ def build_imu_table(imu_data, est_state=None):
 	table = Table(show_header=True, title="IMU / EKF", title_style="cyan")
 	table.add_column("", justify="left", style="dim")
 	table.add_column("Roll / est_vel", justify="right")
-	table.add_column("Pitch / est_yaw", justify="right")
+	table.add_column("Pitch / est_pos", justify="right")
 	table.add_column("Yaw / est_yaw_rate", justify="right")
 	table.add_column("ax", justify="right")
 	table.add_column("ay", justify="right")
@@ -123,12 +123,12 @@ def build_imu_table(imu_data, est_state=None):
 
 	# EKF推定状態（同じカラム構造の2行目）
 	if est_state is not None:
-		vel, yaw_est, yaw_rate = est_state
+		# 名前で参照する (フィールド追加でずれないように。位置展開はしない)
 		table.add_row(
 			"[dim]EKF[/]",
-			f"[magenta]{vel:+.4f}[/]",
-			f"[magenta]{yaw_est:+.3f}[/]",
-			f"[magenta]{yaw_rate:+.3f}[/]",
+			f"[magenta]{est_state.velocity:+.4f}[/]",
+			f"[magenta]{est_state.position:+.3f}[/]",
+			f"[magenta]{est_state.yaw_rate:+.3f}[/]",
 			"", "", "",
 		)
 	else:
