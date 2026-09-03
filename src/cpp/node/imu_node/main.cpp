@@ -53,6 +53,14 @@ int main() {
                 reinterpret_cast<uint8_t*>(&c_schema));
             std::string id(info.id);
 
+            // Arrow C Data Interface の規約で c_array/c_schema の解放責務は
+            // 受け取ったこちら側にある。他ノードは ImportArray が所有権ごと
+            // 引き取るが、ここは tick の中身 (タイムスタンプ) を使わないので
+            // 直接 release を呼ぶ。呼ばないと 1 イベント ~190B が毎回漏れ、
+            // 333Hz で ~3.7MB/分 → 長時間運転で OOM (実測で特定済み)
+            if (c_array.release)  c_array.release(&c_array);
+            if (c_schema.release) c_schema.release(&c_schema);
+
             if (id == "tick") {
                 // 最新の IMU データを取得して送信
                 ImuData data = imu.GetLatestData();
