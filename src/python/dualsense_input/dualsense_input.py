@@ -32,7 +32,7 @@ dora のイベントループ側で drain して送る (robot_web_gui と同じ�
   Create+Options        INIT_POSITION_RESET   OFF のみ (ストッパー押し当て後に!)
   左スティック上下       drive_command.forward 上=前進。正規化 -1..1、デッドゾーン 0.05
   左スティック左右       drive_command.yaw     右=右旋回。正規化 -1..1、デッドゾーン 0.05
-                        (何 rad/s になるかは制御側 kMaxDriveWheelVel / kMaxYawWheelDiff)
+                        (前後は何 m/s か = kMaxDriveVel、旋回は何 rad/s か = kMaxYawWheelDiff、いずれも制御側)
   右スティック上下       drive_command.height  上=重心を上げる。正規化レート -1..1、デッドゾーン 0.05
                         (何 m/s になるかは制御側 kMaxComHeightVel。倒立点を変えずに hip/knee が動く)
 
@@ -124,7 +124,7 @@ def stick_to_norm(raw, invert=False):
     """js の生値 (-32767..32767) → 正規化操作量 -1..1。
 
     物理量へのスケールはここでは持たない (制御側 angle_pid の
-    kMaxDriveWheelVel / kMaxYawWheelDiff が正)。デッドゾーンは「切る」の
+    kMaxDriveVel [m/s] / kMaxYawWheelDiff [rad/s] が正)。デッドゾーンは「切る」の
     ではなく閾値分を引いて 0..1 に張り直す (閾値をまたいだ瞬間の段差をなくす)。
     """
     x = (-raw if invert else raw) / AXIS_MAX

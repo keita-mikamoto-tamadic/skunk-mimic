@@ -96,26 +96,32 @@ void AnglePidController::Reset() {
 
 void AnglePidController::SetDriveCommand(const DriveCommand& cmd) {
     // forward/yaw/height は正規化 -1..1。クランプしてからフルスケールを掛ける
-    drive_forward_ = std::clamp(cmd.forward, -1.0, 1.0) * kMaxDriveWheelVel;
+    drive_forward_ = std::clamp(cmd.forward, -1.0, 1.0) * kMaxDriveVel;
     drive_yaw_     = std::clamp(cmd.yaw,     -1.0, 1.0) * kMaxYawWheelDiff;
     height_rate_   = std::clamp(cmd.height,  -1.0, 1.0) * kMaxComHeightVel;
 }
 
 void AnglePidController::Update(const std::vector<AxisAct>& motor_status,
                                 const ImuData& imu_data,
-                                const BodyStateEkf& /* ekf */) {
+                                const BodyStateEkf& ekf) {
     motor_status_ = motor_status;
     pitch_ = imu_data.pitch;
     pitch_rate_ = imu_data.gy;
+    est_velocity_ = static_cast<double>(ekf.est_velocity());
 }
 
 std::vector<AxisRef> AnglePidController::Compute(const RobotConfig& config) {
-    // 外側ループ: 速度PI（倒立点自動調整 + 走行指令の追従）
-    // 走行指令はここ (目標速度) に入れる。PID 出力への直接加算は、この外側
-    // ループが v=0 に引き戻すため打ち消されて効かない (持続成分は目標側に入れる)
-    double wheel_velocity =
+    // 外側ループ: 速度PI（倒立点自動調整 + 走行指令の追従）。単位は [m/s]。
+    // 帰還の選択 (A/B):
+    //   エンコーダ r*ω — 前進の立ち上がりで車輪が後退する分 (非最小位相) が
+    //     誤差を指令より大きくし、倒れ込みが強まる = 操縦の「効き」が良い
+    //   EKF (重心の対地速度) — 物理的には正しいが、倒れ込み中は重心が動かない
+    //     ので誤差が増えず、動き出しが穏やか = 効きが鈍く感じる (実機で確認)
+    // 今はエンコーダ帰還。EKF は est_velocity_ に入っているので 1 行で切り替え可
+    double wheel_ground_vel = kFeedbackWheelRadius *
         (motor_status_[wheel_r_].velocity + motor_status_[wheel_l_].velocity) / 2.0;
-    double velocity_error = drive_forward_ - wheel_velocity;
+    double velocity_error = drive_forward_ - wheel_ground_vel;
+    // double velocity_error = drive_forward_ - est_velocity_;   // EKF 帰還 (A/B 用)
     double angle_offset = velocity_pid_.Compute(velocity_error, 0.0, kTickSec);
     angle_offset = std::clamp(angle_offset, -kMaxAngleOffset, kMaxAngleOffset);
 

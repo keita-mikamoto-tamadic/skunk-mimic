@@ -27,8 +27,8 @@ private:
     // (posture IK 無効時は常に Min = 従来どおり)。振子は高いほど復元・減衰項が
     // 1/L で薄まるので、ゲインを高さに比例して上げるのが物理的に自然。
     // Max の初期値は L 比 (h0≈0.15 → +0.08 で ×1.5) からの当たり — 実機で調整する
-    static constexpr double kAngleKpMin = 70.0;
-    static constexpr double kAngleKpMax = 105.0;
+    static constexpr double kAngleKpMin = 60.0;
+    static constexpr double kAngleKpMax = 95.0;
     static constexpr double kAngleKiMin = 400.0;
     static constexpr double kAngleKiMax = 555.0;
     static constexpr double kAngleKd = 0.0;
@@ -39,15 +39,21 @@ private:
     static constexpr double kAngleMaxIntegral = 0.1;
     static constexpr double kAngleDDeadZone = 0.03;
 
-    static constexpr double kVelKp = 0.0;
-    static constexpr double kVelKi = 0.01;
-    static constexpr double kVelMaxIntegral = 5.0;
+    // 外側ループ (速度 → 目標角オフセット)。帰還は EKF の並進速度 [m/s]、指令も [m/s]。
+    // 以前はエンコーダ ω [rad/s] だった。ゲインは r=0.07795 で換算して挙動据え置き:
+    //   kVelKi 0.01 [rad/(rad)] → 0.01/r = 0.128 [rad/m]、積分クランプ 5.0 [rad] → 5.0*r = 0.39 [m]
+    static constexpr double kVelKp = 0.03;            // [rad/(m/s)] 速度 P。EKF が滑らかなので上げられる余地あり
+    static constexpr double kVelKi = 0.006;          // [rad/m]  (= 位置帰還)
+    static constexpr double kVelMaxIntegral = 0.39;  // [m] = 積分 (走行距離) の上限
+    // 外側ループのエンコーダ帰還 ω → m/s の換算半径 (EKF 側の値と同じ。main.cpp 参照)
+    static constexpr double kFeedbackWheelRadius = 0.07795;
 
     static constexpr double kMaxAngleOffset = 0.05;
     static constexpr double kMaxWheelSpeed = 30.0;
-    // 走行指令のフルスケール [rad/s] (ホイール角速度)。送り側は正規化 -1..1 を
-    // 送ってくるだけで、物理速度への変換はこの 1 箇所が正
-    static constexpr double kMaxDriveWheelVel = 1.0;
+    // 走行指令のフルスケール [m/s] (重心の対地速度 = EKF と同じ単位)。送り側は
+    // 正規化 -1..1 を送ってくるだけで、物理速度への変換はこの 1 箇所が正。
+    // 0.078 m/s = 従来の 1.0 rad/s * r と同等
+    static constexpr double kMaxDriveVel = 0.6;
     // 旋回のフルスケール [rad/s]: 左右ホイールに ±この値まで差動で足す。
     // 差動は左右平均から消えるためバランス (ピッチ) と外側ループ (平均速度) の
     // どちらにも一次では影響しない — だからこちらは出力への直接加算でよい
@@ -61,10 +67,6 @@ private:
     static constexpr double kMaxComRise = 0.08;
     static constexpr double kPostureMaxStep = 0.02;   // IK 1 反復あたりの関節角ステップ上限 [rad]
 
-    // ボディ速度推定パラメータ（MuJoCo XMLから算出）
-    static constexpr double kWheelRadius = 0.05;  // TODO: XMLから正確な値を確認
-    static constexpr double kCoMHeight = 0.15;    // TODO: ホイール軸〜重心距離
-
     Pid angle_pid_;
     Pid velocity_pid_;
 
@@ -74,7 +76,8 @@ private:
     std::vector<AxisAct> motor_status_;
     double pitch_ = 0.0;
     double pitch_rate_ = 0.0;
-    double drive_forward_ = 0.0;   // 外側ループの目標ホイール速度 [rad/s]
+    double est_velocity_ = 0.0;    // EKF の並進速度 [m/s] (外側ループの帰還)
+    double drive_forward_ = 0.0;   // 外側ループの目標並進速度 [m/s]
     double drive_yaw_ = 0.0;       // 左右ホイールへの差動 [rad/s] (右旋回が正のつもり)
     std::vector<AxisRef> run_command_;
 

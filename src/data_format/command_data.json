@@ -13,7 +13,7 @@
         {
           "name": "forward",
           "type": "double",
-          "doc": "前後: 正規化操作量 -1..1 (前進が正)。物理速度へのスケールは制御側 (angle_pid の kMaxDriveWheelVel) が持つ — 送り側は物理単位を知らない"
+          "doc": "前後: 正規化操作量 -1..1 (前進が正)。物理速度 [m/s] へのスケールは制御側 (angle_pid の kMaxDriveVel) が持つ — 送り側は物理単位を知らない。制御側は EKF の並進速度 [m/s] と比較する"
         },
         {
           "name": "yaw",
