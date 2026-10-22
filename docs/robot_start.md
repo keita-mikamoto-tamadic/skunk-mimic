@@ -12,9 +12,8 @@ PC = ブラウザで操作・表示するだけ (PC 側に dora は不要)。
 
 ## 0. 前提 (初回 / リビルド後のみ)
 
-- (dataflow_mimic.yaml は robot ローカル完結なので PC 側の dora は不要。分散配置の
-  dataflow_*_web_control.yaml を使う場合のみ) dora のバージョン一致: robot と PC の
-  `~/dora` は同一コミット (`fd1f050b`)。ズレると register されない — docs/dora-upgrade.md
+- (PC から web_monitor を使う場合のみ) dora のバージョン一致: robot と PC の
+  `~/dora` は同一コミット (`fd1f050b`) — docs/dora-upgrade.md
 - **RT 権限は limits.conf で与える** (setcap は使わない。初回のみ、再ログインで有効):
 
   ```bash
@@ -65,7 +64,7 @@ bash keep_serial_open.bash
 # 2) coordinator + RT daemon (前セッションの孤児ノードも掃除される)。
 #    起動時に UP 済み CAN の状態も表示 — "!!! CAN canX: ERROR-PASSIVE" が出たら
 #    pcan_setup.bash canX down → 上げ直してから進む
-bash dora_rt_damon.bash          # 引数なし = ローカル運用 (分散 yaml のときだけ `distributed` を付ける)
+bash dora_rt_damon.bash
 
 # 3) dataflow 起動
 dora start dataflow_mimic.yaml
@@ -121,12 +120,9 @@ PC 側はブラウザを閉じるだけ (web_monitor を動かしていればそ
 
 | 症状 | 原因と対処 |
 |---|---|
-| `no matching daemon for machine id 'pc'` | (分散配置していた頃の症状。dataflow_mimic.yaml は robot ローカルに戻したので出ないはず。dataflow_*_web_control.yaml で出たら) PC daemon 未接続。`dora_pc_daemon.bash` を再実行 |
-| PC daemon が `timeout waiting for register reply` を繰り返す | robot 側 coordinator が落ちている、または dora のコミット不一致 (docs/dora-upgrade.md) |
 | daemon が `memory allocation of N bytes failed` で abort | RT 権限なしで `--rt` の mlockall が失敗 (limits.conf の memlock、§0。または旧運用の dora バイナリ setcap 消失) |
 | dataflow start 後に何も動かない (CPU 0%) | dynamic node (robot_web_gui) 未 attach。全 dynamic node が揃うまで開始バリアで待つ |
 | `multiple dataflows contain dynamic node id ...` | 過去の dataflow が Running のまま残存。`dora list` → 全部 `dora stop` |
 | **モータ電源を落とした / 強制駆動 OFF した後** | CAN が ERROR-PASSIVE に落ち、PEAK ドライバは電源復帰後も自力で送信を再開しない (仕様として受容)。**復旧手順: `pcan_setup.bash can0 can1 down` → `keep` で上げ直し → dora を立ち上げ直す**。電源 OFF 中は DCM が fault=255 (NoResponse) を立てて RCM/GUI が OFF に落ち、復帰時の初回指令は必ず OFF になる (暴走しない) |
 | motor_status が全ゼロ / モータ無応答 | モータ電源、`candump can0/can1` で応答確認、`ip -details link show canX` で ERROR-PASSIVE なら `pcan_setup.bash canX down` → 上げ直し |
 | imu_data が全ゼロ (imu_node は Opened 成功) | Spresense が沈黙している。確認: imu_node 稼働中は `PID=$(pgrep -x imu_node); A=$(awk '/rchar/{print $2}' /proc/$PID/io); sleep 1; B=$(awk '/rchar/{print $2}' /proc/$PID/io); echo $((B-A))` (数千 bytes/s なら流れている、0 なら沈黙。`pgrep -x` でプロセス名完全一致 — `-f` だと自分のシェルに誤マッチする。imu_node が全部読むので dd では見えない)。imu_node 停止中は `timeout 2 dd if=/dev/ttyUSB0 bs=64 count=1 \| xxd` で `aa55` を確認 (keep_serial_open.bash が open 時に 921600 raw を設定するので、それを立てた後なら見える。旧版 keep_serial や素の状態だとポートが既定 9600 のままで、流れていても何も見えない — 実機で確認済み)。本当に沈黙なら USB 抜き差しで復帰 → 以後 keep_serial_open.bash を先に立てて close させない。(dialout 追加後まだ再ログインしていない場合のみ、一時しのぎに `sudo chmod 666 /dev/ttyUSB0`) |
-| 指令がロボットに届かない (登録は成功) | PC daemon の `--zenoh-peer` 抜け (`dora_pc_daemon.bash` 経由なら自動で付く) |

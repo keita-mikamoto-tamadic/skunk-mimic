@@ -9,7 +9,7 @@
   body: {"type":"v|c|vel|p|pd|cpos|cvel|off","axis":0|"all","params":{...}}
   → ノードが全軸分の AxisRef array を送出 (対象軸のスロットだけ更新)。
   軸リストは GET /config (ROBOT_CONFIG 由来) で取得。
-  指令マッピングは foctive_controller.py と一致 (impedance/cascade 対応)。
+  指令マッピングは foctive_web_gui と一致 (impedance/cascade 対応)。
   ★ 実モータが動きます。SERVO OFF を常に手元に。自動送信はしません(明示 Send のみ)。
 -->
 <style>
@@ -70,7 +70,7 @@
   </div>
 </fieldset>
 
-<p class="note">↓ 以下の閉ループ制御は事前に電気角キャリブが必要 (端末版 foctive_controller の <code>setting calib</code>)</p>
+<p class="note">↓ 以下の閉ループ制御は事前に電気角キャリブが必要 (FOCTIVE は foctive_web_gui のパラメータタブで)</p>
 
 <fieldset data-type="c">
   <legend>電流制御 (CURRENT)</legend>
