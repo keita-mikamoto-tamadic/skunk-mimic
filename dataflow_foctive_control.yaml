@@ -1,32 +1,36 @@
-# FOCTIVE モータ単体テスト用 dataflow (can0)
+# FOCTIVE モータ単体テスト用 dataflow
 #
-# foctive_controller(数値入力で電圧制御/サーボOFF) → motor_commands → device_control_manager → can0
-#   電圧制御は state machine 不要なので RCM をバイパスし motor_commands を直接送る。
+#   ブラウザ ⇄ foctive_web_gui ──motor_commands / settings_request──▶ device_control_manager ⇄ CAN
+#                    ▲──── motor_status / settings_result / param_dump ────┘
+#
+# 操作 (電圧/電流/速度/位置/OFF)・パラメータ読み書き/キャリブ・モニタを 1 つの Web GUI で行う。
+# 電圧制御等は state machine 不要なので RCM をバイパスし motor_commands を直接送る。
 #
 # 前提:
-#   - can0 が UP (bash can_setup.bash)
-#   - device_control_manager は foctive_motor_test.json / can0 にハードコード済み
+#   - CAN が UP (PCAN-USB FD: bash usbcan_setup.bash / Tegra 内蔵: bash can_setup.bash)
+#   - cd src/python && uv sync 済み (Python ノードは run_node.bash 経由で .venv の python で起動)
 #
-# config パス: 環境変数 ROBOT_CONFIG で指定。
-#   - device_control_manager は下の env: で設定(dora が spawn するので効く)
-#   - data_viewer は dynamic ノードなので yaml env が届かない → 起動シェルで export する
-#
-# 起動:
+# 起動 (リポジトリ直下で):
 #   dora start dataflow_foctive_control.yaml
-#   (別ターミナル) .venv/bin/python src/python/foctive_controller/foctive_controller.py
-#   (別ターミナル) ROBOT_CONFIG=robot_config/foctive_motor_test.json \
-#                  .venv/bin/python src/python/data_viewer/data_viewer.py
-# topic 購読(dora topic / WS GUI)に必須。true の間は daemon が全出力を常時
-# タップする(GUI 未接続でも一定のオーバーヘッド)。WS GUI が監視手段なら本番でも
-# 常時 true が必要 ―― "debug 用に一時的に" ではない。監視を一切しないときだけ false。
-_unstable_debug:
-  enable_debug_inspection: true
+#   ブラウザで http://<host>:8780/
+#
+# 別モータ/別 CAN にするときは ROBOT_CONFIG を 2 ノードとも同じファイルに揃える。
 
 nodes:
 
-  - id: foctive_controller
-    path: dynamic
+  - id: foctive_web_gui
+    path: src/python/run_node.bash
+    args: foctive_web_gui/foctive_web_gui.py
+    # motor_status の意図的な drop (queue_size: 1) で毎回 WARN が出るので抑制
+    min_log_level: error
+    env:
+      ROBOT_CONFIG: robot_config/foctive_motor_test.json
+      FOCTIVE_WEB_GUI_PORT: "8780"
     inputs:
+      # 1kHz で来るが GUI は最新値だけでよい (古いものは捨てる)
+      motor_status:
+        source: device_control_manager/motor_status
+        queue_size: 1
       settings_result: device_control_manager/settings_result
       param_dump: device_control_manager/param_dump
     outputs:
@@ -38,21 +42,12 @@ nodes:
     env:
       ROBOT_CONFIG: robot_config/foctive_motor_test.json
     inputs:
-      tick: dora/timer/millis/1
-      motor_commands: foctive_controller/motor_commands
-      settings_request: foctive_controller/settings_request
+      tick: dora/timer/millis/10
+      motor_commands: foctive_web_gui/motor_commands
+      settings_request: foctive_web_gui/settings_request
     outputs:
       - motor_status
       - imu_data
       - latency
       - settings_result
       - param_dump
-
-  - id: data_viewer
-    path: dynamic
-    # 高 tick(1kHz)では Python が捌けず "event channel full"(warn) が多発する。
-    # drop 自体は無害(最新を30fps表示できてる)なので warn 以下を抑制。
-    min_log_level: error
-    inputs:
-      motor_status: device_control_manager/motor_status
-      latency: device_control_manager/latency

@@ -121,7 +121,7 @@
     },
     {
       "name": "SettingsRequest",
-      "doc": "foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)",
+      "doc": "foctive_web_gui → device_control_manager: 設定モード要求(cmd で分岐)",
       "fields": [
         {
           "name": "device_id",
@@ -147,7 +147,7 @@
     },
     {
       "name": "SettingsResult",
-      "doc": "device_control_manager → foctive_controller: 設定モード結果(scalar)",
+      "doc": "device_control_manager → foctive_web_gui: 設定モード結果(scalar)",
       "fields": [
         {
           "name": "cmd",
@@ -178,7 +178,7 @@
     },
     {
       "name": "ParamScalars",
-      "doc": "device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8",
+      "doc": "device_control_manager → foctive_web_gui: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8",
       "fields": [
         {
           "name": "motor_id",

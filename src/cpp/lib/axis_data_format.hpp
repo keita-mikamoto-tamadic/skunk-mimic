@@ -49,7 +49,7 @@ static_assert(offsetof(AxisAct, fault) == 40, "AxisAct.fault offset mismatch vs 
 static_assert(offsetof(AxisAct, mode) == 41, "AxisAct.mode offset mismatch vs axis_data.json");
 static_assert(offsetof(AxisAct, silent_ticks) == 42, "AxisAct.silent_ticks offset mismatch vs axis_data.json");
 
-// foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)
+// foctive_web_gui → device_control_manager: 設定モード要求(cmd で分岐)
 struct SettingsRequest {
     uint8_t device_id;  // 対象デバイス
     uint8_t cmd;  // SettingsCmd (104=個別読出, 103=個別設定, 102=全読出, ...)
@@ -62,7 +62,7 @@ static_assert(offsetof(SettingsRequest, cmd) == 1, "SettingsRequest.cmd offset m
 static_assert(offsetof(SettingsRequest, param_index) == 2, "SettingsRequest.param_index offset mismatch vs axis_data.json");
 static_assert(offsetof(SettingsRequest, value) == 4, "SettingsRequest.value offset mismatch vs axis_data.json");
 
-// device_control_manager → foctive_controller: 設定モード結果(scalar)
+// device_control_manager → foctive_web_gui: 設定モード結果(scalar)
 struct SettingsResult {
     uint8_t cmd;  // 実行した SettingsCmd
     uint8_t param_index;  // ParamIndex
@@ -77,7 +77,7 @@ static_assert(offsetof(SettingsResult, ok) == 2, "SettingsResult.ok offset misma
 static_assert(offsetof(SettingsResult, value) == 4, "SettingsResult.value offset mismatch vs axis_data.json");
 static_assert(offsetof(SettingsResult, old_value) == 8, "SettingsResult.old_value offset mismatch vs axis_data.json");
 
-// device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8
+// device_control_manager → foctive_web_gui: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8
 struct ParamScalars {
     uint32_t motor_id;
     uint32_t device_id;

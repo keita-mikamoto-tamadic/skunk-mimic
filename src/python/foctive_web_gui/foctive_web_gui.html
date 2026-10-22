@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOCTIVE GUI</title>
+<link rel="stylesheet" href="/uPlot.min.css">
+<!--
+  foctive_web_gui.py (同一オリジン) の GUI。
+    GET  /config    軸/パラメータ定義
+    GET  /stream    SSE: {"t","axes":[AxisAct],"servo":[desc],"state","busy","last"}
+    POST /cmd       {"type","axis","params"}         → motor_commands
+    POST /settings  {"op","axis","index","value"}    → settings_request (結果を待って返す)
+  ★ 実モータが動きます。OFF ボタンを常に手元に。自動送信はしません(明示 Send のみ)。
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 1.2rem; background:#0f1115; color:#e6e6e6; max-width:1000px; }
+  h1 { font-size:1.05rem; margin:0 0 .7rem; }
+  .off { width:100%; padding:.9rem; font-size:1.15rem; font-weight:700; color:#fff;
+         background:#a11; border:1px solid #d33; border-radius:8px; cursor:pointer; margin-bottom:.8rem; }
+  .off:active { background:#c22; }
+  .bar { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:.8rem; font-size:.85rem; }
+  .pill { padding:.22rem .55rem; border-radius:5px; background:#222732; }
+  .ok { background:#1d4a36; color:#9f9; } .err { background:#4a1d1d; color:#f99; } .warn { background:#4a3d1d; color:#fd8; }
+  .sep { width:1px; height:1.1rem; background:#2a2f3a; }
+  select, input, button { background:#1b1e26; color:#e6e6e6; border:1px solid #2a2f3a;
+           border-radius:5px; padding:.3rem .5rem; font-size:.85rem; }
+  button { cursor:pointer; color:#dbe; }
+  input { width:5.6rem; font-variant-numeric:tabular-nums; }
+  button.send { background:#1d4a36; color:#9f9; border-color:#2c6; }
+  button.send:active { background:#2c6; color:#022; }
+  button.danger { background:#4a1d1d; color:#f99; border-color:#a33; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  table { border-collapse:collapse; width:100%; margin-bottom:.8rem; }
+  th, td { border:1px solid #2a2f3a; padding:.35rem .6rem; text-align:right; font-variant-numeric:tabular-nums; font-size:.85rem; }
+  th { background:#1b1e26; color:#bcd; font-weight:600; }
+  td.l, th.l { text-align:left; }
+  tr.fault td { color:#ff8a8a; }
+  tr.sel td { background:#161b24; }
+  .tabs { display:flex; gap:.3rem; margin:1rem 0 0; border-bottom:1px solid #2a2f3a; }
+  .tabs button { border-radius:6px 6px 0 0; border-bottom:none; padding:.45rem 1rem; }
+  .tabs button.active { background:#2a3140; color:#fff; }
+  .tab { display:none; padding-top:.8rem; } .tab.active { display:block; }
+  fieldset { border:1px solid #2a2f3a; border-radius:8px; margin:0 0 .8rem; padding:.6rem .9rem .9rem; }
+  legend { color:#bcd; font-weight:600; padding:0 .4rem; font-size:.9rem; }
+  .row { display:flex; gap:.6rem; align-items:flex-end; flex-wrap:wrap; }
+  label { font-size:.8rem; color:#9aa; display:inline-flex; flex-direction:column; gap:.15rem; }
+  .note { color:#c93; font-size:.78rem; margin:.2rem 0 .6rem; }
+  #chart .uplot { width:100%; }
+  #ptable td input { width:7rem; }
+  #ptable td.changed input { border-color:#c93; }
+  details { margin-top:.6rem; font-size:.8rem; } pre { white-space:pre-wrap; color:#9aa; }
+  #log { font-size:.78rem; color:#9aa; max-height:9rem; overflow:auto; background:#13161c;
+         border:1px solid #2a2f3a; border-radius:6px; padding:.4rem .6rem; margin-top:.8rem; }
+</style>
+</head>
+<body>
+<h1 id="title">FOCTIVE GUI</h1>
+
+<button class="send" id="start" style="display:none;width:100%;padding:.7rem;font-size:1.05rem;margin-bottom:.5rem">▶ 開始</button>
+<button class="off" id="off">■ OFF (全軸)</button>
+
+<div class="bar">
+  <label style="flex-direction:row;align-items:center;gap:.4rem;font-size:.9rem;color:#e6e6e6">対象軸
+    <select id="axis"></select></label>
+  <span class="sep"></span>
+  <span id="link" class="pill">connecting…</span>
+  <span id="robot" class="pill" style="display:none"></span>
+  <span id="busy" class="pill warn" style="display:none"></span>
+  <span>last: <span id="last" style="color:#7cc4ff">(none)</span></span>
+</div>
+
+<table>
+  <thead><tr>
+    <th class="l">axis</th><th>dev</th><th class="l">指令</th><th>pos [rad]</th><th>vel [rad/s]</th>
+    <th>torq [Nm]</th><th>i_d [A]</th><th>i_q [A]</th><th>fault</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div class="bar">
+  <button id="pause">⏸ Pause</button>
+  <select id="window">
+    <option value="5">5 s</option><option value="10" selected>10 s</option>
+    <option value="30">30 s</option><option value="60">60 s</option>
+  </select>
+  <span id="fields"></span>
+  <button id="clear">Clear</button>
+</div>
+<div id="chart"></div>
+
+<div class="tabs">
+  <button data-tab="ctl" id="tab-ctl-btn">操作</button>
+  <button data-tab="prm">パラメータ</button>
+</div>
+
+<!-- ===== 操作 ===== -->
+<div class="tab" id="tab-ctl">
+  <fieldset data-type="v">
+    <legend>電圧制御 (VOLTAGE) ― キャリブ不要</legend>
+    <div class="row">
+      <label>volt_d<input data-p="volt_d" type="number" step="0.1" value="0"></label>
+      <label>volt_q<input data-p="volt_q" type="number" step="0.1" value="0"></label>
+      <label>vir_ang_freq<input data-p="vir_ang_freq" type="number" step="1" value="0"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+  <p class="note">↓ 閉ループ制御は事前に電気角キャリブが必要 (パラメータタブ)</p>
+  <fieldset data-type="c">
+    <legend>電流制御 (CURRENT)</legend>
+    <div class="row">
+      <label>cur_d<input data-p="cur_d" type="number" step="0.1" value="0"></label>
+      <label>cur_q<input data-p="cur_q" type="number" step="0.1" value="0"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+  <fieldset data-type="vel">
+    <legend>速度制御 (VELOCITY / impedance)</legend>
+    <div class="row">
+      <label>vel [rad/s]<input data-p="vel" type="number" step="0.5" value="0"></label>
+      <label>kp<input data-p="kp" type="number" step="0.1" value="1"></label>
+      <label>kd<input data-p="kd" type="number" step="0.1" value="1"></label>
+      <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+  <fieldset data-type="p">
+    <legend>位置制御 (POSITION / impedance)</legend>
+    <div class="row">
+      <label>pos [rad]<input data-p="pos" type="number" step="0.1" value="0"></label>
+      <label>kp<input data-p="kp" type="number" step="0.1" value="1"></label>
+      <label>kd<input data-p="kd" type="number" step="0.1" value="1"></label>
+      <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+  <fieldset data-type="pd">
+    <legend>インピーダンス (POSITION_PD)</legend>
+    <div class="row">
+      <label>pos [rad]<input data-p="pos" type="number" step="0.1" value="0"></label>
+      <label>vel [rad/s]<input data-p="vel" type="number" step="0.5" value="0"></label>
+      <label>torq (FF)<input data-p="torq" type="number" step="0.1" value="0"></label>
+      <label>kp_scale<input data-p="kp" type="number" step="0.1" value="1"></label>
+      <label>kd_scale<input data-p="kd" type="number" step="0.1" value="1"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+  <fieldset data-type="cpos">
+    <legend>カスケードPID 位置</legend>
+    <div class="row">
+      <label>pos [rad]<input data-p="pos" type="number" step="0.1" value="0"></label>
+      <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+  <fieldset data-type="cvel">
+    <legend>カスケードPID 速度</legend>
+    <div class="row">
+      <label>vel [rad/s]<input data-p="vel" type="number" step="0.5" value="0"></label>
+      <label>accel_limit<input data-p="accel" type="number" step="1" value="0"></label>
+      <button class="send">Send</button>
+    </div>
+  </fieldset>
+</div>
+
+<!-- ===== パラメータ ===== -->
+<div class="tab" id="tab-prm">
+  <p class="note">設定操作は全軸 OFF のときだけ実行できます (FOCTIVE は設定フレーム受信でサーボ OFF 扱い)。
+    書き込みは RAM 上の値です。電源を切っても残すには「EEPROM 保存」。</p>
+  <div class="row" style="margin-bottom:.8rem">
+    <button class="send" id="readall">全読み出し</button>
+    <button id="writechg">変更分を書き込み</button>
+    <button id="save">EEPROM 保存</button>
+    <button class="danger" id="load">初期値ロード</button>
+  </div>
+  <table id="ptable">
+    <thead><tr><th>idx</th><th class="l">name</th><th>現在値</th><th class="l">新しい値</th><th></th></tr></thead>
+    <tbody id="prows"><tr><td colspan="5" style="text-align:center;color:#667">「全読み出し」で取得</td></tr></tbody>
+  </table>
+  <details id="lutbox"><summary>elec_angle_ofs LUT [8] (読み出し専用)</summary><pre id="lut"></pre></details>
+
+  <fieldset style="margin-top:1rem">
+    <legend>電気角キャリブ (モータが回ります)</legend>
+    <div class="row">
+      <label>volt_d [V]<input id="calib-v" type="number" step="0.1" value="1.0"></label>
+      <button class="danger" id="calib">キャリブ実行</button>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>現在位置を任意の値に設定</legend>
+    <div class="row">
+      <label>pos [rad]<input id="setpos-v" type="number" step="0.1" value="0"></label>
+      <button id="setpos">設定</button>
+    </div>
+  </fieldset>
+</div>
+
+<div id="log"></div>
+
+<script src="/uPlot.iife.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let CFG = null, PARAMS = [], current = {};   // current[name] = 読み出し値
+
+function log(msg, cls){
+  const d = document.createElement("div");
+  d.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+  if (cls === "err") d.style.color = "#f99"; else if (cls === "ok") d.style.color = "#9f9";
+  $("log").prepend(d);
+}
+const axisSel = () => { const v = $("axis").value; return v === "all" ? "all" : parseInt(v, 10); };
+const prmAxis = () => axisSel();   // "all" のときは settings() 側で弾く
+const fmt = (v, t) => t === "int" ? String(v) : (+v).toPrecision(6).replace(/\.?0+(e|$)/, "$1");
+
+// ---- 操作 --------------------------------------------------------------
+async function sendCmd(type, params, axis){
+  try {
+    const r = await fetch("/cmd", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ type, params, axis }) });
+    const j = await r.json();
+    if (j.ok) log("sent: " + j.queued, "ok"); else log("error: " + j.error, "err");
+  } catch (e) { log("network error", "err"); }
+}
+async function sendEnable(on){
+  try {
+    const r = await fetch("/enable", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ on }) });
+    const j = await r.json();
+    if (j.ok) log(on ? "開始" : "OFF (停止)", "ok"); else log("error: " + j.error, "err");
+  } catch (e) { log("network error", "err"); }
+}
+$("off").onclick = () => { if (CFG.enable) sendEnable(false); if (CFG.control) sendCmd("off", {}, "all"); };
+$("start").onclick = () => sendEnable(true);
+document.querySelectorAll("fieldset[data-type] button.send").forEach(btn => {
+  btn.onclick = () => {
+    const fs = btn.closest("fieldset"), params = {};
+    fs.querySelectorAll("input[data-p]").forEach(i => params[i.dataset.p] = parseFloat(i.value) || 0);
+    sendCmd(fs.dataset.type, params, axisSel());
+  };
+});
+
+// ---- 設定 --------------------------------------------------------------
+async function settings(op, extra){
+  if (prmAxis() === "all") { log("パラメータ操作は軸を 1 つ選んでください", "err"); return { ok:false }; }
+  const body = Object.assign({ op, axis: prmAxis() }, extra || {});
+  try {
+    const r = await fetch("/settings", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!j.ok) log(`${op}: ${j.error}`, "err");
+    return j;
+  } catch (e) { log(`${op}: network error`, "err"); return { ok:false }; }
+}
+
+function renderParams(){
+  $("prows").innerHTML = PARAMS.filter(p => p.type !== "lut").map(p => {
+    const has = p.name in current;
+    return `<tr data-name="${p.name}"><td>${p.index}</td><td class="l">${p.name}</td>`
+      + `<td>${has ? fmt(current[p.name], p.type) : "--"}</td>`
+      + `<td class="l"><input type="number" step="any" value="${has ? fmt(current[p.name], p.type) : ""}"></td>`
+      + `<td><button class="wr">書込</button></td></tr>`;
+  }).join("");
+  $("prows").querySelectorAll("tr").forEach(tr => {
+    const p = PARAMS.find(q => q.name === tr.dataset.name);
+    const inp = tr.querySelector("input");
+    inp.oninput = () => tr.querySelector("td:nth-child(4)").classList.toggle("changed", isChanged(p, inp.value));
+    tr.querySelector(".wr").onclick = () => writeParam(p, inp.value);
+  });
+  const lut = current.elec_angle_ofs;
+  $("lut").textContent = lut ? lut.map((v, i) => (i % 8 ? "" : `\n[${String(i).padStart(2)}] `) + String(v).padStart(11)).join("") : "";
+}
+const isChanged = (p, s) => s !== "" && (!(p.name in current) || +s !== +fmt(current[p.name], p.type));
+
+async function readAll(){
+  const j = await settings("readall");
+  if (j.ok) { current = j.params; renderParams(); log("全パラメータ読み出し OK", "ok"); }
+}
+async function writeParam(p, s){
+  if (s === "" || isNaN(+s)) { log(`${p.name}: 数値を入力`, "err"); return false; }
+  const j = await settings("pwrite", { index: p.index, value: +s });
+  if (j.ok) {
+    current[p.name] = j.value;
+    log(`[${p.index}] ${p.name}: ${fmt(j.old_value, p.type)} → ${fmt(j.value, p.type)}`, "ok");
+    renderParams();
+  }
+  return j.ok;
+}
+$("readall").onclick = readAll;
+$("writechg").onclick = async () => {
+  const rows = [...$("prows").querySelectorAll("tr")].map(tr => {
+    const p = PARAMS.find(q => q.name === tr.dataset.name);
+    return { p, s: tr.querySelector("input").value };
+  }).filter(x => x.p && isChanged(x.p, x.s));
+  if (!rows.length) { log("変更なし"); return; }
+  for (const { p, s } of rows) { if (!await writeParam(p, s)) break; }
+};
+$("save").onclick = async () => {
+  if (!confirm("現在の RAM 上のパラメータを EEPROM に保存しますか？")) return;
+  const j = await settings("save");
+  if (j.ok) log("EEPROM 保存 OK", "ok");
+};
+$("load").onclick = async () => {
+  if (!confirm("全パラメータを初期値に戻します (キャリブ結果も消えます)。よろしいですか？")) return;
+  const j = await settings("load");
+  if (j.ok) { current = j.params; renderParams(); log("初期値ロード OK (保存はまだ)", "ok"); }
+};
+$("calib").onclick = async () => {
+  const v = parseFloat($("calib-v").value);
+  if (!confirm(`軸 ${prmAxis()} を volt_d=${v} V でキャリブします。モータが回ります。`)) return;
+  log("キャリブ中… (最大 10 秒)");
+  const j = await settings("calib", { value: v });
+  if (j.ok) log(`キャリブ完了 (pos=${j.pos.toFixed(4)})`, "ok");
+};
+$("setpos").onclick = async () => {
+  const v = parseFloat($("setpos-v").value);
+  const j = await settings("setpos", { value: v });
+  if (j.ok) log(`現在位置 → ${v} (offset=${j.offset.toFixed(4)})`, "ok");
+};
+
+// ---- タブ --------------------------------------------------------------
+function showTab(name){
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + name));
+  try { localStorage.setItem("foctive_gui_tab", name); } catch (_) {}
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+// ---- グラフ (web_monitor と同じ uPlot 構成) -------------------------------
+const FIELDS = ["position", "velocity", "torque", "cur_d", "cur_q"];
+const fieldShow = { position:false, velocity:true, torque:true, cur_d:true, cur_q:true };
+const MAX_SEC = 120;
+const color = i => `hsl(${(i * 47) % 360} 72% 60%)`;
+let u = null, nAxes = 0, defs = [], xs = [], cols = [], live = true, windowSec = 10, queued = false;
+
+$("fields").innerHTML = FIELDS.map(f =>
+  `<label style="flex-direction:row;display:inline-flex;gap:.2rem;margin-right:.4rem"><input type="checkbox" style="width:auto" data-f="${f}" ${fieldShow[f] ? "checked" : ""}>${f}</label>`).join("");
+$("fields").querySelectorAll("input").forEach(cb => cb.onchange = () => {
+  fieldShow[cb.dataset.f] = cb.checked;
+  if (u) defs.forEach((d, i) => { if (d.field === cb.dataset.f) u.setSeries(i + 1, { show: cb.checked }); });
+});
+function buildChart(n){
+  nAxes = n; defs = [];
+  for (let ai = 0; ai < n; ai++) for (const f of FIELDS)
+    defs.push({ ai, field: f, label: (CFG?.axes[ai]?.name ?? "ax" + ai) + "." + f });
+  xs = []; cols = defs.map(() => []);
+  const series = [{}].concat(defs.map((d, i) => ({ label: d.label, stroke: color(i), width: 1.4,
+    show: fieldShow[d.field], spanGaps: true, value: (_, v) => v == null ? "--" : v.toFixed(4) })));
+  if (u) u.destroy();
+  u = new uPlot({ width: $("chart").clientWidth || 800, height: 320, series,
+    scales: { x: { time: true } }, cursor: { drag: { x: true, y: false } },
+    axes: [{ stroke:"#9aa", grid:{ stroke:"#222732" } }, { stroke:"#9aa", grid:{ stroke:"#222732" } }] },
+    [xs, ...cols], $("chart"));
+}
+function pushSample(t, axes){
+  if (!u || axes.length !== nAxes) buildChart(axes.length);
+  xs.push(t);
+  defs.forEach((d, i) => cols[i].push(axes[d.ai] ? axes[d.ai][d.field] : null));
+  while (xs.length > 2 && t - xs[0] > MAX_SEC) { xs.shift(); cols.forEach(c => c.shift()); }
+  if (queued) return; queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    if (!u || !live || !xs.length) return;
+    u.setData([xs, ...cols], false);
+    const tl = xs[xs.length - 1];
+    u.setScale("x", { min: tl - windowSec, max: tl });
+  });
+}
+$("pause").onclick = () => { live = !live; $("pause").textContent = live ? "⏸ Pause" : "▶ Live"; };
+$("window").onchange = e => windowSec = +e.target.value;
+$("clear").onclick = () => { xs.length = 0; cols.forEach(c => c.length = 0); if (u) u.setData([xs, ...cols]); };
+addEventListener("resize", () => { if (u) u.setSize({ width: $("chart").clientWidth, height: 320 }); });
+
+// ---- ステータス表 + SSE -------------------------------------------------
+const ROBOT_STATE = ["OFF", "STOP", "READY", "RUN"];
+let lastMsg = 0;
+function renderRows(msg){
+  const sel = axisSel();
+  $("rows").innerHTML = CFG.axes.map((ax, i) => {
+    const a = msg.axes[i];
+    const v = k => a ? a[k] : NaN;
+    return `<tr class="${a && a.fault ? "fault" : ""} ${sel === i || sel === "all" ? "sel" : ""}">`
+      + `<td class="l">[${i}] ${ax.name}</td><td>${ax.device_id}</td><td class="l">${msg.servo[i] ?? ""}</td>`
+      + `<td>${v("position").toFixed(4)}</td><td>${v("velocity").toFixed(3)}</td><td>${v("torque").toFixed(3)}</td>`
+      + `<td>${v("cur_d").toFixed(3)}</td><td>${v("cur_q").toFixed(3)}</td><td>${a ? a.fault : "-"}</td></tr>`;
+  }).join("");
+}
+function connect(){
+  const es = new EventSource("/stream");
+  es.onmessage = e => {
+    let msg; try { msg = JSON.parse(e.data); } catch (_) { return; }
+    lastMsg = performance.now();
+    renderRows(msg);
+    $("last").textContent = msg.last;
+    if (msg.state !== null) { $("robot").style.display = ""; $("robot").textContent = "robot: " + (ROBOT_STATE[msg.state] ?? msg.state); }
+    if (msg.enabled !== null) { $("robot").style.display = ""; $("robot").textContent = msg.enabled ? "外部制御: 動作中" : "外部制御: 停止"; $("robot").className = "pill " + (msg.enabled ? "warn" : ""); }
+    $("busy").style.display = msg.busy ? "" : "none";
+    $("busy").textContent = "設定処理中: " + msg.busy;
+    if (msg.axes.length) pushSample(msg.t, msg.axes);
+  };
+}
+setInterval(() => {
+  const ok = performance.now() - lastMsg < 1000;
+  $("link").textContent = ok ? "connected" : "no data (node 停止?)";
+  $("link").className = "pill " + (ok ? "ok" : "err");
+}, 500);
+
+// ---- 初期化 -------------------------------------------------------------
+(async () => {
+  CFG = await (await fetch("/config")).json();
+  PARAMS = CFG.params;
+  $("title").textContent = `FOCTIVE GUI — ${CFG.robot_name}`;
+  CFG.axes.forEach((ax, i) => $("axis").add(new Option(`[${i}] ${ax.name} (dev ${ax.device_id})`, i)));
+  if (CFG.axes.length > 1) $("axis").add(new Option("全軸 (all) ※操作のみ", "all"));
+  // パラメータ表は選択軸のもの。軸を変えたら前の軸の値を残さない (誤書き込み防止)
+  $("axis").onchange = () => { current = {}; renderParams(); };
+  if (!CFG.control) {   // ロボット構成: 操作は RCM が持つ
+    $("tab-ctl-btn").style.display = "none";
+    if (!CFG.enable) $("off").style.display = "none";
+  }
+  if (CFG.enable) $("start").style.display = "";
+  let tab = CFG.control ? "ctl" : "prm";
+  try { const t = localStorage.getItem("foctive_gui_tab"); if (t && (CFG.control || t === "prm")) tab = t; } catch (_) {}
+  showTab(tab);
+  renderParams();
+  connect();
+})();
+</script>
+</body>
+</html>
