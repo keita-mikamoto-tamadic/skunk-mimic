@@ -47,6 +47,7 @@ from lib.axis_data_format import (  # noqa: E402  自動生成(axis_data.json �
     AXIS_ACT_SIZE, AxisRef, pack_axis_ref, unpack_axis_act,
     SettingsRequest, pack_settings_request, unpack_settings_result,
     unpack_param_scalars, PARAM_SCALARS_FIELDS, PARAM_SCALARS_WIRE_INDEX,
+    PARAM_SCALARS_WIRE_REPR,
 )
 from lib import robot_config  # noqa: E402
 
@@ -83,12 +84,14 @@ SETTINGS_OPS = {
     "save":    (100, 2.0),
     "load":    (101, 2.0),
     "calib":   (1, 13.0),   # ファーム timeout 10s + 余裕
+    "fcalib":  (3, 65.0),   # 摩擦キャリブ。ファームに打ち切り無し → DCM 60s + 余裕
     "setpos":  (110, 1.0),
 }
 
-# uint32 として扱う wire param_index (それ以外は float の生ビット)
-INT_PARAM_INDICES = {0, 1, 2, 3, 4, 5, 6}
 LUT_INDEX = PARAM_SCALARS_WIRE_INDEX["elec_angle_ofs"]  # 書き込み不可
+# uint32 として扱う wire param_index (それ以外は float の生ビット)。axis_data.json の repr 由来
+INT_PARAM_INDICES = {i for n, i in PARAM_SCALARS_WIRE_INDEX.items()
+                     if PARAM_SCALARS_WIRE_REPR[n] != "float" and i != LUT_INDEX}
 
 
 def _load_config():

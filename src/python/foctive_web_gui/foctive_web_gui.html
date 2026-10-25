@@ -188,6 +188,16 @@
     </div>
   </fieldset>
   <fieldset>
+    <legend>摩擦キャリブ (モータが正転・逆転します)</legend>
+    <p class="note">無負荷・自由回転で実行。torq_const [29] と cur_q_mx/mn [19/20] の設定が必要。
+      最高速度は velocity_limit [23] の 8 割 (0 以下なら 20 rad/s)。所要 10〜15 秒。
+      static/coulomb/viscous friction・stribeck_velocity [38/48/39/49] を自動更新 (残すには EEPROM 保存)。
+      補償を有効にするには control_reg [36] に 1 (bit0) を書き込む。</p>
+    <div class="row">
+      <button class="danger" id="fcalib">摩擦キャリブ実行</button>
+    </div>
+  </fieldset>
+  <fieldset>
     <legend>現在位置を任意の値に設定</legend>
     <div class="row">
       <label>pos [rad]<input id="setpos-v" type="number" step="0.1" value="0"></label>
@@ -312,6 +322,16 @@ $("calib").onclick = async () => {
   log("キャリブ中… (最大 10 秒)");
   const j = await settings("calib", { value: v });
   if (j.ok) log(`キャリブ完了 (pos=${j.pos.toFixed(4)})`, "ok");
+};
+$("fcalib").onclick = async () => {
+  if (!confirm(`軸 ${prmAxis()} の摩擦キャリブを実行します。\nモータが正転・逆転します。無負荷・自由回転になっていますか？`)) return;
+  log("摩擦キャリブ中… (10〜15 秒、最大 60 秒)");
+  const j = await settings("fcalib");
+  if (!j.ok) return;
+  log("摩擦キャリブ完了。推定値を読み出します", "ok");
+  await readAll();
+  const f = k => current[k] === undefined ? "--" : fmt(current[k], "float");
+  log(`static=${f("static_friction")} coulomb=${f("coulomb_friction")} viscous=${f("viscous_friction")} stribeck_v=${f("stribeck_velocity")}`, "ok");
 };
 $("setpos").onclick = async () => {
   const v = parseFloat($("setpos-v").value);

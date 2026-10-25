@@ -35,7 +35,7 @@ public:
     virtual bool ReadParam(int device_id, int param_index,
                            uint8_t* out_value4, int timeout_ms) = 0;
 
-    // 全パラメータ読み出し(マルチフレーム)。26 scalar + LUT を ParamScalars(360byte)
+    // 全パラメータ読み出し(マルチフレーム)。全 scalar + LUT を ParamScalars
     // として out_dump に書き出す。パラメータ機能を持たないドライバ(moteus/dummy)は false。
     virtual bool ReadAllParams(int device_id, uint8_t* out_dump,
                                int timeout_ms) = 0;
@@ -49,7 +49,7 @@ public:
     // パラメータ機能を持たないドライバ(moteus/dummy)は false。
     virtual bool SaveAllParams(int device_id, int timeout_ms) = 0;
 
-    // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalars(360byte)へ。
+    // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalarsへ。
     // パラメータ機能を持たないドライバ(moteus/dummy)は false。
     virtual bool LoadDefaultParams(int device_id, uint8_t* out_dump,
                                    int timeout_ms) = 0;
@@ -59,6 +59,11 @@ public:
     // パラメータ機能を持たないドライバ(moteus/dummy)は false。
     virtual bool Calibrate(int device_id, float volt_d,
                            float* out_pos, int timeout_ms) = 0;
+
+    // 摩擦キャリブ(cmd=3)。無負荷・自由回転でモータが正転/逆転し、約 10〜15 秒。
+    // static/coulomb/viscous friction と stribeck_velocity をファームが推定・更新する
+    // (永続化は cmd=100)。パラメータ機能を持たないドライバ(moteus/dummy)は false。
+    virtual bool FrictionCalibrate(int device_id, int timeout_ms) = 0;
 
     // 現在位置設定(cmd=110)。現在の機械角を target_pos として読ませる。
     // ファームが適用した offset を out_offset へ書く。

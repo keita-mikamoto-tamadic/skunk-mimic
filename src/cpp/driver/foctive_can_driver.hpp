@@ -28,18 +28,20 @@ public:
   bool ReadParam(int device_id, int param_index,
                  uint8_t* out_value4, int timeout_ms) override;
   // 全パラメータ読み出し(cmd=102, マルチフレーム)。連結 → 保持 MotParam に反映し、
-  // 26 scalar の生値(ParamScalars, 104byte)を out_scalars に書き出す。
+  // 全 scalar + LUT の生値(ParamScalars)を out_scalars に書き出す。
   bool ReadAllParams(int device_id, uint8_t* out_dump, int timeout_ms) override;
   // 個別パラメータ設定(cmd=103)。書込→返信(old/new)→MotParam 更新 + old/new を返す。
   bool WriteParam(int device_id, int param_index, const uint8_t* value4,
                   uint8_t* out_old4, uint8_t* out_new4, int timeout_ms) override;
   // 全パラメータセーブ(cmd=100, EEPROM)。完了(done=1)で true。
   bool SaveAllParams(int device_id, int timeout_ms) override;
-  // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalars(360byte)へ。
+  // 全パラメータ初期値ロード(cmd=101)。返信(初期値)を ParamScalarsへ。
   bool LoadDefaultParams(int device_id, uint8_t* out_dump, int timeout_ms) override;
   // 電気角キャリブ(cmd=1)。volt_d 印加でモータが回り、完了(done=1)まで数秒。
   // 完了時の機械角を out_pos に書き、true を返す。timeout_ms は長めに(数秒)。
   bool Calibrate(int device_id, float volt_d, float* out_pos, int timeout_ms) override;
+  // 摩擦キャリブ(cmd=3)。完了(done=1)で true。推定値は保持 MotParam にも反映。
+  bool FrictionCalibrate(int device_id, int timeout_ms) override;
   // 現在位置設定(cmd=110)。現在の機械角を target_pos として読ませる。
   // ファームが適用した offset を out_offset に書き、true を返す。
   bool AnyValPosOffset(int device_id, float target_pos,
@@ -55,6 +57,11 @@ private:
   std::vector<Foctive::CanFdFrame> last_frames_;
   // 設定モードで読み出したパラメータを device_id ごとに保持(確認用)
   std::map<int, Foctive::MotParam> params_;
+
+  // 指定 cmd の設定モード単フレーム応答を待つ (キャリブ等の長時間待ち用)。
+  // 応答をデコードして保持 MotParam に反映する。タイムアウトなら false。
+  bool WaitSettingsReply(int device_id, Foctive::SettingsCmd cmd, int timeout_ms,
+                         Foctive::SettingsReply* out);
 
   // cmd=101/102 のマルチフレーム返信を連結 → MotParam → out_dump(ParamScalars)
   bool ReceiveAllParamsMultiFrame(int device_id, uint8_t expected_cmd,

@@ -1,3 +1,4 @@
+# Do not edit!
 """AUTO-GENERATED from src/data_format/sensor_data.json by tools/gen_data_format.py.
 
 DO NOT EDIT. 再生成: python3 tools/gen_data_format.py

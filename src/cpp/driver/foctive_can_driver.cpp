@@ -240,7 +240,7 @@ const Foctive::MotParam& FoctiveCanDriver::Params(int device_id) {
   return params_[device_id];
 }
 
-// 保持中の MotParam の 26 scalar を stdout に表示(LUT は除外、型で float/uint32)
+// 保持中の MotParam の scalar を stdout に表示(LUT は除外、型で float/uint32)
 static void PrintParams(int device_id, const Foctive::MotParam& p) {
   std::printf("[foctive] device %d params:\n", device_id);
   for (uint8_t i = 0; i < Foctive::kParamNum; i++) {
@@ -325,7 +325,7 @@ bool FoctiveCanDriver::ReceiveAllParamsMultiFrame(
     std::memcpy(&params_[device_id], buf, sizeof(Foctive::MotParam));
     PrintParams(device_id, params_[device_id]);  // DCM ログ確認用
 
-    // 4. ParamScalars(out_dump)へ詰める: [0..103]=26 scalar(index順), [104..359]=LUT
+    // 4. ParamScalars(out_dump)へ詰める: 先頭 = LUT 以外の scalar (index 順), 末尾 = LUT
     if (out_dump) {
       size_t off = 0;
       for (uint8_t i = 0; i < Foctive::kParamNum; i++) {
@@ -426,15 +426,9 @@ bool FoctiveCanDriver::SaveAllParams(int device_id, int timeout_ms) {
   return false;  // タイムアウト
 }
 
-bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
-                                 float* out_pos, int timeout_ms) {
-  // 1. cmd=1 電気角キャリブ要求 [1, float volt_d]
-  Foctive::CanFdFrame tx;
-  Foctive::MakeCalibrate(static_cast<uint8_t>(device_id), volt_d, tx);
-  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
-
-  // 2. 完了通知 [1, done, pos(float)] を待つ。モータが実際に回り数秒かかるため
-  //    timeout は長め。キャリブ中は status 返信が来ないが、混入に備え cmd=1 を確認。
+bool FoctiveCanDriver::WaitSettingsReply(int device_id, Foctive::SettingsCmd cmd,
+                                         int timeout_ms, Foctive::SettingsReply* out) {
+  // キャリブ中は status 返信が来ないが、混入に備え cmd を確認して読み飛ばす
   uint8_t rx[kMaxFrameSize];
   size_t rxlen;
   auto deadline = std::chrono::steady_clock::now()
@@ -457,13 +451,41 @@ bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
     frame.canid_ = static_cast<uint16_t>(can_id);
     std::memcpy(frame.data, rx, rxlen);
     frame.size = static_cast<uint8_t>(rxlen);
-    Foctive::MotParam dummy;  // キャリブ応答は MotParam を書き換えない
-    Foctive::SettingsReply reply = Foctive::ParseSettings(frame, dummy);
-    if (reply.cmd != Foctive::SettingsCmd::kCalibration) continue;  // 別の設定応答
-    if (out_pos) *out_pos = reply.pos;
-    return reply.ok;  // done=1 で true
+    Foctive::SettingsReply reply = Foctive::ParseSettings(frame, params_[device_id]);
+    if (reply.cmd != cmd) continue;  // 別の設定応答
+    if (out) *out = reply;
+    return true;
   }
   return false;  // タイムアウト
+}
+
+bool FoctiveCanDriver::Calibrate(int device_id, float volt_d,
+                                 float* out_pos, int timeout_ms) {
+  // cmd=1 電気角キャリブ要求 [1, float volt_d] → 完了通知 [1, done, pos(float)]。
+  // モータが実際に回り数秒かかるため timeout は長め。
+  Foctive::CanFdFrame tx;
+  Foctive::MakeCalibrate(static_cast<uint8_t>(device_id), volt_d, tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  Foctive::SettingsReply reply;
+  if (!WaitSettingsReply(device_id, Foctive::SettingsCmd::kCalibration, timeout_ms, &reply))
+    return false;
+  if (out_pos) *out_pos = reply.pos;
+  return reply.ok;  // done=1 で true
+}
+
+bool FoctiveCanDriver::FrictionCalibrate(int device_id, int timeout_ms) {
+  // cmd=3 摩擦キャリブ要求 [3] → 完了通知 [3, done, Fs, Fc, Fv, vs]。
+  // ファームに打ち切り時間は無く、動き出し探索 (0.5 A/s) 次第で長くなりうる。
+  Foctive::CanFdFrame tx;
+  Foctive::MakeFrictionCalib(static_cast<uint8_t>(device_id), tx);
+  comm_.SendFrame(tx.canid_, tx.data, tx.size, /*extended=*/false);
+
+  Foctive::SettingsReply reply;
+  if (!WaitSettingsReply(device_id, Foctive::SettingsCmd::kFrictionCalib, timeout_ms, &reply))
+    return false;
+  if (reply.ok) PrintParams(device_id, params_[device_id]);  // DCM ログ確認用
+  return reply.ok;  // done=1 で true
 }
 
 bool FoctiveCanDriver::AnyValPosOffset(int device_id, float target_pos,

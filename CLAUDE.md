@@ -46,6 +46,8 @@ The `dora-rs` Python package version must exactly match the dora CLI version (1.
 
 Adding a domain = drop a new `.json` in `src/data_format/` — output names are always `<spec>_format.hpp` / `<spec>_format.py`, no special cases. Omit `"types"` to use the generator's `DEFAULT_TYPES`. `src/cpp/lib/shm_data_format.hpp` is just an aggregator that includes the generated headers — it defines no structs itself.
 
+**FOCTIVE parameters are JSON-only too.** `ParamScalars` fields carry `index` (= FOCTIVE `param_index`) and `repr` (`"float"` or omitted = integer). From these the generator also emits `param_scalars::Wire` (index-order layout = the firmware's `MotParam`, LUT at index 8), `Index`, `kCount` and the `kDesc[]` offset/size/float table (C++), and `PARAM_SCALARS_WIRE_REPR` (Python). `src/cpp/lib/foctive_param_data.hpp` only aliases these into `Foctive::`, and `foctive_web_gui` derives its integer-param set from `repr` — so when the firmware's parameter list changes (`ref/foctive/lib/data/param_index.h` / `data_structure.h`), edit `axis_data.json` and regenerate; nothing else.
+
 It runs automatically at CMake configure time; run manually with `python3 tools/gen_data_format.py` from the repo root. Never hand-edit the generated files — edit the JSON and regenerate. Never hand-write a struct format in a node either (that is exactly how `mujoco_backend` silently drifted to a 32 B `AxisAct` / 56 B `AxisRef`); import from the generated module and use named fields, not positional unpacking.
 
 ## Running

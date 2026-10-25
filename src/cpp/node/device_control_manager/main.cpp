@@ -391,6 +391,13 @@ int main() {
                         std::memcpy(&res.value, &pos, 4);  // 完了時の機械角
                         break;
                     }
+                    case 3: {  // 摩擦キャリブ(無負荷・自由回転。モータが回り 10〜15 秒)
+                        // ファームに打ち切りが無く動き出し探索次第で延びるので長めに待つ。
+                        // 推定値は応答に載らないので、上位は完了後に cmd=102 で読み直す。
+                        bool ok = driver->FrictionCalibrate(req.device_id, 60000);
+                        res.ok = ok ? 1 : 0;
+                        break;
+                    }
                     case 110: {  // 現在位置を任意の値として設定
                         // target_pos は req.value に float ビットで載っている
                         float target;
@@ -411,7 +418,7 @@ int main() {
                         break;
                     }
                     case 102: {  // 全パラメータ読み出し(マルチフレーム)
-                        // 26 scalar + LUT を ParamScalars(360byte)に受け取り param_dump で送る
+                        // 全 scalar + LUT を ParamScalarsに受け取り param_dump で送る
                         ParamScalars dump{};
                         bool ok = driver->ReadAllParams(
                             req.device_id, reinterpret_cast<uint8_t*>(&dump), 100);
