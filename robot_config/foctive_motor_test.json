@@ -14,8 +14,8 @@
       "motdir": 1,
       "initial_position": 1.2,
       "reset_position": 0.0,
-      "velocity_limit": 10.0,
-      "accel_limit": 50.0,
+      "velocity_limit": 30.0,
+      "accel_limit": 100.0,
       "torque_limit": 2.0
     },
     {
@@ -26,44 +26,8 @@
       "motdir": 1,
       "initial_position": 1.2,
       "reset_position": 0.0,
-      "velocity_limit": 10.0,
-      "accel_limit": 50.0,
-      "torque_limit": 2.0
-    },
-    {
-      "index": 2,
-      "name": "motor_3",
-      "device_id": 3,
-      "comm_ch": 0,
-      "motdir": 1,
-      "initial_position": 1.2,
-      "reset_position": 0.0,
-      "velocity_limit": 10.0,
-      "accel_limit": 50.0,
-      "torque_limit": 2.0
-    },
-    {
-      "index": 3,
-      "name": "motor_4",
-      "device_id": 4,
-      "comm_ch": 0,
-      "motdir": 1,
-      "initial_position": 1.2,
-      "reset_position": 0.0,
-      "velocity_limit": 10.0,
-      "accel_limit": 50.0,
-      "torque_limit": 2.0
-    },
-    {
-      "index": 4,
-      "name": "motor_5",
-      "device_id": 5,
-      "comm_ch": 0,
-      "motdir": 1,
-      "initial_position": 1.2,
-      "reset_position": 0.0,
-      "velocity_limit": 10.0,
-      "accel_limit": 50.0,
+      "velocity_limit": 30.0,
+      "accel_limit": 100.0,
       "torque_limit": 2.0
     }
   ]
