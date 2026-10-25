@@ -14,6 +14,8 @@
  *   PX_KP_SCALE           imp_kp へのスケール (既定 1.0)
  *   PX_KD_SCALE           imp_kd へのスケール (既定 1.0)
  *   PX_ACCEL_LIMIT        follower の台形プロファイル加速度制限 [rad/s^2] (既定 1000)
+ *   PX_FORCE_GAIN         力帰還ゲイン。leader へ -gain * follower トルクを返す (既定 0 = 脱力)
+ *   PX_FORCE_LIMIT        leader へ返すトルクの上限 [Nm] (既定 1.0)
  */
 #include <cstdlib>
 #include <iostream>
@@ -50,6 +52,8 @@ int main() {
   params.kp_scale = EnvDouble("PX_KP_SCALE", params.kp_scale);
   params.kd_scale = EnvDouble("PX_KD_SCALE", params.kd_scale);
   params.accel_limit = EnvDouble("PX_ACCEL_LIMIT", params.accel_limit);
+  params.force_gain = EnvDouble("PX_FORCE_GAIN", params.force_gain);
+  params.force_limit = EnvDouble("PX_FORCE_LIMIT", params.force_limit);
 
   PositionExchanger px;
   if (!px.Configure(config, params)) {
@@ -61,7 +65,9 @@ int main() {
   std::cout << "position_exchanger: leader=" << params.leader_device_id
             << " follower=" << params.follower_device_id
             << " kp_scale=" << params.kp_scale << " kd_scale=" << params.kd_scale
-            << " accel_limit=" << params.accel_limit << std::endl;
+            << " accel_limit=" << params.accel_limit
+            << " force_gain=" << params.force_gain
+            << " force_limit=" << params.force_limit << std::endl;
 
   bool was_engaged = false;
 

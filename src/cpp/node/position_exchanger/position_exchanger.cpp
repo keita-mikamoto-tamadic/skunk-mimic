@@ -1,5 +1,7 @@
 #include "position_exchanger.hpp"
 
+#include <algorithm>
+
 bool PositionExchanger::Configure(const RobotConfig& config, const Params& params) {
   params_ = params;
   bool found_leader = false;
@@ -25,6 +27,7 @@ void PositionExchanger::SetAllOff() {
     c.motor_state = MotorState::OFF;
   }
   engaged_ = false;
+  feedback_torque_ = 0.0;
 }
 
 void PositionExchanger::SetEnabled(bool enabled) {
@@ -51,11 +54,24 @@ void PositionExchanger::Update(const std::vector<AxisAct>& status) {
 
   AxisRef& l = commands_[leader_];
   l = AxisRef{};
-  l.motor_state = MotorState::CURRENT;
-  l.ref_val = 0.0;    // cur_d
-  l.ref_val_1 = 0.0;  // cur_q
-  l.kp_scale = 1.0;
-  l.kv_scale = 1.0;
+  if (params_.force_gain == 0.0) {
+    l.motor_state = MotorState::CURRENT;  // 脱力
+    l.ref_val = 0.0;    // cur_d
+    l.ref_val_1 = 0.0;  // cur_q
+    l.kp_scale = 1.0;
+    l.kv_scale = 1.0;
+  } else {
+    // 力帰還: PD 項ゼロのインピーダンス = FF トルクだけの純トルク指令
+    feedback_torque_ = std::clamp(-params_.force_gain * follower.torque,
+                                  -params_.force_limit, params_.force_limit);
+    l.motor_state = MotorState::POSITION_PD;
+    l.ref_val = leader.position;    // kp_scale=0 なので効かない (プロファイルの基準のみ)
+    l.ref_val_1 = 0.0;
+    l.ref_val_2 = feedback_torque_; // FF トルク [Nm] (出力軸)
+    l.kp_scale = 0.0;
+    l.kv_scale = 0.0;
+    l.accel_limit = params_.accel_limit;
+  }
 
   AxisRef& f = commands_[follower_];
   f = AxisRef{};
