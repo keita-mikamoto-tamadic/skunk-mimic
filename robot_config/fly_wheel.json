@@ -9,7 +9,7 @@
     {
       "index": 0,
       "name": "wheel",
-      "device_id": 1,
+      "device_id": 2,
       "comm_ch": 0,
       "motdir": 1,
       "initial_position": 0.0,

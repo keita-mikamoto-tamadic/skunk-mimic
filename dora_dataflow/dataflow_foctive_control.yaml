@@ -42,7 +42,7 @@ nodes:
     env:
       ROBOT_CONFIG: robot_config/foctive_motor_test.json
     inputs:
-      tick: dora/timer/millis/10
+      tick: dora/timer/millis/1
       motor_commands: foctive_web_gui/motor_commands
       settings_request: foctive_web_gui/settings_request
     outputs:

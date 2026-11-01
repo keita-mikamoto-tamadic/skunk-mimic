@@ -8,18 +8,6 @@
   "axes": [
     {
       "index": 0,
-      "name": "motor_1",
-      "device_id": 1,
-      "comm_ch": 0,
-      "motdir": 1,
-      "initial_position": 1.2,
-      "reset_position": 0.0,
-      "velocity_limit": 30.0,
-      "accel_limit": 100.0,
-      "torque_limit": 2.0
-    },
-    {
-      "index": 1,
       "name": "motor_2",
       "device_id": 2,
       "comm_ch": 0,
