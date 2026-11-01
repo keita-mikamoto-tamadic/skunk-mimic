@@ -1,85 +1,53 @@
-# web_controller — FOCTIVE ブラウザ操作ノード
+# web_controller — 多軸ブラウザ操作ノード
 
-`foctive_controller`(端末版) のブラウザ版。PC のブラウザから FOCTIVE 単軸へ
-指令 (電圧/電流/速度/位置/SERVO OFF) を送る。
+ブラウザから `motor_commands` (`AxisRef`) を直接送る操作ノード。state machine
+(RCM) をバイパスするので、単軸テスト・ゼロ点直接操作用。多軸 (mimic 6軸 /
+2 CAN チャンネル) と moteus に対応 (per-axis limits / SET_POSITION 注入)。
 
-## なぜノードなのか / なぜ PC で動かせるのか
+FOCTIVE 単体テスト (パラメータ読み書き・キャリブ・モニタ込み) は
+[`foctive_web_gui`](../foctive_web_gui/) を使う。
 
-- バイナリ指令 (`AxisRef` 72B) を `motor_commands` に流せるのは**本物の dora ノード**
-  だけ。`dora topic pub` は JSON テキストを UInt8 にするだけで使えない。
-- そのノードを dataflow で **PC 側 daemon に deploy** する (start 時の `_unstable_deploy`
-  は効く)。device_control_manager(robot, can0) へは Zenoh 越しに届く。これは
-  `dora node add` の制約 (deploy 無視) に当たらない正攻法。
+## なぜノードなのか
+
+バイナリ指令 (`AxisRef` 72B) を `motor_commands` に流せるのは**本物の dora ノード**
+だけ。`dora topic pub` は JSON テキストを UInt8 にするだけで使えない。
 
 ```
-ブラウザ(PC) ──POST /cmd──▶ web_controller (PC daemon) ──motor_commands(Zenoh)──▶ device_control_manager (robot, can0)
+ブラウザ(PC) ──POST /cmd──▶ web_controller (robot) ──motor_commands──▶ device_control_manager (can0+can1)
 ```
 
-descriptor: [`dataflow_foctive_web_control.yaml`](../../../dora_dataflow/dataflow_foctive_web_control.yaml)
-(web_controller を `machine: pc` に deploy、device_control_manager は既定マシン=robot)。
+## 起動
 
-## 起動手順 (分散)
-
-robot-ip は例として `10.42.0.235`、PC daemon の machine-id は `pc`
-(descriptor の `_unstable_deploy.machine` と一致させること)。
+descriptor: [`dataflow_mimic_web_control.yaml`](../../../dora_dataflow/dataflow_mimic_web_control.yaml)。
+web_controller は dora が `src/python/run_node.bash` 経由で robot 上に起動する。
 
 ```bash
-# 1) robot: coordinator + 既定 daemon、can0 UP は従来どおり (`bash scripts/dora_rt_damon.bash distributed` / can_setup)
-#    ※ robot daemon は ZENOH_CONFIG=robot_config/zenoh_robot.json5 で
-#      tcp/0.0.0.0:5456 を listen させる (dora_rt_damon.bash に `distributed` 引数を付けると設定される。
-#      引数なしはローカル運用向けで ZENOH_CONFIG を付けない)。
-#      これが無いと daemon の Zenoh は loopback しか listen せず、PC からの
-#      motor_commands が robot に届かない。robot 側に --zenoh-peer を使うのは
-#      禁止 (自己接続チャーンで linkstate が壊れ、最初の 1 コマンドしか
-#      届かなくなる。詳細は robot_config/zenoh_robot.json5 参照)。
-
-# 2) PC: machine-id 付き daemon を robot coordinator に参加させる (常駐)。
-#    --zenoh-peer で robot の listener へ明示接続する (PC 側はこれが正解。
-#    robot の IP を指す = 自己接続にならないので安全)。
-dora daemon --coordinator-addr 10.42.0.235 --machine-id pc \
-            --zenoh-peer tcp/10.42.0.235:5456
-
-# 3) dataflow を起動 (robot のリポジトリルートで叩くのが確実: 既定マシンの
-#    相対パス device_control_manager をそのマシンが解決するため)
-export DORA_COORDINATOR_ADDR=10.42.0.235
-dora start dora_dataflow/dataflow_foctive_web_control.yaml
-
-# 4) PC: ノード本体を起動 (path: dynamic → localhost の pc daemon にアタッチ)
-cd src/python && uv run web_controller/web_controller.py
-
-# 5) PC ブラウザ: http://localhost:8770/
+# robot
+bash scripts/pcan_setup.bash can0 can1 keep
+bash scripts/dora_rt_damon.bash
+dora start dora_dataflow/dataflow_mimic_web_control.yaml
+# PC ブラウザ: http://<robot-ip>:8770/
 ```
-
-止めるとき: `dora stop <id>`、web_controller.py は Ctrl-C。
 
 ## 操作 (ブラウザ)
 
-- **■ SERVO OFF** (赤) … いつでも停止。最上部に常駐。
-- 電圧 VOLTAGE (volt_d, volt_q, vir_ang_freq) … キャリブ不要
-- 電流 CURRENT (cur_d, cur_q)
-- 速度 VELOCITY / impedance (vel, kp, kd, accel_limit)
-- 位置 POSITION / impedance (pos, kp, kd, accel_limit)
-- インピーダンス POSITION_PD (pos, vel, torq(FF), kp_scale, kd_scale)
-- カスケードPID 位置 cpos (pos, accel_limit) … FOCTIVE 専用
-- カスケードPID 速度 cvel (vel, accel_limit) … FOCTIVE 専用
+- **■ SERVO OFF** (赤) … いつでも全軸停止。最上部に常駐。
+- 対象軸セレクタ (`[i] 軸名` / 全軸)。送信は常に全軸分の dense array で、選択軸のスロットだけ更新。
+- 速度 VELOCITY / 位置 POSITION (moteus / FOCTIVE 共通)
+- 基準姿勢セット (moteus のみ。config の reset_position をセット)
+- 電圧 / 電流 / インピーダンス / カスケードPID (FOCTIVE のみ。moteus では非表示)
 
-各行の Send で送信 (自動送信なし)。送った内容は "last sent" に出る。
-マッピングは更新後の `foctive_controller` と同一 (`v`/`c`/`vel`/`p`/`pd`/`cpos`/`cvel`/`f`、
-MotorState 2/3/6/7/8/9/10)。kp/kd/accel_limit の既定は 1/1/0。
+各行の Send で送信 (自動送信なし)。
 
 ## 注意
 
-- **実モータが動く。** まず SERVO OFF を手元に。電圧は小さい値から。
-- **閉ループ (電流/速度/位置) は事前に電気角キャリブが必要。** これは設定系
-  (`settings_request`) なので web_controller には無い。端末版 `foctive_controller`
-  の `setting calib <volt_d>` で済ませてから使うこと。電圧制御 (開ループ) は
-  キャリブ不要で単体で動く。
-- monitor (`tools/gui/web_monitor.py`) と併用すると、PC で操作しながら同じく PC の
-  ブラウザで motor_status を見られる (web_monitor は dataflow 非依存なのでこの
-  dataflow でもそのまま使える)。
+- **実モータが動く。** まず SERVO OFF を手元に。
+- WiFi 断中はブラウザから止める手段がない (moteus は DCM が最新指令を再送し続ける)。
+- 表示は `tools/gui/web_monitor.py` と併用。
 
 ## 環境変数
 
 | var | 既定 | 用途 |
 |-----|------|------|
 | `WEB_CONTROLLER_PORT` | `8770` | HTTP ポート |
+| `ROBOT_CONFIG` | (なし) | 軸名・per-axis limits。相対パスはリポジトリルート基準 |

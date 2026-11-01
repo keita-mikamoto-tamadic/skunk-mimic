@@ -1,14 +1,13 @@
 """Web 操作ノード (web_controller)。
 
-foctive_controller(端末版) のブラウザ版。stdin の代わりに HTTP で指令を受け、
+多軸 (mimic / moteus) 向けのブラウザ操作ノード。HTTP で指令を受け、
 AxisRef(motor_commands) を送る本物の dora ノード ―― バイナリ指令を正しく
 出せるのはノードだけ (`dora topic pub` は JSON テキストしか送れない)。
+FOCTIVE 単体テスト (設定/キャリブ込み) は foctive_web_gui を使う。
 
-  ブラウザ(PC) ──POST /cmd──▶ web_controller (PC daemon) ──motor_commands──▶ device_control_manager (robot)
+  ブラウザ(PC) ──POST /cmd──▶ web_controller (robot) ──motor_commands──▶ device_control_manager
 
-分散構成: web_controller は dataflow で PC 側 daemon に deploy される
-(dataflow_*_web_control.yaml の _unstable_deploy.machine: pc)。
-動的ノードは localhost daemon にアタッチするので、必ず PC 上で起動すること。
+dataflow_mimic_web_control.yaml で dora が run_node.bash 経由で起動する。
 
 多軸対応: ROBOT_CONFIG の axes 数だけ AxisRef を保持し、送信は常に全軸分の
 dense array (device_control_manager の ReceiveStructArray は axis_count 分の
@@ -44,7 +43,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_PATH = os.path.join(SCRIPT_DIR, "web_controller.html")
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 
-# MotorState (enum_def.hpp / foctive_controller.py と一致)
+# MotorState (enum_def.hpp と一致)
 MOTOR_OFF = 0
 MOTOR_POSITION = 2          # 位置(インピーダンス)
 MOTOR_VELOCITY = 3          # 速度(インピーダンス)
@@ -108,7 +107,7 @@ LAST_SENT = {"desc": "(none)"}  # /status 用
 def build_ref(typ, p):
     """指令 type + パラメータ dict から (AxisRef, desc) を作る。
 
-    マッピングは foctive_controller.py と一致 (impedance/cascade 対応)。
+    マッピングは foctive_web_gui と一致 (impedance/cascade 対応)。
     p は {名前: 数値} の dict。欠けたキーは default を使う。
     """
     p = p or {}

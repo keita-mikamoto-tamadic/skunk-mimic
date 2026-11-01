@@ -121,7 +121,7 @@
     },
     {
       "name": "SettingsRequest",
-      "doc": "foctive_controller → device_control_manager: 設定モード要求(cmd で分岐)",
+      "doc": "foctive_web_gui → device_control_manager: 設定モード要求(cmd で分岐)",
       "fields": [
         {
           "name": "device_id",
@@ -147,7 +147,7 @@
     },
     {
       "name": "SettingsResult",
-      "doc": "device_control_manager → foctive_controller: 設定モード結果(scalar)",
+      "doc": "device_control_manager → foctive_web_gui: 設定モード結果(scalar)",
       "fields": [
         {
           "name": "cmd",
@@ -178,7 +178,7 @@
     },
     {
       "name": "ParamScalars",
-      "doc": "device_control_manager → foctive_controller: cmd=102 全読み出し結果(26 scalar, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8",
+      "doc": "device_control_manager → foctive_web_gui: cmd=102/101 全読み出し結果(47 scalar + LUT, 生ビット)。index は wire param_index(ParamIndex と一致)。LUT(elec_angle_ofs, index 8)は構造体上は末尾だが wire index は 8",
       "fields": [
         {
           "name": "motor_id",
@@ -218,112 +218,249 @@
         {
           "name": "gear_ratio",
           "type": "uint32",
-          "index": 7
+          "index": 7,
+          "repr": "float"
         },
         {
           "name": "anyval_pos_offset",
           "type": "uint32",
-          "index": 9
+          "index": 9,
+          "repr": "float"
         },
         {
           "name": "p_gain_cur",
           "type": "uint32",
-          "index": 10
+          "index": 10,
+          "repr": "float"
         },
         {
           "name": "i_gain_cur",
           "type": "uint32",
-          "index": 11
+          "index": 11,
+          "repr": "float"
         },
         {
           "name": "d_gain_cur",
           "type": "uint32",
-          "index": 12
+          "index": 12,
+          "repr": "float"
         },
         {
           "name": "p_gain_vel",
           "type": "uint32",
-          "index": 13
+          "index": 13,
+          "repr": "float"
         },
         {
           "name": "i_gain_vel",
           "type": "uint32",
-          "index": 14
+          "index": 14,
+          "repr": "float"
         },
         {
           "name": "d_gain_vel",
           "type": "uint32",
-          "index": 15
+          "index": 15,
+          "repr": "float"
         },
         {
           "name": "p_gain_pos",
           "type": "uint32",
-          "index": 16
+          "index": 16,
+          "repr": "float"
         },
         {
           "name": "i_gain_pos",
           "type": "uint32",
-          "index": 17
+          "index": 17,
+          "repr": "float"
         },
         {
           "name": "d_gain_pos",
           "type": "uint32",
-          "index": 18
+          "index": 18,
+          "repr": "float"
         },
         {
           "name": "cur_q_mx",
           "type": "uint32",
-          "index": 19
+          "index": 19,
+          "repr": "float"
         },
         {
           "name": "cur_q_mn",
           "type": "uint32",
-          "index": 20
+          "index": 20,
+          "repr": "float"
         },
         {
           "name": "trq_out_mx",
           "type": "uint32",
-          "index": 21
+          "index": 21,
+          "repr": "float"
         },
         {
           "name": "trq_out_mn",
           "type": "uint32",
-          "index": 22
+          "index": 22,
+          "repr": "float"
         },
         {
           "name": "velocity_limit",
           "type": "uint32",
-          "index": 23
+          "index": 23,
+          "repr": "float"
         },
         {
           "name": "accel_limit",
           "type": "uint32",
-          "index": 24
+          "index": 24,
+          "repr": "float"
         },
         {
           "name": "pos_out_mx",
           "type": "uint32",
-          "index": 25
+          "index": 25,
+          "repr": "float"
         },
         {
           "name": "pos_out_mn",
           "type": "uint32",
-          "index": 26
+          "index": 26,
+          "repr": "float"
         },
         {
           "name": "imp_kp",
           "type": "uint32",
-          "index": 27
+          "index": 27,
+          "repr": "float"
         },
         {
           "name": "imp_kd",
           "type": "uint32",
-          "index": 28
+          "index": 28,
+          "repr": "float"
         },
         {
           "name": "torq_const",
           "type": "uint32",
-          "index": 29
+          "index": 29,
+          "repr": "float"
+        },
+        {
+          "name": "multiturn_bit",
+          "type": "uint32",
+          "index": 30
+        },
+        {
+          "name": "multiturn_dir",
+          "type": "uint32",
+          "index": 31
+        },
+        {
+          "name": "vernier_rev",
+          "type": "uint32",
+          "index": 32,
+          "repr": "float"
+        },
+        {
+          "name": "vernier_offset",
+          "type": "uint32",
+          "index": 33,
+          "repr": "float"
+        },
+        {
+          "name": "filter_reg1",
+          "type": "uint32",
+          "index": 34
+        },
+        {
+          "name": "filter_reg2",
+          "type": "uint32",
+          "index": 35
+        },
+        {
+          "name": "control_reg",
+          "type": "uint32",
+          "index": 36
+        },
+        {
+          "name": "inertia",
+          "type": "uint32",
+          "index": 37,
+          "repr": "float"
+        },
+        {
+          "name": "static_friction",
+          "type": "uint32",
+          "index": 38,
+          "repr": "float"
+        },
+        {
+          "name": "viscous_friction",
+          "type": "uint32",
+          "index": 39,
+          "repr": "float"
+        },
+        {
+          "name": "back_emf_const",
+          "type": "uint32",
+          "index": 40,
+          "repr": "float"
+        },
+        {
+          "name": "phase_resistance",
+          "type": "uint32",
+          "index": 41,
+          "repr": "float"
+        },
+        {
+          "name": "phase_ld",
+          "type": "uint32",
+          "index": 42,
+          "repr": "float"
+        },
+        {
+          "name": "phase_lq",
+          "type": "uint32",
+          "index": 43,
+          "repr": "float"
+        },
+        {
+          "name": "free1",
+          "type": "uint32",
+          "index": 44,
+          "repr": "float"
+        },
+        {
+          "name": "free2",
+          "type": "uint32",
+          "index": 45,
+          "repr": "float"
+        },
+        {
+          "name": "free3",
+          "type": "uint32",
+          "index": 46,
+          "repr": "float"
+        },
+        {
+          "name": "free4",
+          "type": "uint32",
+          "index": 47,
+          "repr": "float"
+        },
+        {
+          "name": "coulomb_friction",
+          "type": "uint32",
+          "index": 48,
+          "repr": "float"
+        },
+        {
+          "name": "stribeck_velocity",
+          "type": "uint32",
+          "index": 49,
+          "repr": "float"
         },
         {
           "name": "elec_angle_ofs",

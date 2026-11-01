@@ -18,8 +18,8 @@ docker_ws/docker_isaaclab/src/flywheel_sim/scripts/sysid_excite.py と同一の�
 中断 (Ctrl-C / dora stop / ガード発火) 時は OFF 送信後に record_<stamp>_aborted.csv を保存。
 
 ゲイン: firmware には書き込まない。起動時に imp_kp/imp_kd を pread し、励起設計の前提
-(--kp/--kd、シム PD と同値) と不一致なら中止する。設定自体は foctive_controller で
-事前に行うこと (setting pwrite 27 <kp> / 28 <kd>)。指令側は kp_scale=kv_scale=1.0。
+(--kp/--kd、シム PD と同値) と不一致なら中止する。設定自体は foctive_web_gui
+(dataflow_foctive_control.yaml, :8780) で事前に行うこと。指令側は kp_scale=kv_scale=1.0。
 transport が "dummy" の場合 (ハード無し確認) は --skip-settings を付けること
 (DummyDriver は settings 未実装)。dummy では位置/速度の窓ガードも自動で無効になる。
 """
@@ -60,7 +60,7 @@ MOTOR_POSITION_PD = 8  # インピーダンス制御: ref_val=pos, ref_val_1=vel
 CMD_PREAD = 104
 CMD_SETPOS = 110
 
-# wire index 0-6 は uint32、それ以外は float ビット (foctive_controller.py と同じ規約)
+# wire index 0-6 は uint32、それ以外は float ビット (foctive_web_gui と同じ規約)
 INT_PARAM_INDICES = {0, 1, 2, 3, 4, 5, 6}
 
 TICK_HZ = 1000.0          # DCM tick = dataflow yaml の dora/timer/millis/1
@@ -162,14 +162,14 @@ def do_settings(node, device_id, args):
         print(f"[flywheel_sysid] {name} = {readbacks[name]:g}")
 
     # 2) ゲインが励起設計の前提 (シム PD) と一致しているか確認。不一致なら止める。
-    #    設定はユーザーが foctive_controller で行う:
-    #      setting pwrite 27 <kp> / setting pwrite 28 <kd> (+必要なら setting save)
+    #    設定はユーザーが foctive_web_gui (dataflow_foctive_control.yaml) で行う
+    #    (imp_kp/imp_kd の pwrite + 必要なら EEPROM 保存)。
     for name, expected in (("imp_kp", args.kp), ("imp_kd", args.kd)):
         if not math.isclose(readbacks[name], expected, rel_tol=1e-3):
             raise AbortRun(
                 f"{name}={readbacks[name]:g} が期待値 {expected:g} と不一致 — "
-                f"foctive_controller で `setting pwrite {idx[name]} {expected:g}` "
-                f"してから再実行 (または --kp/--kd を実機側の値に合わせる)")
+                f"foctive_web_gui で {name} (param[{idx[name]}]) = {expected:g} を"
+                f"書き込んでから再実行 (または --kp/--kd を実機側の値に合わせる)")
 
     # 3) firmware 側クランプの確認 (黙ってチャープが歪むのを防ぐ)
     if readbacks["velocity_limit"] < MIN_FW_VEL_LIMIT:

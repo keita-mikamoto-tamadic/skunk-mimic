@@ -1,0 +1,76 @@
+# FOCTIVE 2 軸の位置受け渡し (バイラテ試験)
+#
+#   device_control_manager ──motor_status──▶ position_exchanger ──motor_commands──▶ device_control_manager
+#                          └─motor_status──▶ foctive_web_gui ──enable──┘ (開始/OFF + モニタ)
+#
+# 起動直後は全軸 OFF。GUI の「▶ 開始」で動き出し、「■ OFF」でいつでも全軸 OFF。
+#
+# leader (PX_LEADER_ID) は手で動かす側。PX_FORCE_GAIN=0 なら電流 0 指令で脱力、
+# 0 以外なら follower の出力軸トルクを返す (位置-力型バイラテ。両軸に torq_const が必要)。
+# follower (PX_FOLLOWER_ID) は POSITION_PD で leader の位置/速度に追従 (位置 PD 型インピーダンス)。
+# 開始時の位置差はオフセットとして保持するので follower は跳ばない。
+#
+# 前提:
+#   - follower の FOCTIVE パラメータ imp_kp [A/rad] / imp_kd [A/(rad/s)] を設定済み
+#     (0 のままだと剛性ゼロで追従しない。dataflow_foctive_control.yaml の GUI で書き込み → EEPROM 保存)
+#   - follower はキャリブ済み
+#   - CAN が UP (bash scripts/usbcan_setup.bash)
+#
+# 起動 (リポジトリ直下で):
+#   dora start dora_dataflow/dataflow_foctive_bilateral.yaml --name bilateral --detach
+#   GUI: http://<host>:8780/   (▶ 開始 / ■ OFF。dora stop bilateral でも DCM が全軸 OFF)
+
+nodes:
+
+  - id: position_exchanger
+    path: ../src/cpp/node/position_exchanger/build/position_exchanger
+    env:
+      ROBOT_CONFIG: robot_config/foctive_bilateral_control.json
+      PX_LEADER_ID: "1"
+      PX_FOLLOWER_ID: "2"
+      PX_KP_SCALE: "0.5"
+      PX_KD_SCALE: "0.7"
+      PX_ACCEL_LIMIT: "100"
+      # 力帰還: leader へ -gain * follower トルクを返す。0 = 力帰還なし (leader 脱力)。
+      # 両軸に torq_const が必要。小さい値から上げる。向きが逆なら負値。
+      PX_FORCE_GAIN: "0.3"
+      PX_FORCE_LIMIT: "1.0"
+    inputs:
+      motor_status: device_control_manager/motor_status
+      enable: foctive_web_gui/enable
+    outputs:
+      - motor_commands
+
+  - id: device_control_manager
+    path: ../src/cpp/node/device_control_manager/build/device_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/foctive_bilateral_control.json
+    inputs:
+      tick: dora/timer/millis/3
+      motor_commands: position_exchanger/motor_commands
+    outputs:
+      - motor_status
+      - imu_data
+      - latency
+      - settings_result
+      - param_dump
+
+  # 開始/OFF + モニタ。motor_commands は position_exchanger が持つので操作タブは無効。
+  # settings_request は DCM に配線しない (サーボ中の設定フレーム防止)
+  - id: foctive_web_gui
+    path: ../src/python/run_node.bash
+    args: foctive_web_gui/foctive_web_gui.py
+    min_log_level: error
+    env:
+      ROBOT_CONFIG: robot_config/foctive_bilateral_control.json
+      FOCTIVE_WEB_GUI_PORT: "8780"
+      FOCTIVE_WEB_GUI_CONTROL: "0"
+      FOCTIVE_WEB_GUI_ENABLE: "1"
+    inputs:
+      motor_status:
+        source: device_control_manager/motor_status
+        queue_size: 1
+    outputs:
+      - motor_commands
+      - settings_request
+      - enable

@@ -15,6 +15,14 @@ dora で C++↔Python 間を生バイト列で交換する構造体の単一正�
 新しいドメインを足すときは .json を置くだけ。"types" を省略すると下の
 DEFAULT_TYPES が使われる。
 
+wire index 付き構造体 (フィールドに "index" を持つもの。例: ParamScalars):
+  外部プロトコル (FOCTIVE の param_index) と番号で対応する構造体。構造体の並びは
+  dora で受け渡す都合の順 (配列は末尾) だが、相手側は index 順のメモリ並びで扱うので、
+  index 順のレイアウトと番号表も一緒に生成する。値の解釈は "repr" で指定
+  ("float" = 4byte を float として読む。省略時は型どおり = 整数)。
+    C++    : namespace <snake名> { struct Wire; enum Index; kCount; struct Desc; kDesc[] }
+    Python : <UPPER>_WIRE_INDEX (name→index), <UPPER>_WIRE_REPR (name→"float"|型名)
+
 CMake の configure 時に自動実行される。手動でも実行可:
     python3 tools/gen_data_format.py
 """
@@ -69,9 +77,62 @@ def layout(fields, types):
     return entries, offset + tail, tail
 
 
+def snake_to_camel(name):
+    return "".join(w.capitalize() for w in name.split("_"))
+
+
+def wire_fields(s):
+    """wire index を持つ構造体なら index 順のフィールド list、無ければ None。"""
+    if not any("index" in f for f in s["fields"]):
+        return None
+    if not all("index" in f for f in s["fields"]):
+        raise SystemExit(f'{s["name"]}: "index" は全フィールドに付けること')
+    fields = sorted(s["fields"], key=lambda f: f["index"])
+    if [f["index"] for f in fields] != list(range(len(fields))):
+        raise SystemExit(f'{s["name"]}: index は 0 から連番であること')
+    return fields
+
+
+def gen_cpp_wire(s, types, src_name):
+    """index 順レイアウト (相手側のメモリ並び) と番号表。"""
+    fields = wire_fields(s)
+    ns = camel_to_snake(s["name"])
+    wire = [dict(f, cpp_type="float") if f.get("repr") == "float" else f for f in fields]
+    entries, total, _ = layout(wire, types)
+    out = [f"// {s['name']} の wire index 順レイアウトと番号表 (相手側のメモリ並び)",
+           f"namespace {ns} {{"]
+    out.append("struct Wire {")
+    for e in entries:
+        arr = f"[{e['count']}]" if e["count"] > 1 else ""
+        out.append(f"    {e['cpp']} {e['name']}{arr};")
+    out.append("};")
+    out.append(f'static_assert(sizeof(Wire) == {total}, "{s["name"]} wire size mismatch vs {src_name}");')
+    out.append(f"constexpr uint8_t kCount = {len(fields)};")
+    out.append("enum Index : uint8_t {")
+    for f in fields:
+        out.append(f"    k{snake_to_camel(f['name'])} = {f['index']},")
+    out.append("    kInvalid = 0xFF,")
+    out.append("};")
+    out.append("struct Desc {")
+    out.append("    uint16_t offset;    // Wire 先頭からのバイト位置")
+    out.append("    uint16_t size;")
+    out.append('    bool     is_float;  // repr == "float"')
+    out.append("};")
+    out.append("inline constexpr Desc kDesc[kCount] = {")
+    for f, e in zip(fields, entries):
+        size = types[f["type"]]["size"] * e["count"]
+        isf = "true" if f.get("repr") == "float" else "false"
+        out.append(f"    {{{e['off']}, {size}, {isf}}},  // {f['index']} {f['name']}")
+    out.append("};")
+    out.append(f"}}  // namespace {ns}")
+    out.append("")
+    return out
+
+
 def gen_cpp(structs, types, src_name):
     out = [
         "#pragma once",
+        "// Do not edit!",
         f"// AUTO-GENERATED from src/data_format/{src_name} by tools/gen_data_format.py",
         "// DO NOT EDIT. 再生成: python3 tools/gen_data_format.py",
         "#include <cstdint>",
@@ -95,11 +156,14 @@ def gen_cpp(structs, types, src_name):
             out.append(f'static_assert(offsetof({s["name"]}, {e["name"]}) == {e["off"]}, '
                        f'"{s["name"]}.{e["name"]} offset mismatch vs {src_name}");')
         out.append("")
+        if wire_fields(s):
+            out += gen_cpp_wire(s, types, src_name)
     return "\n".join(out) + "\n"
 
 
 def gen_py(structs, types, src_name):
     out = [
+        "# Do not edit!",
         f'"""AUTO-GENERATED from src/data_format/{src_name} by tools/gen_data_format.py.',
         "",
         "DO NOT EDIT. 再生成: python3 tools/gen_data_format.py",
@@ -132,6 +196,8 @@ def gen_py(structs, types, src_name):
         wire_index = {f["name"]: f["index"] for f in s["fields"] if "index" in f}
         if wire_index:
             out.append(f"{upper}_WIRE_INDEX = {wire_index!r}")
+            wire_repr = {f["name"]: f.get("repr", f["type"]) for f in s["fields"]}
+            out.append(f"{upper}_WIRE_REPR = {wire_repr!r}")
         out.append(f'{s["name"]} = namedtuple("{s["name"]}", {upper}_FIELDS)')
         # デフォルト: スカラは 0、配列は空 tuple
         defaults = ["()" if c > 1 else "0" for c in counts]

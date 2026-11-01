@@ -25,7 +25,7 @@ web_monitor.py ── AxisAct デコード(lib.data_format) ──HTTP/SSE(:8765
   `lib.data_format` (正本) で unpack するだけ。bincode/Arrow には触らない。
 - **唯一の前提**: 監視したい dataflow に `_unstable_debug.enable_debug_inspection: true`。
   これはトピック inspection 一般に必要なフラグで、monitor 固有の依存ではない。
-  (`dataflow_foctive_control.yaml` には既に設定済み。)
+  (`dataflow_mimic.yaml` / `dataflow_flywheel_sysid.yaml` には既に設定済み。foctive_control は GUI 自身がモニタを持つため未設定。)
 
 ## 依存
 

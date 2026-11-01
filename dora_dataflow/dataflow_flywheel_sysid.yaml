@@ -9,7 +9,7 @@
 #   励起信号は docker_ws/docker_isaaclab/src/flywheel_sim/scripts/sysid_excite.py と
 #   同一 (±step + 対数チャープ、PD 前提 imp_kp=30 / imp_kd=0.2)。ノードは firmware に
 #   書き込まず、起動時に pread して前提ゲインと不一致なら中止する (設定は
-#   foctive_controller の setting pwrite 27/28 で事前に行う)。
+#   dataflow_foctive_control.yaml の foctive_web_gui で事前に行う)。
 #   記録はシム側 sysid_record.py 互換 CSV (t,q1,dq1,cmd1 @1kHz) を
 #   robot_file/fly_wheel/sysid_data/ に保存 → isaaclab コンテナから
 #   /workspace/robot_file/fly_wheel/sysid_data/ でそのまま見える。

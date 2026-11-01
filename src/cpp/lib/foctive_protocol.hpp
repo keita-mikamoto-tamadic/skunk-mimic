@@ -23,6 +23,7 @@ namespace Foctive {
   enum class SettingsCmd : uint8_t {
     kCalibration      = 1,    // 電気角キャリブ
     kIdentElec        = 2,    // 電気的パラメータ自動推定 (未実装)
+    kFrictionCalib    = 3,    // 摩擦キャリブ (無負荷・自由回転)
     kParamSaveAll     = 100,  // 全パラメータセーブ
     kParamLoadDefault = 101,  // 全パラメータ初期値で設定
     kParamReadAll     = 102,  // 全パラメータ現在値読み出し (マルチフレーム返信)
@@ -177,6 +178,12 @@ namespace Foctive {
 
   // cmd=1 電気角キャリブ要求: [cmd, float volt_d]
   // volt_d はロックベクトル印加電圧。モータが実際に回り、完了まで数秒かかる。
+  // cmd=3 摩擦キャリブ要求: [cmd] のみ。モータが正転/逆転して約 10〜15 秒かかる。
+  // 無負荷・自由回転が前提。torq_const と cur_q_mx/mn の設定が必要。
+  inline void MakeFrictionCalib(uint8_t device_id, CanFdFrame& out) {
+    StartSettingsFrame(SettingsCmd::kFrictionCalib, device_id, out);
+  }
+
   inline void MakeCalibrate(uint8_t device_id, float volt_d, CanFdFrame& out) {
     StartSettingsFrame(SettingsCmd::kCalibration, device_id, out);
     std::memcpy(&out.data[out.size], &volt_d, 4);
@@ -275,6 +282,17 @@ namespace Foctive {
         r.ok = (data[1] != 0);
         std::memcpy(&r.pos, &data[2], 4);
         break;
+
+      case SettingsCmd::kFrictionCalib: {  // 3: [cmd, done, Fs, Fc, Fv, vs (float)]
+        r.ok = (data[1] != 0);
+        if (r.ok) {  // 推定値で保持 MotParam を更新 (ファーム側も同じ値に更新済み)
+          WriteParam(param, kStaticFriction, &data[2]);
+          WriteParam(param, kCoulombFriction, &data[6]);
+          WriteParam(param, kViscousFriction, &data[10]);
+          WriteParam(param, kStribeckVelocity, &data[14]);
+        }
+        break;
+      }
 
       case SettingsCmd::kAnyValPosOffset:   // 110: [cmd, offset(float)] (適用 offset)
         std::memcpy(r.value, &data[1], 4);

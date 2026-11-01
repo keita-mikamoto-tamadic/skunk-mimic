@@ -1,35 +1,14 @@
 DORA="$HOME/dora/target/release/dora"
-# 使い方:
-#   bash scripts/dora_rt_damon.bash              # ローカル運用 (dataflow_mimic.yaml 等)。既定
-#   bash scripts/dora_rt_damon.bash distributed  # 分散運用 (dataflow_*_web_control.yaml、PC daemon あり)
-#
-# 分散運用のときだけ daemon の Zenoh を listen-only 設定にする
-# (robot_config/zenoh_robot.json5 で tcp/0.0.0.0:5456 を listen)。
-# リモート daemon (PC) は --zenoh-peer tcp/<robot-ip>:5456 で明示接続する。
-# ローカル運用では不要 (dora の既定 zenoh 設定で足りる) なので付けない。
-#
-# 注意: robot 側に --zenoh-peer を使ってはいけない。listen と connect の両方に
-# 追加されるため自分自身への接続試行 (CONNECTION_TO_SELF) が 4 秒ごとに走り、
-# linkstate 経路が壊れてリモートノードのデータが最初の 1 件しか届かなくなる。
-# 詳細は robot_config/zenoh_robot.json5 のコメント参照。
-if [ "${1:-}" = "distributed" ]; then
-  export ZENOH_CONFIG="$HOME/skunk-mimic/robot_config/zenoh_robot.json5"
-  echo "dora_rt_damon: distributed mode (ZENOH_CONFIG=$ZENOH_CONFIG)"
-else
-  unset ZENOH_CONFIG
-  echo "dora_rt_damon: local mode (no ZENOH_CONFIG)"
-fi
-# "Received Hello with no locators" WARN の洪水を抑制する。
-# 原因: daemon が spawn したノードは ZENOH_CONFIG 継承で 5456 bind に失敗し
-# listen なし peer になる (意図的、zenoh_robot.json5 参照) → locator 空の Hello を
-# multicast し続け、全セッションが毎回 WARN を出す。実害なしのログ公害なので
-# orchestrator だけ error に落とす (他の WARN は残す)。spawn ノードにも継承される。
-export RUST_LOG="${RUST_LOG:-warn,zenoh::net::runtime::orchestrator=error}"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 全ノード robot ローカルで動かす (分散構成は廃止)。dora の既定 zenoh 設定で足りるので
+# ZENOH_CONFIG は付けない。シェルに残っていると ctrl_avg (RCM 往復) が約 2 倍
+# (595→1090us)、GUI の受信 CPU も約 2 倍になる (実測) ので明示的に外す。
+unset ZENOH_CONFIG
 # --- CAN 健全性チェック (情報表示のみ、起動は止めない) ---
 # UP 済み can インターフェースが ERROR-PASSIVE / BUS-OFF に落ちていないかを
 # 起動時に確認する。落ちていると motor_status が間欠/全ゼロになるが、
 # 症状からは電源断・配線・ID 不一致と区別がつかないため、ここで先に炙り出す。
-# 復旧は `bash scripts/pcan_setup.bash <canX> down` → 上げ直し (エラーカウンタもリセット)。
+# 復旧は `bash pcan_setup.bash <canX> down` → 上げ直し (エラーカウンタもリセット)。
 for dev in $(ip -br link show type can 2>/dev/null | awk '$2=="UP"{print $1}'); do
   st=$(ip -details link show "$dev" | grep -E "^\s*can " | grep -oE "state [A-Z-]+" | awk '{print $2}')
   berr=$(ip -details link show "$dev" | grep -oE "berr-counter tx [0-9]+ rx [0-9]+" | head -1)
@@ -42,11 +21,9 @@ pkill -f "dora (coordinator|daemon)"; sleep 1
 # daemon を kill するとその daemon が spawn した C++ ノードは孤児化して残る
 # (イベント待ちでブロックしたまま生存し続け、次セッションの動作を乱す)。
 # 前回セッションの残骸をここで掃除してから起動する。
-pkill -f "skunk-mimic/src/cpp/node/.*/build/" 2>/dev/null
-# 手動起動した Python dynamic ノードも同様に残る (data_viewer ノード版 /
-# robot_web_gui / web_controller)。zenoh の multicast peer として生き続けて
-# Hello WARN を増やすので一緒に掃除する。
-pkill -f "data_viewer/data_viewer.py|robot_web_gui/robot_web_gui.py|web_controller/web_controller.py" 2>/dev/null
+pkill -f "$REPO_DIR/src/cpp/node/.*/build/" 2>/dev/null
+# Python ノード (run_node.bash 経由の spawn / 手動起動の dynamic) も同様に残る。
+pkill -f "data_viewer/data_viewer.py|robot_web_gui/robot_web_gui.py|web_controller/web_controller.py|foctive_web_gui/foctive_web_gui.py" 2>/dev/null
 sleep 1
 $DORA coordinator --interface 0.0.0.0 &
 sleep 2
