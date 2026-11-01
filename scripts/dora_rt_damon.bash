@@ -1,7 +1,7 @@
 DORA="$HOME/dora/target/release/dora"
 # 使い方:
-#   bash dora_rt_damon.bash              # ローカル運用 (dataflow_mimic.yaml 等)。既定
-#   bash dora_rt_damon.bash distributed  # 分散運用 (dataflow_*_web_control.yaml、PC daemon あり)
+#   bash scripts/dora_rt_damon.bash              # ローカル運用 (dataflow_mimic.yaml 等)。既定
+#   bash scripts/dora_rt_damon.bash distributed  # 分散運用 (dataflow_*_web_control.yaml、PC daemon あり)
 #
 # 分散運用のときだけ daemon の Zenoh を listen-only 設定にする
 # (robot_config/zenoh_robot.json5 で tcp/0.0.0.0:5456 を listen)。
@@ -29,7 +29,7 @@ export RUST_LOG="${RUST_LOG:-warn,zenoh::net::runtime::orchestrator=error}"
 # UP 済み can インターフェースが ERROR-PASSIVE / BUS-OFF に落ちていないかを
 # 起動時に確認する。落ちていると motor_status が間欠/全ゼロになるが、
 # 症状からは電源断・配線・ID 不一致と区別がつかないため、ここで先に炙り出す。
-# 復旧は `bash pcan_setup.bash <canX> down` → 上げ直し (エラーカウンタもリセット)。
+# 復旧は `bash scripts/pcan_setup.bash <canX> down` → 上げ直し (エラーカウンタもリセット)。
 for dev in $(ip -br link show type can 2>/dev/null | awk '$2=="UP"{print $1}'); do
   st=$(ip -details link show "$dev" | grep -E "^\s*can " | grep -oE "state [A-Z-]+" | awk '{print $2}')
   berr=$(ip -details link show "$dev" | grep -oE "berr-counter tx [0-9]+ rx [0-9]+" | head -1)

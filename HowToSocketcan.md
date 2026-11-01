@@ -3,7 +3,7 @@
 ## CAN バス初期化
 
 ```bash
-bash can_setup.bash
+bash scripts/can_setup.bash
 ```
 
 スクリプトの内容:
@@ -104,7 +104,7 @@ candump can0,3200:1FFF
 ### よくあるエラー
 | 症状 | 原因 | 対処 |
 |------|------|------|
-| `failed to open can0` | can0 が UP していない | `bash can_setup.bash` |
+| `failed to open can0` | can0 が UP していない | `bash scripts/can_setup.bash` |
 | BUS-OFF | dsample-point が不正、またはハードウェア問題 | dsample-point 0.8 確認、`modprobe -r mttcan && modprobe mttcan` |
 | 一部の軸だけ応答なし | CAN 配線、device_id 不一致、moteus 電源 | `candump can0` で確認 |
 | 全軸タイムアウト | CAN ケーブル未接続、終端抵抗なし | 物理接続確認 |

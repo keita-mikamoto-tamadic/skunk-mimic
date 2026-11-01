@@ -24,8 +24,10 @@ dualsense_input ──state_command──▶ robot_control_manager ──motor_c
 | `src/python/` | Python ノード (mujoco_backend, dualsense_input, web GUI, SysID, …)。uv workspace |
 | `src/data_format/` | C++/Python 間バイナリ構造体の単一正本 (JSON → コード生成) |
 | `robot_config/` | ロボット定義 JSON (`ROBOT_CONFIG` 環境変数で選択) |
-| `sim/` | MuJoCo モデル。`mimic_v2_5.xml` は生成物、`scene.xml` は手書き |
-| `scripts/` | オフライン解析 (LQR / A-B 行列 / MJCF 生成・倒立点補正)。別 uv workspace |
+| `dora_dataflow/` | dora dataflow YAML (`dora start dora_dataflow/<yaml>` で起動) |
+| `robot_file/` | ロボットアセットの正本 (ロボットごとに CSV・model.json・mesh/・XML が同居。`scripts/` に変換スクリプト)。docker_isaaclab コンテナにもマウントされる |
+| `docker_ws/` | Docker 環境 (docker_isaaclab = Isaac Lab 3.0 + dora) |
+| `scripts/` | 運用 bash スクリプト (CAN/シリアル/RT daemon) + オフライン解析 (LQR / A-B 行列)。解析側は別 uv workspace |
 | `docs/` | 実機起動手順・RT 化・PCAN ドライバ・dora 更新などの詳細ドキュメント |
 | `tools/` | データフォーマット生成、ブラウザモニタ |
 
@@ -160,7 +162,8 @@ uv workspace は 2 つある：
 
 ```bash
 cd src/python && uv sync   # ランタイムノード (dora-rs, pyarrow, mujoco, ...)
-cd scripts && uv sync      # オフライン解析 (mjmodel_converter, LQR, A-B 行列)
+cd scripts && uv sync            # オフライン解析 (LQR, A-B 行列)
+cd robot_file/scripts && uv sync  # ロボットモデル変換 (mjmodel_converter, com_comp)
 ```
 
 - `dora-rs` は `/opt/dora/apis/python/node` からソースビルドされ CLI とバージョンが揃う
@@ -200,7 +203,7 @@ cd src/cpp && mkdir -p build && cd build && cmake .. && make
 
 ```bash
 dora up
-dora start dataflow_mimic_sim.yaml
+dora start dora_dataflow/dataflow_mimic_sim.yaml
 # 別ターミナル (dynamic ノード。両方 attach するまで dataflow は開始バリアで待つ):
 cd src/python && MUJOCO_MODEL=scene.xml MUJOCO_VIEWER=1 uv run mujoco_backend/mujoco_backend.py
 cd src/python && uv run dualsense_input/dualsense_input.py   # パッド未接続でも起動する
@@ -217,10 +220,10 @@ cd src/python && uv run dualsense_input/dualsense_input.py   # パッド未接�
 起動チェックリストは **[docs/robot_start.md](docs/robot_start.md)**。概要:
 
 ```bash
-bash pcan_setup.bash can0 can1 keep    # CAN (PEAK PCAN-M.2) → docs/pcan_socketcan_driver.md
-bash keep_serial_open.bash             # IMU シリアル保持 (別ターミナル)
-bash dora_rt_damon.bash                # RT daemon (別ターミナル) → docs/rt-enable.md
-dora start dataflow_mimic.yaml
+bash scripts/pcan_setup.bash can0 can1 keep    # CAN (PEAK PCAN-M.2) → docs/pcan_socketcan_driver.md
+bash scripts/keep_serial_open.bash             # IMU シリアル保持 (別ターミナル)
+bash scripts/dora_rt_damon.bash                # RT daemon (別ターミナル) → docs/rt-enable.md
+dora start dora_dataflow/dataflow_mimic.yaml
 cd src/python && uv run dualsense_input/dualsense_input.py
 ```
 
@@ -228,6 +231,8 @@ cd src/python && uv run dualsense_input/dualsense_input.py
 (`DummyComm` が moteus 互換のダミーデータを返す)。
 
 ## dataflow 一覧
+
+いずれも `dora_dataflow/` 以下 (`dora start dora_dataflow/<yaml>` で起動):
 
 | YAML | 用途 |
 |---|---|
@@ -269,7 +274,7 @@ dora destroy                               # coordinator & daemon 終了
 | [docs/pcan_socketcan_driver.md](docs/pcan_socketcan_driver.md) | PEAK PCAN-M.2 ドライバ (カーネル更新時の再ビルド含む) |
 | [docs/dora-upgrade.md](docs/dora-upgrade.md) | dora の更新手順・バージョン不一致の症状 |
 | [HowToSocketcan.md](HowToSocketcan.md) | SocketCAN / vcan の基本 |
-| [scripts/mjmodel_converter/README.md](scripts/mjmodel_converter/README.md) | Fusion CSV → MuJoCo モデル生成、倒立点補正 (com_comp) |
+| [robot_file/scripts/README.md](robot_file/scripts/README.md) | Fusion CSV → MuJoCo モデル生成、倒立点補正 (com_comp) |
 | [src/cpp/node/stabilizer/README_PIN_IK.md](src/cpp/node/stabilizer/README_PIN_IK.md) | 姿勢 IK の定式化と Pinocchio の使い方 |
 | [scripts/dualsense_monitor/README.md](scripts/dualsense_monitor/README.md) | DualSense の接続とボタン/軸の実測マップ |
 | [tools/gui/README.md](tools/gui/README.md) | ブラウザモニタ |

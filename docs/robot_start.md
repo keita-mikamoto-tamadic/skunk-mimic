@@ -29,7 +29,7 @@ PC = ブラウザで操作・表示するだけ (PC 側に dora は不要)。
   (`--rt`) も setcap なしで RT を取れる。**リビルドしても何もしなくてよい**。
   ノードに setcap すると secure-exec になり不利 (以前 DCM に付けていた
   `cap_sys_nice,cap_ipc_lock` は外した — `getcap` で何も出ないのが正)。
-  `dora_rt_damon.bash` は limits が効いた新しいログインシェルから起動すること
+  `scripts/dora_rt_damon.bash` は limits が効いた新しいログインシェルから起動すること
   (spawn されるノードが継承する)。
 - **DCM の CPU 隔離は dataflow yaml の `cpu_affinity: [1]`** (dora が起動時に全スレッドへ
   適用)。SCHED_FIFO は DCM が `init_dora_node()` の後にメインスレッドだけに付ける
@@ -54,21 +54,21 @@ PC = ブラウザで操作・表示するだけ (PC 側に dora は不要)。
 cd ~/skunk-mimic
 
 # 1) CAN UP (can0=右脚, can1=左脚)。keep = UP したまま
-bash pcan_setup.bash can0 can1 keep
+bash scripts/pcan_setup.bash can0 can1 keep
 
 # 1b) IMU シリアルを掴みっぱなしにする (別ターミナル、セッション中ずっと)。
 #     Spresense は一度 close されると次の open で沈黙し、USB 抜き差しでしか
 #     復帰しない。imu_node の起動/停止をまたいで fd を保持するために必須。
 #     dataflow より先に、電源投入 (USB 接続) 後の最初の open がこれになるように。
-bash keep_serial_open.bash
+bash scripts/keep_serial_open.bash
 
 # 2) coordinator + RT daemon (前セッションの孤児ノードも掃除される)。
 #    起動時に UP 済み CAN の状態も表示 — "!!! CAN canX: ERROR-PASSIVE" が出たら
-#    pcan_setup.bash canX down → 上げ直してから進む
-bash dora_rt_damon.bash          # 引数なし = ローカル運用 (分散 yaml のときだけ `distributed` を付ける)
+#    scripts/pcan_setup.bash canX down → 上げ直してから進む
+bash scripts/dora_rt_damon.bash          # 引数なし = ローカル運用 (分散 yaml のときだけ `distributed` を付ける)
 
 # 3) dataflow 起動
-dora start dataflow_mimic.yaml
+dora start dora_dataflow/dataflow_mimic.yaml
 #    attach モード (既定) のまま使う: そのターミナルの Ctrl-C で dataflow が確実に
 #    止まる。--detach はターミナルを閉じても走り続けるので使わない
 
@@ -111,7 +111,7 @@ motor_status 途絶で自動的に OFF へ落ちることがある。
 ```bash
 # robot 側
 dora stop <dataflow-id>        # DCM が停止時に全軸 OFF を送る
-bash pcan_setup.bash can0 can1 down
+bash scripts/pcan_setup.bash can0 can1 down
 # dora_rt_damon.bash のターミナルを Ctrl-C (coordinator + daemon 終了)
 ```
 
@@ -121,7 +121,7 @@ PC 側はブラウザを閉じるだけ (web_monitor を動かしていればそ
 
 | 症状 | 原因と対処 |
 |---|---|
-| `no matching daemon for machine id 'pc'` | (分散配置していた頃の症状。dataflow_mimic.yaml は robot ローカルに戻したので出ないはず。dataflow_*_web_control.yaml で出たら) PC daemon 未接続。`dora_pc_daemon.bash` を再実行 |
+| `no matching daemon for machine id 'pc'` | (分散配置していた頃の症状。dataflow_mimic.yaml は robot ローカルに戻したので出ないはず。dataflow_*_web_control.yaml で出たら) PC daemon 未接続。`scripts/dora_pc_daemon.bash` を再実行 |
 | PC daemon が `timeout waiting for register reply` を繰り返す | robot 側 coordinator が落ちている、または dora のコミット不一致 (docs/dora-upgrade.md) |
 | daemon が `memory allocation of N bytes failed` で abort | RT 権限なしで `--rt` の mlockall が失敗 (limits.conf の memlock、§0。または旧運用の dora バイナリ setcap 消失) |
 | dataflow start 後に何も動かない (CPU 0%) | dynamic node (robot_web_gui) 未 attach。全 dynamic node が揃うまで開始バリアで待つ |
@@ -129,4 +129,4 @@ PC 側はブラウザを閉じるだけ (web_monitor を動かしていればそ
 | **モータ電源を落とした / 強制駆動 OFF した後** | CAN が ERROR-PASSIVE に落ち、PEAK ドライバは電源復帰後も自力で送信を再開しない (仕様として受容)。**復旧手順: `pcan_setup.bash can0 can1 down` → `keep` で上げ直し → dora を立ち上げ直す**。電源 OFF 中は DCM が fault=255 (NoResponse) を立てて RCM/GUI が OFF に落ち、復帰時の初回指令は必ず OFF になる (暴走しない) |
 | motor_status が全ゼロ / モータ無応答 | モータ電源、`candump can0/can1` で応答確認、`ip -details link show canX` で ERROR-PASSIVE なら `pcan_setup.bash canX down` → 上げ直し |
 | imu_data が全ゼロ (imu_node は Opened 成功) | Spresense が沈黙している。確認: imu_node 稼働中は `PID=$(pgrep -x imu_node); A=$(awk '/rchar/{print $2}' /proc/$PID/io); sleep 1; B=$(awk '/rchar/{print $2}' /proc/$PID/io); echo $((B-A))` (数千 bytes/s なら流れている、0 なら沈黙。`pgrep -x` でプロセス名完全一致 — `-f` だと自分のシェルに誤マッチする。imu_node が全部読むので dd では見えない)。imu_node 停止中は `timeout 2 dd if=/dev/ttyUSB0 bs=64 count=1 \| xxd` で `aa55` を確認 (keep_serial_open.bash が open 時に 921600 raw を設定するので、それを立てた後なら見える。旧版 keep_serial や素の状態だとポートが既定 9600 のままで、流れていても何も見えない — 実機で確認済み)。本当に沈黙なら USB 抜き差しで復帰 → 以後 keep_serial_open.bash を先に立てて close させない。(dialout 追加後まだ再ログインしていない場合のみ、一時しのぎに `sudo chmod 666 /dev/ttyUSB0`) |
-| 指令がロボットに届かない (登録は成功) | PC daemon の `--zenoh-peer` 抜け (`dora_pc_daemon.bash` 経由なら自動で付く) |
+| 指令がロボットに届かない (登録は成功) | PC daemon の `--zenoh-peer` 抜け (`scripts/dora_pc_daemon.bash` 経由なら自動で付く) |

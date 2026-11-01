@@ -11,13 +11,13 @@
 #
 # 前提:
 #   - robot: can0 UP、coordinator + 既定 daemon (machine-id 無し) が稼働
-#            (`bash dora_rt_damon.bash distributed` — 分散用 ZENOH_CONFIG を有効にする)
+#            (`bash scripts/dora_rt_damon.bash distributed` — 分散用 ZENOH_CONFIG を有効にする)
 #   - PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc
 #            (この pc が下の _unstable_deploy.machine と一致)
 #
 # 起動 (詳細は src/python/web_controller/README.md):
 #   1) PC:    dora daemon --coordinator-addr <robot-ip> --machine-id pc
-#   2) 任意:  dora start dataflow_foctive_web_control.yaml --coordinator-addr <robot-ip>
+#   2) 任意:  dora start dora_dataflow/dataflow_foctive_web_control.yaml --coordinator-addr <robot-ip>
 #   3) PC:    cd src/python && uv run web_controller/web_controller.py
 #   4) PC:    ブラウザで http://localhost:8770/
 #
@@ -40,7 +40,7 @@ nodes:
 
   # デバイス側 ―― deploy 指定なし = 既定マシン(robot, can0)。
   - id: device_control_manager
-    path: src/cpp/node/device_control_manager/build/device_control_manager
+    path: ../src/cpp/node/device_control_manager/build/device_control_manager
     env:
       # 相対パスで OK: C++ 側 (robot_config::ResolveConfigPath) が実行ファイル位置から
       # リポジトリルートを導出して解決する (_work/<session> 実行でも可、マシン非依存)。

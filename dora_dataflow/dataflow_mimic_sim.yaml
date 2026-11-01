@@ -15,13 +15,14 @@
 #     IMU は base_link の site なのでボディ座標で出る。実機の imu_mount_rpy_deg は imu_node が
 #     吸収していて下流には出てこないので、stabilizer から見える imu_data の座標系は同じ。
 #   - DCM の latency 出力・cpu_affinity・SCHED_FIFO は無い。
-#   - モデルは sim/scene.xml (手書き: 無限グリッド床・光源・base_link 追従カメラ) が
-#     sim/mimic_v2_5.xml (scripts/mjmodel_converter で生成。床は持たない) を <include> したもの。
+#   - モデルは robot_file/mimic_v2_5/scene.xml (手書き: 無限グリッド床・光源・base_link 追従カメラ)
+#     が同フォルダの mimic_v2_5.xml (robot_file/scripts/mjmodel_converter.py で生成。床は持たない)
+#     を <include> したもの。
 #     関節名・actuator 名・keyframe "standing" は mujoco_backend が参照する名前に合わせてある。
 #
 # 起動 (全部 PC 上):
 #   1) dora up
-#   2) dora start dataflow_mimic_sim.yaml
+#   2) dora start dora_dataflow/dataflow_mimic_sim.yaml
 #   3) cd src/python && MUJOCO_MODEL=scene.xml uv run mujoco_backend/mujoco_backend.py
 #        (ビューア付き: MUJOCO_VIEWER=1 を追加。dynamic ノードなので env はシェルで渡す。
 #         カメラは base_link 追従 (マウスで回転/ズーム可)、MUJOCO_TRACK=0 で追従なし)
@@ -37,7 +38,7 @@ _unstable_debug:
 nodes:
 
   - id: robot_control_manager
-    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    path: ../src/cpp/node/robot_control_manager/build/robot_control_manager
     env:
       ROBOT_CONFIG: robot_config/mimic_v2_5.json
     inputs:
@@ -53,7 +54,7 @@ nodes:
       - state_status
 
   - id: stabilizer
-    path: src/cpp/node/stabilizer/build/stabilizer
+    path: ../src/cpp/node/stabilizer/build/stabilizer
     env:
       ROBOT_CONFIG: robot_config/mimic_v2_5.json
     inputs:

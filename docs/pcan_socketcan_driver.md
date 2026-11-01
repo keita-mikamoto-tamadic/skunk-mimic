@@ -85,7 +85,7 @@ sudo modprobe pcan
 
 | netdev | 実体 | 用途 |
 |--------|------|------|
-| `can0` | `c310000.mttcan` | Tegra 内蔵 CAN（`can_setup.bash` が管理） |
+| `can0` | `c310000.mttcan` | Tegra 内蔵 CAN（`scripts/can_setup.bash` が管理） |
 | `can1` | PEAK pcifd hw (490,0) | PEAK ch1 |
 | `can2` | PEAK pcifd hw (490,1) | PEAK ch2 |
 | `can3` | PEAK pcifd hw (490,2) | PEAK ch3 |
@@ -100,15 +100,15 @@ dmesg | grep -i pcan          # can1..can4 = pcifd の登録ログ
 
 ## 5. インターフェースの起動（CAN-FD）
 
-リポジトリ同梱の `pcan_setup.bash` を使う（`can_setup.bash` の PEAK 版）。
+リポジトリ同梱の `scripts/pcan_setup.bash` を使う（`scripts/can_setup.bash` の PEAK 版）。
 既定は PEAK ch1 = `can1`。チャンネルは複数指定可。最後の引数でモードを指定可。
 
 ```bash
-bash pcan_setup.bash can1             # UP して待機。Ctrl-C / 終了で自動 DOWN (デフォルト)
-bash pcan_setup.bash can0 can1        # 複数チャンネルを UP、Ctrl-C で全部 DOWN
-bash pcan_setup.bash can0 can1 keep   # UP したまま終了 (従来挙動。ロボット常用時)
-bash pcan_setup.bash can0 can1 down   # DOWN するだけ
-bash pcan_setup.bash all down         # PEAK 全ch を DOWN (テスト後の一括掃除)
+bash scripts/pcan_setup.bash can1             # UP して待機。Ctrl-C / 終了で自動 DOWN (デフォルト)
+bash scripts/pcan_setup.bash can0 can1        # 複数チャンネルを UP、Ctrl-C で全部 DOWN
+bash scripts/pcan_setup.bash can0 can1 keep   # UP したまま終了 (従来挙動。ロボット常用時)
+bash scripts/pcan_setup.bash can0 can1 down   # DOWN するだけ
+bash scripts/pcan_setup.bash all down         # PEAK 全ch を DOWN (テスト後の一括掃除)
 ```
 
 デフォルトが hold (UP したまま待機し、Ctrl-C で DOWN) になった点に注意。tview 等の
@@ -128,7 +128,7 @@ can <FD> state ERROR-ACTIVE (berr-counter tx 0 rx 0) restart-ms 100
 > メモ: PEAK PCIe-FD のクロックは **80MHz**。名目は sample-point 0.8 を正確に取れるが、
 > データ 5Mbps の `dsample-point` はドライバが 0.750 を自動選択する（mttcan の 50MHz では
 > 0.8 が必要だったのに対しクロックが違うため）。moteus/相手ノードと BUS-OFF する場合のみ
-> `pcan_setup.bash` の timing を調整する。
+> `scripts/pcan_setup.bash` の timing を調整する。
 
 疎通確認:
 

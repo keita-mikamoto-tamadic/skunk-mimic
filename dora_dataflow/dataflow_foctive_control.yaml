@@ -4,7 +4,7 @@
 #   電圧制御は state machine 不要なので RCM をバイパスし motor_commands を直接送る。
 #
 # 前提:
-#   - can0 が UP (bash can_setup.bash)
+#   - can0 が UP (bash scripts/can_setup.bash)
 #   - device_control_manager は foctive_motor_test.json / can0 にハードコード済み
 #
 # config パス: 環境変数 ROBOT_CONFIG で指定。
@@ -12,7 +12,7 @@
 #   - data_viewer は dynamic ノードなので yaml env が届かない → 起動シェルで export する
 #
 # 起動:
-#   dora start dataflow_foctive_control.yaml
+#   dora start dora_dataflow/dataflow_foctive_control.yaml
 #   (別ターミナル) .venv/bin/python src/python/foctive_controller/foctive_controller.py
 #   (別ターミナル) ROBOT_CONFIG=robot_config/foctive_motor_test.json \
 #                  .venv/bin/python src/python/data_viewer/data_viewer.py
@@ -34,7 +34,7 @@ nodes:
       - settings_request
 
   - id: device_control_manager
-    path: src/cpp/node/device_control_manager/build/device_control_manager
+    path: ../src/cpp/node/device_control_manager/build/device_control_manager
     env:
       ROBOT_CONFIG: robot_config/foctive_motor_test.json
     inputs:

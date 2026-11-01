@@ -4,7 +4,7 @@
 nodes:
 
   - id: robot_control_manager
-    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    path: ../src/cpp/node/robot_control_manager/build/robot_control_manager
     inputs:
       watchdog: dora/timer/millis/30
       state_command: sysid_controller/state_command
@@ -25,7 +25,7 @@ nodes:
       - run_command
 
   - id: device_control_manager
-    path: src/cpp/node/device_control_manager/build/device_control_manager
+    path: ../src/cpp/node/device_control_manager/build/device_control_manager
     inputs:
       tick: dora/timer/millis/3
       motor_commands: robot_control_manager/motor_commands
@@ -35,7 +35,7 @@ nodes:
       - imu_data
 
   - id: imu_node
-    path: src/cpp/node/imu_node/build/imu_node
+    path: ../src/cpp/node/imu_node/build/imu_node
     inputs:
       tick: dora/timer/millis/3
     outputs:

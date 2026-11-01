@@ -12,11 +12,11 @@
 #     不明なら candump で実際に流れるチャンネルを確認すること。
 #
 # 使い方 (チャンネルは複数指定可。最後の引数でモード指定):
-#   bash pcan_setup.bash can2             # UP して待機。Ctrl-C / 終了で自動 DOWN (デフォルト)
-#   bash pcan_setup.bash can0 can1        # 複数チャンネルを UP、Ctrl-C で全部 DOWN
-#   bash pcan_setup.bash can0 can1 keep   # UP したまま終了 (従来挙動。ロボット常用時)
-#   bash pcan_setup.bash can0 can1 down   # DOWN するだけ
-#   bash pcan_setup.bash all down         # PEAK 全ch を DOWN (テスト後の一括掃除)
+#   bash scripts/pcan_setup.bash can2             # UP して待機。Ctrl-C / 終了で自動 DOWN (デフォルト)
+#   bash scripts/pcan_setup.bash can0 can1        # 複数チャンネルを UP、Ctrl-C で全部 DOWN
+#   bash scripts/pcan_setup.bash can0 can1 keep   # UP したまま終了 (従来挙動。ロボット常用時)
+#   bash scripts/pcan_setup.bash can0 can1 down   # DOWN するだけ
+#   bash scripts/pcan_setup.bash all down         # PEAK 全ch を DOWN (テスト後の一括掃除)
 #
 # ビットレートは moteus 実績値 (1Mbps 名目 / 5Mbps データ) に合わせている。
 # PEAK PCIe-FD のクロックは 80MHz で sample-point 0.8 を正確に取れる

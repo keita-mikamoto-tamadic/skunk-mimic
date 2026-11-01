@@ -200,7 +200,7 @@ ulimit -l    # → unlimited
 
 - これで一般ユーザーのまま `sched_setscheduler(SCHED_FIFO)` と `mlockall` が通る。
   **バイナリを何度リビルドしても再設定不要**。
-- `dora_rt_damon.bash` は limits が効いた新しいログインシェルから起動すること
+- `scripts/dora_rt_damon.bash` は limits が効いた新しいログインシェルから起動すること
   (daemon → spawn されるノードへ継承される)。
 - pipewire が同じ方式 (`/etc/security/limits.d/25-pw-rlimits.conf`) で rtprio を
   持っているのと同じ流儀。

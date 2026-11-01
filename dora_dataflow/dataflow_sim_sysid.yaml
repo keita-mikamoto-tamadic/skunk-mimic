@@ -4,7 +4,7 @@
 nodes:
 
   - id: robot_control_manager
-    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    path: ../src/cpp/node/robot_control_manager/build/robot_control_manager
     inputs:
       watchdog: dora/timer/millis/30
       state_command: sysid_controller/state_command

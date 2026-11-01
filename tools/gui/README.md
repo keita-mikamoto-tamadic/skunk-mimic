@@ -61,7 +61,7 @@ web_monitor.py ── AxisAct デコード(lib.data_format) ──HTTP/SSE(:8765
 export DORA_COORDINATOR_ADDR=10.42.0.235
 
 # 監視したい dataflow を起動済みにしておく (enable_debug_inspection: true 必須)
-#   例: robot 側で dora start dataflow_foctive_control.yaml
+#   例: robot 側で dora start dora_dataflow/dataflow_foctive_control.yaml
 
 # モニタ起動 (PC でも robot でも可)
 cd tools/gui

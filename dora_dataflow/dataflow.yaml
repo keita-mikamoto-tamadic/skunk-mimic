@@ -1,34 +1,43 @@
 nodes:
 
   - id: robot_control_manager
-    path: src/cpp/node/robot_control_manager/build/robot_control_manager
+    path: ../src/cpp/node/robot_control_manager/build/robot_control_manager
     inputs:
       watchdog: dora/timer/millis/30
       state_command: dummy_input/state_command
-      motor_status: mujoco_backend/motor_status
+      motor_status: device_control_manager/motor_status
       run_command: stabilizer/run_command
     outputs:
       - motor_commands
       - state_status
 
   - id: stabilizer
-    path: src/cpp/node/stabilizer/build/stabilizer
+    path: ../src/cpp/node/stabilizer/build/stabilizer
     inputs:
-      motor_status: mujoco_backend/motor_status
-      imu_data: mujoco_backend/imu_data
+      motor_status: device_control_manager/motor_status
+      imu_data: device_control_manager/imu_data
       state_status: robot_control_manager/state_status
     outputs:
       - run_command
       - estimated_state
 
-  - id: mujoco_backend
-    path: dynamic
+  - id: device_control_manager
+    path: ../src/cpp/node/device_control_manager/build/device_control_manager
     inputs:
       tick: dora/timer/millis/3
       motor_commands: robot_control_manager/motor_commands
+      raw_imu: imu_node/raw_imu
     outputs:
       - motor_status
       - imu_data
+      - latency
+
+  - id: imu_node
+    path: ../src/cpp/node/imu_node/build/imu_node
+    inputs:
+      tick: dora/timer/millis/3
+    outputs:
+      - raw_imu
 
   - id: dummy_input
     path: dynamic
@@ -38,7 +47,8 @@ nodes:
   - id: data_viewer
     path: dynamic
     inputs:
-      motor_status: mujoco_backend/motor_status
+      motor_status: device_control_manager/motor_status
       state_status: robot_control_manager/state_status
-      imu_data: mujoco_backend/imu_data
+      imu_data: device_control_manager/imu_data
+      latency: device_control_manager/latency
       estimated_state: stabilizer/estimated_state

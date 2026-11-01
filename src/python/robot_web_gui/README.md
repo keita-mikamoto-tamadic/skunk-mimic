@@ -9,12 +9,12 @@ motor_commands を直接送る `web_controller` と違い、必ず RCM の状態
 
 ```bash
 # robot
-bash pcan_setup.bash can0 can1 keep
-bash dora_rt_damon.bash
+bash scripts/pcan_setup.bash can0 can1 keep
+bash scripts/dora_rt_damon.bash
 # PC
-bash dora_pc_daemon.bash <robot-ip>
+bash scripts/dora_pc_daemon.bash <robot-ip>
 # robot
-dora start dataflow_mimic.yaml
+dora start dora_dataflow/dataflow_mimic.yaml
 # PC (dynamic ノード attach)
 cd src/python && \
 ROBOT_CONFIG=robot_config/mimic_v2_5.json uv run robot_web_gui/robot_web_gui.py

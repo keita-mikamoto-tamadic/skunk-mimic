@@ -15,7 +15,7 @@
 ブラウザ(PC) ──POST /cmd──▶ web_controller (PC daemon) ──motor_commands(Zenoh)──▶ device_control_manager (robot, can0)
 ```
 
-descriptor: [`dataflow_foctive_web_control.yaml`](../../../dataflow_foctive_web_control.yaml)
+descriptor: [`dataflow_foctive_web_control.yaml`](../../../dora_dataflow/dataflow_foctive_web_control.yaml)
 (web_controller を `machine: pc` に deploy、device_control_manager は既定マシン=robot)。
 
 ## 起動手順 (分散)
@@ -24,7 +24,7 @@ robot-ip は例として `10.42.0.235`、PC daemon の machine-id は `pc`
 (descriptor の `_unstable_deploy.machine` と一致させること)。
 
 ```bash
-# 1) robot: coordinator + 既定 daemon、can0 UP は従来どおり (`bash dora_rt_damon.bash distributed` / can_setup)
+# 1) robot: coordinator + 既定 daemon、can0 UP は従来どおり (`bash scripts/dora_rt_damon.bash distributed` / can_setup)
 #    ※ robot daemon は ZENOH_CONFIG=robot_config/zenoh_robot.json5 で
 #      tcp/0.0.0.0:5456 を listen させる (dora_rt_damon.bash に `distributed` 引数を付けると設定される。
 #      引数なしはローカル運用向けで ZENOH_CONFIG を付けない)。
@@ -42,7 +42,7 @@ dora daemon --coordinator-addr 10.42.0.235 --machine-id pc \
 # 3) dataflow を起動 (robot のリポジトリルートで叩くのが確実: 既定マシンの
 #    相対パス device_control_manager をそのマシンが解決するため)
 export DORA_COORDINATOR_ADDR=10.42.0.235
-dora start dataflow_foctive_web_control.yaml
+dora start dora_dataflow/dataflow_foctive_web_control.yaml
 
 # 4) PC: ノード本体を起動 (path: dynamic → localhost の pc daemon にアタッチ)
 cd src/python && uv run web_controller/web_controller.py
