@@ -79,6 +79,10 @@ def main():
             joint_friction_coeff=args.friction, joint_viscous_friction_coeff=args.viscous
         )
         dt = sim.get_physics_dt()
+        # --viz (newton_gl など) 付きのときだけ ~60 fps で描画する。render=False 固定だと
+        # viewer が更新されない。描画は物理結果に影響しないので記録 CSV は headless と同一。
+        viz_on = bool(getattr(args, "visualizer", None))
+        render_every = max(1, round(1.0 / (60.0 * dt)))
 
         rows = []
         for step in range(round(cmd_t[-1] / dt) + 1):
@@ -88,7 +92,7 @@ def main():
                 rows.append((t, robot.data.joint_pos.torch[0, 0].item(), robot.data.joint_vel.torch[0, 0].item(), q_cmd))
             robot.actuators.target_command.set_position_index(value=torch.tensor([[q_cmd]], device=sim.device))
             robot.write_data_to_sim()
-            sim.step(render=False)
+            sim.step(render=viz_on and step % render_every == 0)
             robot.update(dt)
 
         np.savetxt(args.out, np.array(rows), delimiter=",", header="t,q1,dq1,cmd1", comments="", fmt="%.7g")
