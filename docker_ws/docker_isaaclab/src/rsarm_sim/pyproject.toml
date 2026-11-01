@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rsarm_sim"
+version = "0.1.0"
+description = "RSARM (original 4-DoF arm) configs for Isaac Lab"
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+include = ["rsarm_sim*"]

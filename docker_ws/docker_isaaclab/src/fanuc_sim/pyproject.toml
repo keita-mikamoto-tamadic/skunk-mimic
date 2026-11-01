@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fanuc_sim"
+version = "0.1.0"
+description = "FANUC robot configs and ROS 2 sim bridge for Isaac Lab"
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+include = ["fanuc_sim*"]

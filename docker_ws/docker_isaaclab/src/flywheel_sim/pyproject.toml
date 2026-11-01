@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flywheel_sim"
+version = "0.1.0"
+description = "Reaction-wheel inverted pendulum (fly_wheel) configs for Isaac Lab"
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+include = ["flywheel_sim*"]

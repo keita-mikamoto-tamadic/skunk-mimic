@@ -1,0 +1,98 @@
+# Isaac Lab 3.0 runtime: the image built by ~/IsaacLab/docker/container.py plus dora (Dockerfile).
+# ~/ros_for_isaaclab/isaaclab_ws からの移植 (2026-11-01)。ROS 2 ブリッジ関連は未使用のため外した
+# (ros2_ws / xr_ws コンテナも持ってこない)。dora は skunk-mimic 連携 (sim_base/dora_bridge.py) 用に残す。
+#
+# Build the base on the IsaacLab side first, then this one:
+#   cd ~/IsaacLab && ./docker/container.py build base
+#   docker compose build
+#
+# Host Isaac Lab checkout defaults to ~/IsaacLab (override: ISAACLAB_DIR=/path docker compose ...)
+#
+# ロボットアセットの正本は skunk-mimic/robot_file/ (このリポジトリ):
+#   robot_file/<robot>/          … CSV (Fusion 質量プロパティ) など
+#   robot_file/<robot>/mesh/     … メッシュ (USD/USDZ)
+#   robot_file/scripts/          … 変換スクリプト (build_*_usd.py など。コンテナ内で
+#                                  /workspace/robot_file を参照するのでホスト側の置き場に依らない)
+# コンテナには /workspace/robot_file としてマウントされる。
+
+services:
+  isaaclab:
+    build: .
+    image: isaaclab-ws
+    container_name: isaaclab
+    network_mode: host
+    entrypoint: bash
+    # Editable-install every package under src/ on each start, so a recreated container needs no setup
+    # (the install lives in the container's venv). --no-build-isolation keeps it offline and fast.
+    command:
+      - -c
+      - |
+        for p in /workspace/isaaclab_ws/src/*/pyproject.toml; do
+          uv pip install --quiet --no-deps --no-build-isolation -e "$${p%/pyproject.toml}"
+        done
+        exec bash
+    stdin_open: true
+    tty: true
+    environment:
+      - ACCEPT_EULA=Y
+      - PRIVACY_CONSENT=Y
+      - ISAACSIM_PATH=/workspace/isaaclab/_isaac_sim
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      # Base image sets MUJOCO_GL=egl, which makes `import mujoco` force PYOPENGL_PLATFORM=egl
+      # and breaks the Newton viewer (GLX window on X11). MJWarp physics does not need it.
+      - MUJOCO_GL=disable
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    volumes:
+      # Isaac Sim caches (shader/kit caches make 2nd+ launches much faster)
+      - isaac-cache-kit:/isaac-sim/kit/cache
+      - isaac-data-kit:/isaac-sim/kit/data
+      - isaac-cache-ov:/root/.cache/ov
+      - isaac-cache-pip:/root/.cache/pip
+      - isaac-cache-gl:/root/.cache/nvidia/GLCache
+      - isaac-cache-compute:/root/.nv/ComputeCache
+      - isaac-logs:/root/.nvidia-omniverse/logs
+      - isaac-carb-logs:/isaac-sim/kit/logs/Kit/Isaac-Sim
+      - isaac-data:/root/.local/share/ov/data
+      - isaac-docs:/root/Documents
+      # Isaac Lab sources from the host checkout (edits are reflected immediately)
+      - type: bind
+        source: ${ISAACLAB_DIR:-${HOME}/IsaacLab}/source
+        target: /workspace/isaaclab/source
+      - type: bind
+        source: ${ISAACLAB_DIR:-${HOME}/IsaacLab}/scripts
+        target: /workspace/isaaclab/scripts
+      - type: bind
+        source: ${ISAACLAB_DIR:-${HOME}/IsaacLab}/tools
+        target: /workspace/isaaclab/tools
+      # Isaac Lab outputs
+      - isaac-lab-logs:/workspace/isaaclab/logs
+      - isaac-lab-data:/workspace/isaaclab/data_storage
+      # Own tasks/extensions
+      - ./src:/workspace/isaaclab_ws/src
+      # Robot assets — 正本は skunk-mimic/robot_file (このリポジトリのルート直下)
+      - ../../robot_file:/workspace/robot_file
+      # skunk-mimic's dora struct definitions (AxisRef / AxisAct), read by the dora bridge
+      - ../../src/data_format:/workspace/skunk_data_format:ro
+      # X11
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+volumes:
+  isaac-cache-kit:
+  isaac-data-kit:
+  isaac-cache-ov:
+  isaac-cache-pip:
+  isaac-cache-gl:
+  isaac-cache-compute:
+  isaac-logs:
+  isaac-carb-logs:
+  isaac-data:
+  isaac-docs:
+  isaac-lab-logs:
+  isaac-lab-data:

@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sim_base"
+version = "0.1.0"
+description = "Common Isaac Lab sim app for the robots in isaaclab_ws: args, physics, scene, loop, bridges"
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+include = ["sim_base*"]
