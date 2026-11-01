@@ -1,0 +1,36 @@
+<!-- flywheel ホイール軸 SysID 用モデル (手書き)。
+
+     実機計測 (dataflow_flywheel_sysid.yaml, 振子ボディをクランプ固定) に合わせて
+     ベースは world 固定、ホイール 1 軸ヒンジのみ。慣性は CAD (wheel.csv) の値、
+     アクチュエータは実機ドライバの位置ループと同じ PD (imp_kp=30 N·m/rad,
+     imp_kd=0.2 N·m·s/rad; flywheel_sim/scripts/sysid_excite.py の前提と同一)。
+     timestep はドライバの位置ループ周期 1e-4 s (10 kHz) — sysid_record.py と同じ。
+
+     同定対象 (sysid_fit.py が MjSpec 経由で書き換える):
+       joint "wheel" の armature / damping / frictionloss
+     CoM はスピン軸 (X) 上にあるので重力はホイール運動に影響しない。 -->
+<mujoco model="flywheel_sysid">
+  <compiler angle="radian"/>
+  <option timestep="0.0001"/>
+
+  <worldbody>
+    <!-- fly_base はクランプ固定 → world 直付け。慣性は動力学に寄与しないので省略 -->
+    <body name="wheel">
+      <joint name="wheel" type="hinge" axis="1 0 0"
+             armature="0.0002" damping="0" frictionloss="0"/>
+      <!-- wheel.csv: mass 237.412 g, CoM (19.464, 0, 0) mm,
+           I@CoM = diag(4.312e5, 2.234e5, 2.234e5) g·mm² -->
+      <inertial pos="0.019464 0 0" mass="0.237412"
+                diaginertia="4.312e-4 2.234e-4 2.234e-4"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="wheel" joint="wheel" kp="30" kv="0.2"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="jpos_wheel" joint="wheel"/>
+    <jointvel name="jvel_wheel" joint="wheel"/>
+  </sensor>
+</mujoco>

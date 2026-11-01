@@ -33,10 +33,9 @@ _work/
 # Reference / external repos (not part of this project)
 ref/
 
-# Logs
+# SysID 記録・フィット結果 (sysid/<robot>/data/。scripts は追跡する)
+sysid/*/data/
 sysid/data/
-# SysID 記録 (flywheel_sysid などの実測 CSV。正本はロボット上/解析側で管理)
-robot_file/*/sysid_data/
 
 # Python cache
 __pycache__/

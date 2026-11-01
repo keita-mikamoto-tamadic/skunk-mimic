@@ -10,8 +10,7 @@ docker_ws/docker_isaaclab/src/flywheel_sim/scripts/sysid_excite.py と同一の�
     cd src/python && ROBOT_CONFIG=robot_config/fly_wheel.json \\
         uv run flywheel_sysid/flywheel_sysid.py [--step 0.05 --amplitude 0.1 --f1 10]
 
-出力 (既定 robot_file/fly_wheel/sysid_data/ = isaaclab コンテナの
-/workspace/robot_file/fly_wheel/sysid_data/):
+出力 (既定 sysid/flywheel/data/。フィットは sysid/flywheel/scripts/sysid_fit.py):
     record_<stamp>.csv       t,q1,dq1,cmd1 (1kHz, %.7g — sysid_record.py と同形式)
     excite_<stamp>.csv       t,q_cmd (--rate Hz, sysid_excite.py と同形式。シム側リプレイ用)
     record_<stamp>.meta.json 引数・ゲイン読み戻し・git rev など
@@ -219,8 +218,6 @@ def save_outputs(out_dir, stamp, aborted, n_done, q, dq, cmd_1k, q_cmd_grid,
 
     print(f"[flywheel_sysid] wrote {record_path} ({n} rows)")
     print(f"[flywheel_sysid] wrote {excite_path} / {os.path.basename(meta_path)}")
-    print(f"[flywheel_sysid] container path: "
-          f"/workspace/robot_file/fly_wheel/sysid_data/{os.path.basename(record_path)}")
 
 
 def main():
@@ -241,7 +238,7 @@ def main():
     parser.add_argument("--skip-settings", action="store_true",
                         help="settings フェーズを飛ばす (transport=dummy 用)")
     parser.add_argument("--out-dir",
-                        default=os.path.join(REPO_ROOT, "robot_file", "fly_wheel", "sysid_data"))
+                        default=os.path.join(REPO_ROOT, "sysid", "flywheel", "data"))
     args = parser.parse_args()
 
     # config (dynamic ノードなのでシェルの ROBOT_CONFIG。相対パスはリポジトリルート基準)

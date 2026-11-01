@@ -11,8 +11,8 @@
 #   書き込まず、起動時に pread して前提ゲインと不一致なら中止する (設定は
 #   dataflow_foctive_control.yaml の foctive_web_gui で事前に行う)。
 #   記録はシム側 sysid_record.py 互換 CSV (t,q1,dq1,cmd1 @1kHz) を
-#   robot_file/fly_wheel/sysid_data/ に保存 → isaaclab コンテナから
-#   /workspace/robot_file/fly_wheel/sysid_data/ でそのまま見える。
+#   sysid/flywheel/data/ に保存。フィットはホストで
+#   sysid/flywheel/scripts/sysid_fit.py (mujoco.sysid、isaaclab 不要)。
 #
 # 前提:
 #   - can0 が UP (bash scripts/can_setup.bash)。ハード無し確認は
