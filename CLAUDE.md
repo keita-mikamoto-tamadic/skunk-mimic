@@ -93,6 +93,7 @@ Dataflows (`dora_dataflow/`):
 | `dataflow_foctive_control.yaml` | Single-motor test (FOCTIVE by default; point `ROBOT_CONFIG` at `moteus_motor_test.json` for a moteus motor) | `device_control_manager` | `foctive_controller` (Python, bypasses the state machine) |
 | `dataflow_foctive_web_control.yaml` | FOCTIVE test driven from a browser | `device_control_manager` (robot) | `web_controller` (Python, deployed to a PC daemon via `_unstable_deploy`) |
 | `dataflow_mimic_web_control.yaml` | mimic 6-axis / 2-CAN-channel test from a browser (`mimic_v2_5.json`: can0 = right leg, can1 = left leg) | `device_control_manager` (robot) | `web_controller` (multi-axis: per-axis selector + all-axes OFF) |
+| `dataflow_flywheel_sysid.yaml` | flywheel wheel-axis SysID for Isaac Lab (`fly_wheel.json`, FOCTIVE/can0, pendulum clamped; records `sysid_record.py`-compatible CSV to `robot_file/fly_wheel/sysid_data/`) | `device_control_manager` (1 ms tick) | `flywheel_sysid` (Python, excite+record in one node, bypasses the state machine) |
 
 Hardware modes: `bash scripts/can_setup.bash` brings up the Tegra built-in CAN; `bash scripts/vcan_setup.bash` for virtual CAN (see HowToSocketcan.md). Set `"transport": "dummy"` in the robot config to run with no hardware at all.
 

@@ -239,6 +239,7 @@ cd src/python && uv run dualsense_input/dualsense_input.py
 | `dataflow_mimic.yaml` | **実機 mimic_v2_5 (現行メインフロー)** |
 | `dataflow_mimic_sim.yaml` | **上記の MuJoCo シミュレーション版** |
 | `dataflow_sysid.yaml` / `dataflow_sim_sysid.yaml` | SysID データ収集 (実機 / シム) |
+| `dataflow_flywheel_sysid.yaml` | flywheel ホイール軸 SysID (FOCTIVE/can0、Isaac Lab 向け CSV 記録) |
 | `dataflow_foctive_control.yaml` / `dataflow_mimic_web_control.yaml` ほか | 単軸テスト・ゼロ点調整 (状態機械バイパス) |
 | `dataflow.yaml` / `dataflow_sim.yaml` | v2 時代のもの (レガシー) |
 

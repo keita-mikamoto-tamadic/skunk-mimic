@@ -1,0 +1,61 @@
+# flywheel (リアクションホイール倒立振子) ホイール軸 SysID 用 dataflow (FOCTIVE, can0)
+#
+# flywheel_sysid(励起生成+記録) → motor_commands → device_control_manager → can0
+#   dataflow_foctive_control.yaml と同じ RCM バイパス構成。FOCTIVE では RCM の STOP が
+#   OFF にマップされ状態機械の意味が薄く、READY の initial_position 補間は
+#   「現在位置(クランプ静止姿勢)から励起開始」と相反するため。
+#
+# 用途: Isaac Lab 向けのホイール軸単体同定 (振子ボディはクランプ固定、IMU なし)。
+#   励起信号は docker_ws/docker_isaaclab/src/flywheel_sim/scripts/sysid_excite.py と
+#   同一 (±step + 対数チャープ、PD 前提 imp_kp=30 / imp_kd=0.2)。ノードは firmware に
+#   書き込まず、起動時に pread して前提ゲインと不一致なら中止する (設定は
+#   foctive_controller の setting pwrite 27/28 で事前に行う)。
+#   記録はシム側 sysid_record.py 互換 CSV (t,q1,dq1,cmd1 @1kHz) を
+#   robot_file/fly_wheel/sysid_data/ に保存 → isaaclab コンテナから
+#   /workspace/robot_file/fly_wheel/sysid_data/ でそのまま見える。
+#
+# 前提:
+#   - can0 が UP (bash scripts/can_setup.bash)。ハード無し確認は
+#     robot_config/fly_wheel.json の "transport" を "dummy" にして --skip-settings で実行
+#   - 振子ボディをクランプ固定してから実行すること
+#
+# 起動:
+#   dora start dora_dataflow/dataflow_flywheel_sysid.yaml
+#   (別ターミナル) cd src/python && \
+#     ROBOT_CONFIG=robot_config/fly_wheel.json uv run flywheel_sysid/flywheel_sysid.py
+#   ノードは励起完了で OFF を送って自動終了する (DCM は最終フレーム=OFF を再送し続ける)。
+#   dataflow 自体は dora stop で止める。
+#
+# モニタ (任意、pull 型なのでいつでも起動/終了可):
+#   ROBOT_CONFIG=robot_config/fly_wheel.json python3 src/python/data_viewer.py
+_unstable_debug:
+  enable_debug_inspection: true
+
+nodes:
+
+  - id: flywheel_sysid
+    path: dynamic
+    inputs:
+      # 1kHz で取りこぼすと記録の時間軸が狂うので深めのキュー (Python の GC 停止対策)
+      motor_status:
+        source: device_control_manager/motor_status
+        queue_size: 2000
+      settings_result: device_control_manager/settings_result
+    outputs:
+      - motor_commands
+      - settings_request
+
+  - id: device_control_manager
+    path: ../src/cpp/node/device_control_manager/build/device_control_manager
+    env:
+      ROBOT_CONFIG: robot_config/fly_wheel.json
+    inputs:
+      tick: dora/timer/millis/1
+      motor_commands: flywheel_sysid/motor_commands
+      settings_request: flywheel_sysid/settings_request
+    outputs:
+      - motor_status
+      - imu_data
+      - latency
+      - settings_result
+      - param_dump
