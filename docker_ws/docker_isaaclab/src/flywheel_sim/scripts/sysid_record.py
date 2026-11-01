@@ -31,8 +31,10 @@ def main():
     parser.add_argument("--engine", choices=ENGINES, default="newton_mjwarp", help="Physics backend.")
     parser.add_argument("--dt", type=float, default=0.0001, help="Physics step = driver position loop period [s].")
     parser.add_argument("--record_hz", type=float, default=1000.0, help="Recording rate [Hz].")
-    parser.add_argument("--kp", type=float, default=30.0, help="Driver position gain [N m/rad].")
-    parser.add_argument("--kd", type=float, default=0.2, help="Driver velocity gain [N m s/rad].")
+    # defaults = identified effective output-shaft PD of the real FOCTIVE loop (imp_kp=30 A/rad etc.;
+    # see robot_file/fly_wheel/fit_result.json). Pass 30 / 0.2 to reproduce the old N m/rad premise.
+    parser.add_argument("--kp", type=float, default=8.152, help="Driver position gain [N m/rad].")
+    parser.add_argument("--kd", type=float, default=0.0544, help="Driver velocity gain [N m s/rad].")
     parser.add_argument("--armature", type=float, default=0.0, help="True wheel armature [kg m^2].")
     parser.add_argument("--friction", type=float, default=0.0, help="True Coulomb friction [N m] (Newton).")
     parser.add_argument("--viscous", type=float, default=0.0, help="True viscous friction [N m s/rad] (Newton).")
@@ -49,7 +51,13 @@ def main():
     from isaaclab.sim import SimulationContext
     from isaaclab.utils import instantiate, replace
 
-    from flywheel_sim.robots import FLYWHEEL_CFG, FLYWHEEL_DIR, WHEEL_NO_LOAD_SPEED, WHEEL_STALL_TORQUE
+    from flywheel_sim.robots import (
+        FLYWHEEL_CFG,
+        FLYWHEEL_DIR,
+        WHEEL_MAX_TORQUE,
+        WHEEL_NO_LOAD_SPEED,
+        WHEEL_STALL_TORQUE,
+    )
 
     sim_cfg = sim_utils.SimulationCfg(device=args.device, dt=args.dt, physics=physics_cfg(args.engine, args.dt))
     with launch_simulation(sim_cfg, args):
@@ -64,7 +72,7 @@ def main():
                     stiffness=args.kp,
                     damping=args.kd,
                     saturation_effort=WHEEL_STALL_TORQUE,
-                    actuator_effort_limit=WHEEL_STALL_TORQUE,
+                    actuator_effort_limit=WHEEL_MAX_TORQUE,  # flat current-limit clamp (identified)
                     actuator_velocity_limit=WHEEL_NO_LOAD_SPEED,
                 )
             },

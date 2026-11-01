@@ -45,6 +45,32 @@ docker compose up -d && docker compose exec isaaclab bash
 起動時に `/workspace/isaaclab_ws/src` 以下の `pyproject.toml` を持つパッケージが
 自動で `uv pip install -e` される (コンテナを作り直してもセットアップ不要)。
 
+## 学習 (例: flywheel)
+
+コンテナ内で (`isaaclab` は bashrc の alias → isaaclab.sh)。自作タスクは
+`--external_callback <pkg>.tasks.register` で登録する:
+
+```bash
+# 本学習 (デフォルトでヘッドレス。--headless フラグは廃止された)
+isaaclab train --rl_library rsl_rl --task Flywheel-Balance \
+    --external_callback flywheel_sim.tasks.register --num_envs 4096
+
+# 動作確認だけなら --num_envs 256 --max_iterations 3
+
+# 再生 (Newton viewer 付き)
+isaaclab play --rl_library rsl_rl --task Flywheel-Balance \
+    --external_callback flywheel_sim.tasks.register --num_envs 16 --viz newton_gl
+```
+
+ログ/チェックポイントは `/workspace/isaaclab/logs/rsl_rl/<task>/` (named volume)。
+旧 `scripts/reinforcement_learning/rsl_rl/train.py` 直叩きは IsaacLab 更新で
+`scripts/reinforcement_learning/train.py --rl_library rsl_rl` に統合済み —
+`isaaclab train` / `isaaclab play` サブコマンドを使うのが確実。
+
+アクチュエータ定数 (トルク上限 0.38 N·m、armature、摩擦) は実機 SysID の同定値
+(`robot_file/fly_wheel/fit_result.json`、skunk-mimic 側 `sysid/flywheel/`) を
+`flywheel_sim/robots.py` に反映してある。
+
 ## src/ (自作タスク)
 
 `src/` には ros_for_isaaclab から `sim_base` / `fanuc_sim` / `rsarm_sim` / `flywheel_sim` を

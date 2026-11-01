@@ -3,7 +3,7 @@
 With Isaac Lab's RL CLI, register them through the external callback:
 
     isaaclab train --rl_library rsl_rl --task Flywheel-Balance --external_callback flywheel_sim.tasks.register
-    isaaclab play --rl_library rsl_rl --task Flywheel-Balance --external_callback flywheel_sim.tasks.register --viz newton
+    isaaclab play --rl_library rsl_rl --task Flywheel-Balance --external_callback flywheel_sim.tasks.register --viz newton_gl
 
 Tasks: Flywheel-Balance (keep the base upright on its foot tip with the wheel torque; Newton MJWarp),
 Flywheel-Balance-PhysX (the same on PhysX).

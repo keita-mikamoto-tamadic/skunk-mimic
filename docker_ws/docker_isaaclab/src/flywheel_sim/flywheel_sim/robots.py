@@ -21,13 +21,24 @@ FLYWHEEL_DIR = os.environ.get("FLYWHEEL_DIR", "/workspace/robot_file/fly_wheel")
 # tip of the foot below the part origin [m] (lowest point of the base collider)
 FOOT_DEPTH = 0.06235
 
-# wheel motor. Gravity torque is m g l sin(tilt) = 0.38 N m x sin(tilt) (0.60 kg, center of mass 64 mm above the
-# tip), so the torque is ample; the speed is the limit: 0 -> 30 rad/s stores 1.28e-2 N m s in the wheel
-# (4.3e-4 kg m^2), enough to bring the base back from about 0.37 rad at rest. At full torque the wheel would reach
-# 30 rad/s in 1.3 ms, faster than the speed-dependent torque limit can follow at the 0.5 ms physics step; the task
-# commands at most 0.5 N m (balance/mdp.py ACTION_TORQUE), which the step resolves.
-WHEEL_STALL_TORQUE = 10.0  # [N m]
-WHEEL_NO_LOAD_SPEED = 30.0  # [rad/s]
+# wheel motor — identified on the real rig 2026-11-01 (skunk-mimic sysid/flywheel/, fit_result.json in
+# robot_file/fly_wheel/). The FOCTIVE impedance loop outputs CURRENT, so the torque limit is the current
+# clamp: tau_max 0.38 N m. Gravity torque is m g l sin(tilt) = 0.38 N m x sin(tilt) (0.60 kg, center of
+# mass 64 mm above the tip) — the motor torque only matches gravity's coefficient, so balance works near
+# upright but large tilts are unrecoverable by torque alone (wheel momentum is the real budget:
+# 0 -> 30 rad/s stores (4.3e-4 + 6.8e-4 armature) x 30 = 3.3e-2 N m s).
+# The current clamp is flat in speed (the sysid fit used a flat torque clamp and matched up to
+# 16 rad/s), so it belongs in actuator_effort_limit (continuous torque), NOT saturation_effort:
+# DCMotor clips to min(effort_limit, stall line), giving flat 0.38 up to the ~29 rad/s corner.
+WHEEL_MAX_TORQUE = 0.38  # [N m]    identified current-limit torque
+WHEEL_STALL_TORQUE = 10.0  # [N m]  electrical stall (shapes the curve only near no-load speed)
+WHEEL_NO_LOAD_SPEED = 30.0  # [rad/s] (firmware velocity_limit is 33)
+WHEEL_ARMATURE = 6.8e-4  # [kg m^2]  rotor x gear^2, identified
+WHEEL_FRICTION = 0.080  # [N m]      Coulomb, identified
+WHEEL_VISCOUS = 0.0138  # [N m s/rad] viscous, identified
+# real position-loop PD at the output shaft (imp_kp=30 A/rad x current->torque chain), identified:
+WHEEL_KP = 8.152  # [N m/rad]
+WHEEL_KD = 0.0544  # [N m s/rad]
 
 FLYWHEEL_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -47,8 +58,11 @@ FLYWHEEL_CFG = ArticulationCfg(
             stiffness=0.0,
             damping=0.0,
             saturation_effort=WHEEL_STALL_TORQUE,
-            actuator_effort_limit=WHEEL_STALL_TORQUE,
+            actuator_effort_limit=WHEEL_MAX_TORQUE,
             actuator_velocity_limit=WHEEL_NO_LOAD_SPEED,
+            armature=WHEEL_ARMATURE,
+            friction=WHEEL_FRICTION,
+            viscous_friction=WHEEL_VISCOUS,
         ),
     },
 )

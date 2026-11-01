@@ -33,10 +33,10 @@ if TYPE_CHECKING:
 # tilt beyond which the base counts as fallen [rad] (it lies on its side corner at about 45 deg)
 FALL_TILT = 0.5
 
-# wheel torque at action 1 [N m]: the motor gives 10, but 0.5 N m for one 10 ms step already takes 40 % of the
-# wheel's momentum budget (1.28e-2 N m s), and balancing needs ~0.05 N m; a full-scale action would only make
-# exploration noise saturate the wheel
-ACTION_TORQUE = 0.5
+# wheel torque at action 1 [N m] = the identified current-limit torque of the real motor
+# (robots.WHEEL_MAX_TORQUE, 0.38 N m); the actuator clamps there anyway, so a larger scale
+# would only flat-top the policy's actions
+ACTION_TORQUE = 0.38
 
 WHEEL = SceneEntityCfg("robot", joint_names=["wheel"])
 

@@ -1,0 +1,17 @@
+{
+  "records": [
+    "record_20261101_205611.csv",
+    "record_20261101_205658.csv"
+  ],
+  "model": "flywheel_sysid.xml",
+  "cost": NaN,
+  "parameters": {
+    "gain_scale": 0.2717476466960229,
+    "tau_max": 0.38174348613486886,
+    "armature": 0.0006817975499417646,
+    "damping": 0.013833176823691106,
+    "frictionloss": 0.07984497150392399
+  },
+  "kp_eff_Nm_per_rad": 8.152429400880688,
+  "kd_eff_Nms_per_rad": 0.05434952933920459
+}
