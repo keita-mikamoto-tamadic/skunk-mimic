@@ -1,0 +1,45 @@
+General
+	Part Number	RSARM000-A000
+	Part Name	RSARM000-A000 v35
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State
+	Change Order
+
+Physical
+	Mass	710.425 g
+	Volume	1.539E+05 mm^3
+	Density	0.005 g / mm^3
+	Area	1.368E+05 mm^2
+	World X,Y,Z	0.00 mm, 0.00 mm, 0.00 mm
+	Center of Mass	15.521 mm, 41.932 mm, 16.587 mm
+	Bounding Box
+		Length	110.878 mm
+		Width	140.116 mm
+		Height	123.809 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	1.512E+06
+		Ixy	-3.721E+05
+		Ixz	-4.143E+05
+		Iyx	-3.721E+05
+		Iyy	1.343E+06
+		Iyz	-4.283E+05
+		Izx	-4.143E+05
+		Izy	-4.283E+05
+		Izz	1.312E+06
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	2.956E+06
+		Ixy	-8.344E+05
+		Ixz	-5.972E+05
+		Iyx	-8.344E+05
+		Iyy	1.710E+06
+		Iyz	-9.224E+05
+		Izx	-5.972E+05
+		Izy	-9.224E+05
+		Izz	2.732E+06
+

@@ -1,0 +1,45 @@
+General
+	Part Number	fly_wheel
+	Part Name	fly_wheel v11
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State
+	Change Order
+
+Physical
+	Mass	237.412 g
+	Volume	1.136E+05 mm^3
+	Density	0.002 g / mm^3
+	Area	78953.997 mm^2
+	World X,Y,Z	0.00 mm, 0.00 mm, 0.00 mm
+	Center of Mass	19.464 mm, 0.00 mm, -1.520E-09 mm
+	Bounding Box
+		Length	30.00 mm
+		Width	100.00 mm
+		Height	100.00 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	4.312E+05
+		Ixy	1.589E-08
+		Ixz	1.936E-07
+		Iyx	1.589E-08
+		Iyy	2.234E+05
+		Iyz	0.00
+		Izx	1.936E-07
+		Izy	0.00
+		Izz	2.234E+05
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	4.312E+05
+		Ixy	-2.332E-09
+		Ixz	7.220E-06
+		Iyx	-2.332E-09
+		Iyy	3.133E+05
+		Iyz	0.00
+		Izx	7.220E-06
+		Izy	0.00
+		Izz	3.133E+05
+

@@ -1,0 +1,45 @@
+General
+	Part Number	RSARM000-A400_test
+	Part Name	RSARM000-A400_test v14
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State
+	Change Order
+
+Physical
+	Mass	123.722 g
+	Volume	36292.783 mm^3
+	Density	0.003 g / mm^3
+	Area	20778.054 mm^2
+	World X,Y,Z	0.00 mm, -70.00 mm, -200.00 mm
+	Center of Mass	1.481E-10 mm, -56.511 mm, -276.513 mm
+	Bounding Box
+		Length	47.811 mm
+		Width	55.00 mm
+		Height	236.405 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	5.698E+05
+		Ixy	1.527E-06
+		Ixz	-9.269E-05
+		Iyx	1.527E-06
+		Iyy	5.444E+05
+		Iyz	87584.959
+		Izx	-9.269E-05
+		Izy	87584.959
+		Izz	37129.557
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	1.042E+07
+		Ixy	2.563E-06
+		Ixz	-8.762E-05
+		Iyx	2.563E-06
+		Iyy	1.000E+07
+		Iyz	-1.846E+06
+		Izx	-8.762E-05
+		Izy	-1.846E+06
+		Izz	4.322E+05
+

@@ -1,0 +1,11 @@
+# robot_file/scripts — ロボットファイルの変換スクリプト群 (ホストで `uv run <script>.py`)。
+# build_*.py は docker_isaaclab コンテナ内 (/workspace/robot_file) で動かすのでこの依存は不要。
+[project]
+name = "robot-file-scripts"
+version = "0.1.0"
+description = "Robot-asset conversion scripts (Fusion CSVs + model.json -> MuJoCo MJCF, balance-point fit)"
+requires-python = ">=3.11"
+dependencies = ["mujoco", "numpy"]
+
+[tool.uv]
+package = false

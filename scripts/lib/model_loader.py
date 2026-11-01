@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_MODEL = PROJECT_ROOT / "sim" / "mimic_v2.xml"
+DEFAULT_MODEL = PROJECT_ROOT / "robot_file" / "mimic_v2_5" / "mimic_v2.xml"
 
 
 def load_model(

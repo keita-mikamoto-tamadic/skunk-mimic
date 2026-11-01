@@ -1,0 +1,117 @@
+# Automatic SimReady gate for pull requests, scoped per gripper.
+#
+# A PR that changes files under grippers/Robotiq_2F_85/ must pass the 2F-85
+# validation; one that changes grippers/Robotiq_2F_140/ must pass the 2F-140
+# validation; one that changes grippers/Robotiq_Hand_E/ must pass the Hand-E
+# validation; one that changes several must pass each of them. Changes to the validation
+# tooling itself (ci/simready/**, the validate workflows) re-validate every
+# gripper. A PR touching none of these (docs, demo, ...) validates nothing and
+# the gate passes.
+#
+# Each gripper is checked by the reusable simready-validate.yml against its own
+# baseline (ci/simready/expected/<asset>.json). The final `validate` job is what
+# the branch ruleset requires: it fails if any validated gripper failed, and
+# always runs so the required check is reported even when nothing was validated.
+#
+# To add a gripper: add its folder to GRIPPERS below, add the entry to the matrix
+# in `gripper`, and commit its baseline in ci/simready/expected/.
+name: simready-validate-pr
+
+# The real validation runs only in the merge queue (merge_group), not on every
+# PR push: iterate and review freely, and the gate runs once, on the final merge
+# candidate. The ruleset requires the `validate` check on the PR head too, so on
+# pull_request only a stub `validate` runs and passes immediately.
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      grippers: ${{ steps.scope.outputs.grippers }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select grippers touched by this merge group
+        id: scope
+        env:
+          BASE: ${{ github.event.merge_group.base_sha }}
+          HEAD: ${{ github.event.merge_group.head_sha }}
+        run: |
+          changed="$(git diff --name-only "$BASE...$HEAD")"
+          echo "Changed files:"; echo "$changed"
+          # Tooling changes affect every gripper.
+          all=false
+          if grep -qE '^(ci/simready/|\.github/workflows/simready-validate)' <<<"$changed"; then all=true; fi
+          out=()
+          for g in 2F_85 2F_140 Hand_E; do
+            if $all || grep -q "^grippers/Robotiq_$g/" <<<"$changed"; then out+=("$g"); fi
+          done
+          json="$(printf '%s\n' "${out[@]}" | jq -R . | jq -sc 'map(select(length>0))')"
+          echo "Grippers to validate: $json"
+          echo "grippers=$json" >> "$GITHUB_OUTPUT"
+
+  gripper:
+    needs: changes
+    if: needs.changes.outputs.grippers != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        gripper: ${{ fromJSON(needs.changes.outputs.grippers) }}
+    # statuses:write is only to satisfy the called workflow's declared permissions;
+    # it does not write commit statuses on merge_group events.
+    permissions:
+      contents: read
+      statuses: write
+    uses: ./.github/workflows/simready-validate.yml
+    with:
+      asset: grippers/Robotiq_${{ matrix.gripper }}/Robotiq_${{ matrix.gripper }}.usda
+
+  # The required check (ruleset context "validate").
+  validate:
+    needs: [changes, gripper]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          GRIPPER: ${{ needs.gripper.result }}
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            echo "Stub: SimReady validation runs in the merge queue."
+            echo "### validate (stub)" >> "$GITHUB_STEP_SUMMARY"
+            echo "Real SimReady validation runs once in the merge queue; a failure there removes this PR from the queue and is reported as a comment." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "changes=$CHANGES gripper=$GRIPPER"
+          # `gripper` is "skipped" when no gripper folder changed: that passes.
+          if [ "$CHANGES" != success ] || { [ "$GRIPPER" != success ] && [ "$GRIPPER" != skipped ]; }; then
+            echo "::error::SimReady validation failed (or could not run)"
+            exit 1
+          fi
+
+  # A queue failure only shows as "removed from the merge queue" in the timeline
+  # while the PR box stays green (the stub passed), so say why on the PR itself.
+  notify-queue-failure:
+    needs: validate
+    if: failure() && github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The queue branch is gh-readonly-queue/<base>/pr-<N>-<sha>.
+          pr="$(sed -E 's|.*/pr-([0-9]+)-.*|\1|' <<<"$GITHUB_REF")"
+          gh pr comment "$pr" --body "❌ Removed from the merge queue: SimReady validation failed. Details: $RUN_URL"

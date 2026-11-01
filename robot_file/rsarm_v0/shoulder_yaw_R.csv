@@ -1,0 +1,45 @@
+General
+	Part Number	RSARM000-A300
+	Part Name	RSARM000-A300 v27
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State	Working
+	Change Order
+
+Physical
+	Mass	403.378 g
+	Volume	73132.739 mm^3
+	Density	0.006 g / mm^3
+	Area	74366.635 mm^2
+	World X,Y,Z	0.00 mm, -45.00 mm, -101.00 mm
+	Center of Mass	-1.281 mm, -51.376 mm, -189.663 mm
+	Bounding Box
+		Length	68.961 mm
+		Width	66.50 mm
+		Height	133.461 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	5.062E+05
+		Ixy	-7752.968
+		Ixz	2064.352
+		Iyx	-7752.968
+		Iyy	4.942E+05
+		Iyz	4322.18
+		Izx	2064.352
+		Izy	4322.18
+		Izz	2.265E+05
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	1.608E+07
+		Ixy	-34303.697
+		Ixz	-95952.701
+		Iyx	-34303.697
+		Iyy	1.501E+07
+		Iyz	-3.926E+06
+		Izx	-95952.701
+		Izy	-3.926E+06
+		Izz	1.292E+06
+

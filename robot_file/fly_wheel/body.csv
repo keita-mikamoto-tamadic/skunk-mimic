@@ -1,0 +1,45 @@
+General
+	Part Number	fly_base
+	Part Name	fly_base v6
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State	Working
+	Change Order
+
+Physical
+	Mass	365.452 g
+	Volume	1.230E+05 mm^3
+	Density	0.003 g / mm^3
+	Area	1.104E+05 mm^2
+	World X,Y,Z	0.00 mm, 0.00 mm, 0.00 mm
+	Center of Mass	-19.325 mm, -0.001 mm, 2.018 mm
+	Bounding Box
+		Length	62.50 mm
+		Width	130.652 mm
+		Height	124.426 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	3.128E+05
+		Ixy	245.029
+		Ixz	1813.503
+		Iyx	245.029
+		Iyy	2.654E+05
+		Iyz	-851.912
+		Izx	1813.503
+		Izy	-851.912
+		Izz	2.262E+05
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	3.143E+05
+		Ixy	241.474
+		Ixz	16063.794
+		Iyx	241.474
+		Iyy	4.033E+05
+		Iyz	-851.541
+		Izx	16063.794
+		Izy	-851.541
+		Izz	3.627E+05
+

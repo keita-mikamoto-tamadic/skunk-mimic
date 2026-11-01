@@ -17,7 +17,7 @@ from mujoco import sysid
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-MODEL_PATH = os.path.join(PROJECT_ROOT, "sim", "mimic_v2_sysid.xml")
+MODEL_PATH = os.path.join(PROJECT_ROOT, "robot_file", "mimic_v2_5", "mimic_v2_sysid.xml")
 
 # Sensor names in mimic_v2_sysid.xml (joint sensors only, matching data columns)
 JPOS_SENSOR_NAMES = [

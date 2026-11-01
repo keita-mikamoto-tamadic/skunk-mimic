@@ -1,0 +1,201 @@
+# SimReady conformance check for ONE Robotiq gripper asset (default 2F-85).
+#
+# Reusable building block: dispatched by hand, and called per gripper by
+# simready-validate-pr.yml (the automatic PR gate, which validates only the
+# grippers whose folder a PR touches).
+#
+# Runs NVIDIA's official `simready-validate` against a SimReady profile using
+# ONLY public PyPI packages (Python 3.12) plus a pinned checkout of the public
+# NVIDIA/simready-foundation spec repo. No container image, no registry, no
+# secrets.
+#
+# Targets the Robot-Gripper profile from SimReady Foundations 2026.07.1. In that
+# profile the PhysX/Isaac/Newton/MuJoCo features are optional, and the 2026.07.1
+# rules no longer hard-require PhysxSchema or the Isaac schema, so a plain-PyPI
+# runner reproduces the same verdict as a full Isaac Sim runtime (verified: the
+# 2F-85 gets 0 blocking failures either way). Conformance is gated on blocking
+# failures only; optional features that are not met are reported but do not fail
+# the job (see ci/simready/summarize.py).
+#
+# Versions are pinned to a known-good set. The published wheels lag the spec
+# repo, so if you bump `simready_foundation_ref` you may also need to bump the
+# pinned package versions below to match (and vice-versa).
+name: simready-validate
+
+on:
+  workflow_dispatch:
+    inputs:
+      asset:
+        description: Asset USD to validate (repo-relative)
+        default: grippers/Robotiq_2F_85/Robotiq_2F_85.usda
+      profile:
+        description: SimReady profile
+        default: Robot-Gripper
+      version:
+        description: Profile version
+        default: "3.0.0"
+      simready_foundation_ref:
+        description: NVIDIA/simready-foundation commit or tag (the spec source)
+        default: v2026.08.0
+  # Callable from other workflows (e.g. simready-validate-pr.yml) so a PR can gate
+  # per gripper on a passing validation without duplicating the logic below. Inputs
+  # mirror the workflow_dispatch inputs; workflow_call requires an explicit type.
+  workflow_call:
+    inputs:
+      asset:
+        description: Asset USD to validate (repo-relative)
+        type: string
+        default: grippers/Robotiq_2F_85/Robotiq_2F_85.usda
+      profile:
+        description: SimReady profile
+        type: string
+        default: Robot-Gripper
+      version:
+        description: Profile version
+        type: string
+        default: "3.0.0"
+      simready_foundation_ref:
+        description: NVIDIA/simready-foundation commit or tag (the spec source)
+        type: string
+        default: v2026.08.0
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    # A hung validator shouldn't hold a runner indefinitely.
+    timeout-minutes: 15
+    # statuses:write lets this manual run publish a "validate" commit status onto
+    # the dispatched SHA. That status is what the branch ruleset requires: GitHub
+    # required checks IGNORE check runs from workflow_dispatch events, but they DO
+    # honor commit statuses, so this is how a manual run gates a PR merge.
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Mark commit status pending
+        # Only for manual dispatches. Under pull_request (simready-validate-pr.yml)
+        # the per-gripper runs must not write the shared "validate" context: the
+        # 2F-140 run would overwrite a 2F-85 failure. The PR workflow's aggregate
+        # job is the "validate" check there.
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending \
+            -f context=validate \
+            -f description="SimReady validation running" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Check out asset (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          path: asset
+
+      - name: Check out SimReady spec (public NVIDIA/simready-foundation)
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA/simready-foundation
+          ref: ${{ inputs.simready_foundation_ref || 'v2026.08.0' }}
+          path: simready-foundation
+          # Only the spec tier is needed; skip the large sample_content assets.
+          sparse-checkout: nv_core
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SimReady validator (public PyPI, pinned)
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            simready-validate==2026.8.0 \
+            usd-core==26.8 \
+            omniverse-asset-validator==1.18.0 \
+            omniverse-usd-profiles==1.11.2 \
+            numpy==2.5.1
+          # usd-validation-nvidia ships the omni.capabilities used to register the
+          # SimReady rules; it must win over omniverse-usd-profiles' copy, so
+          # (re)install it LAST. Otherwise every requirement is "unregistered"
+          # and the validation degenerates to an empty (false) failure.
+          pip install --force-reinstall --no-deps usd-validation-nvidia==1.22.0
+
+      - name: Run SimReady validation
+        run: |
+          PROFILE="${{ inputs.profile || 'Robot-Gripper' }}"
+          VERSION="${{ inputs.version || '3.0.0' }}"
+          ASSET_REL="${{ inputs.asset || 'grippers/Robotiq_2F_85/Robotiq_2F_85.usda' }}"
+          # 2026.07.1 layout: capabilities/features/profiles live under the tier.
+          # The validator imports the rules as the top-level 'capabilities'
+          # package via sys.path, so absolute paths are required.
+          TC="$GITHUB_WORKSPACE/simready-foundation/nv_core/tiers/simready_foundation_tier_core/simready/foundation/tier_core"
+          PROFILE_FILE="$TC/profiles/$(printf '%s' "$PROFILE" | tr 'A-Z-' 'a-z_').toml"
+          ASSET_PATH="$GITHUB_WORKSPACE/asset/$ASSET_REL"
+          COMMON=(--rules-path "$TC/capabilities"
+                  --features-path "$TC/features"
+                  --profiles-path "$PROFILE_FILE"
+                  --profile "$PROFILE" --version "$VERSION")
+
+          rm -f results.json
+          # Warm-up invocation absorbs the validator's first-run capability-enum
+          # generation; its output is ignored.
+          simready-validate "${COMMON[@]}" "$ASSET_PATH" >/dev/null 2>&1 || true
+
+          # Real run. The JSON report is the source of truth; the console log is
+          # kept as an artifact, minus the noisy per-issue "did not specify a
+          # requirement" warnings.
+          simready-validate "${COMMON[@]}" --output results.json "$ASSET_PATH" 2>&1 \
+            | grep -v 'did not specify a requirement for an issue' > validation.log || true
+
+          if [ ! -f results.json ]; then
+            echo "::error::simready-validate produced no results.json"
+            tail -n 40 validation.log || true
+            exit 1
+          fi
+
+      - name: Summarize results (table + gate)
+        id: summarize
+        if: always()
+        # Fails on any blocking failure AND on any optional-feature regression
+        # versus the committed baseline (ci/simready/expected/<asset>.json, one per gripper). After an
+        # intended change, refresh it with:
+        #   python3 ci/simready/summarize.py --update results.json
+        run: python3 "$GITHUB_WORKSPACE/asset/ci/simready/summarize.py" results.json
+
+      - name: Name results artifact (unique per asset)
+        id: artifact
+        if: always()
+        run: |
+          asset="${{ inputs.asset || 'grippers/Robotiq_2F_85/Robotiq_2F_85.usda' }}"
+          stem="$(basename "$asset")"; echo "name=simready-results-${stem%.*}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: |
+            results.json
+            validation.log
+
+      - name: Report commit status (manual runs only; see above)
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The gate lives in the "Summarize results" step; mirror its outcome onto
+          # the commit as the "validate" status the ruleset requires.
+          if [ "${{ steps.summarize.outcome }}" = "success" ]; then
+            state=success
+            desc="SimReady validation passed"
+          else
+            state=failure
+            desc="SimReady validation failed"
+          fi
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" \
+            -f context=validate \
+            -f description="$desc" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -32,7 +32,7 @@ struct RobotConfig {
                             //   このリストのインデックスを指す (PEAK PCAN-M.2 等の
                             //   複数バス構成用。対応表は /proc/pcan で確認)
   std::string model_mjcf;   // MuJoCo モデル (MJCF) のパス (default: "")。リポジトリルート
-                            //   相対で書く (例: "sim/mimic_v2_5.xml")。stabilizer の posture IK
+                            //   相対で書く (例: "robot_file/mimic_v2_5/mimic_v2_5.xml")。stabilizer の posture IK
                             //   が Pinocchio で読む。空なら posture IK 無効。MJCF の駆動 joint 名は
                             //   ここの軸名 (name) と同じにする約束 (mjmodel_converter がそう生成する)
   std::vector<AxisConfig> axes;

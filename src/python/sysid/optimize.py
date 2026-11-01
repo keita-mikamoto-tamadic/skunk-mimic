@@ -114,7 +114,7 @@ def main():
     damping = float(np.asarray(opt_params["wheel_damping"].value).flat[0])
     frictionloss = float(np.asarray(opt_params["wheel_frictionloss"].value).flat[0])
     ground_fric = float(np.asarray(opt_params["ground_friction"].value).flat[0])
-    print(f'\n--- Suggested MJCF updates for sim/mimic_v2.xml ---')
+    print(f'\n--- Suggested MJCF updates for robot_file/mimic_v2_5/mimic_v2.xml ---')
     print(f'  wheel joints: armature="{armature:.6f}" damping="{damping:.6f}" frictionloss="{frictionloss:.6f}"')
     print(f'  ground geom:  friction="{ground_fric:.4f} 0.005 0.0001"')
 

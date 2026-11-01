@@ -10,5 +10,4 @@ dependencies = ["mujoco", "numpy"]
 members = [
     "calc_lqr_gain",
     "calc_ab_matrix",
-    "mjmodel_converter",
 ]

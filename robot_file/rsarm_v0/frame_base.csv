@@ -1,0 +1,45 @@
+General
+	Part Number	Table_Assy
+	Part Name	Table_Assy v5
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State
+	Change Order
+
+Physical
+	Mass	8.266E+05 g
+	Volume	1.067E+08 mm^3
+	Density	0.008 g / mm^3
+	Area	1.163E+07 mm^2
+	World X,Y,Z	0.00 mm, 148.00 mm, -290.00 mm
+	Center of Mass	-14.291 mm, 208.945 mm, -757.898 mm
+	Bounding Box
+		Length	608.70 mm
+		Width	868.70 mm
+		Height	1218.00 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	6.333E+10
+		Ixy	-7.638E+08
+		Ixz	4.790E+09
+		Iyx	-7.638E+08
+		Iyy	5.029E+10
+		Iyz	8.001E+08
+		Izx	4.790E+09
+		Izy	8.001E+08
+		Izz	4.105E+10
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	5.742E+11
+		Ixy	1.705E+09
+		Ixz	-4.163E+09
+		Iyx	1.705E+09
+		Iyy	5.253E+11
+		Iyz	1.317E+11
+		Izx	-4.163E+09
+		Izy	1.317E+11
+		Izz	7.731E+10
+

@@ -8,7 +8,7 @@
 // 「ベースを真上に動かす」のではなく「重心を真上に動かす」のがポイント — 脚リンクの
 // 質量 (全体の約半分) が膝の曲げ伸ばしで前後に動くので、ベースだけ上げると倒立点がずれる。
 //
-// モデルは robot_config の model_mjcf (sim/<model>.xml。mjmodel_converter が生成し
+// モデルは robot_config の model_mjcf (robot_file/<robot>/<model>.xml。mjmodel_converter が生成し
 // com_comp.py の重心補正も入っている) を Pinocchio の MJCF パーサで読む。MuJoCo と
 // 同じファイルなので質量パラメータの二重管理が無い。
 //

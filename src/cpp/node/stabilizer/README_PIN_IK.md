@@ -66,7 +66,7 @@ pinocchio::mjcf::buildModel(path, pinocchio::JointModelFreeFlyer(), model);
 pinocchio::Data data(model);
 ```
 
-- `sim/mimic_v2_5.xml` (scripts/mjmodel_converter が生成) をそのまま読む。
+- `robot_file/mimic_v2_5/mimic_v2_5.xml` (robot_file/scripts/mjmodel_converter.py が生成) をそのまま読む。
 - ルートは `JointModelFreeFlyer` を明示する (MJCF の `<joint type="free"/>` があっても引数で指定)。
 - MJCF の `fullinertia` / `<default class>` / `<keyframe>` (→ `model.referenceConfigurations["standing"]`) は
   読める。`<actuator>` / `<sensor>` は無視される。
@@ -77,7 +77,7 @@ pinocchio::Data data(model);
 ### 関節の解決
 
 **MJCF の駆動 joint 名 = robot_config の軸名** (`hip_pitch_r`, `knee_r`, `wheel_r`, …) という約束で、
-mjmodel_converter がそう生成する (model.json の `body.axis`)。なので余計な対応表は持たず、
+mjmodel_converter.py がそう生成する (model.json の `body.axis`)。なので余計な対応表は持たず、
 robot_config の `axes[i].name` でそのまま引く:
 
 ```cpp
@@ -159,7 +159,7 @@ hip は model.json の range (0.6〜1.6 rad) がそのまま来る。
 
 設定 (robot_config/mimic_v2_5.json) は 1 行だけ:
 ```json
-"model_mjcf": "sim/mimic_v2_5.xml",
+"model_mjcf": "robot_file/mimic_v2_5/mimic_v2_5.xml",
 ```
 MJCF 側が robot_config に合わせる (joint 名 = 軸名) ので、軸ごとの追加パラメータは無い。
 mujoco_backend も同じ理由で joint 名を持たず、actuator (名前 = 軸名) の transmission から joint を引く。

@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<robot name="rsarm">
+  <link name="A000">
+    <inertial>
+      <origin xyz="0.015521 0.041932 0.016587" rpy="0 0 0"/>
+      <mass value="0.710425"/>
+      <inertia ixx="0.001512" ixy="-0.0003721" ixz="-0.0004143" iyy="0.001343" iyz="-0.0004283" izz="0.001312"/>
+    </inertial>
+  </link>
+  <link name="A100">
+    <inertial>
+      <origin xyz="0.005532 -0.040684 0.000289" rpy="0 0 0"/>
+      <mass value="0.388023"/>
+      <inertia ixx="0.0002407" ixy="3.07772e-06" ixz="-3.34682e-06" iyy="0.000208" iyz="8.1914e-08" izz="0.0002535"/>
+    </inertial>
+  </link>
+  <link name="A200">
+    <inertial>
+      <origin xyz="-0.02162 -0.000432 -0.075224" rpy="0 0 0"/>
+      <mass value="0.392178"/>
+      <inertia ixx="0.000383" ixy="-1.90387e-07" ixz="-6.67123e-05" iyy="0.0004089" iyz="4.7146e-07" izz="0.0002371"/>
+    </inertial>
+  </link>
+  <link name="A300">
+    <inertial>
+      <origin xyz="-0.001281 -0.006376 -0.088663" rpy="0 0 0"/>
+      <mass value="0.403378"/>
+      <inertia ixx="0.0005062" ixy="-7.75297e-06" ixz="2.06435e-06" iyy="0.0004942" iyz="4.32218e-06" izz="0.0002265"/>
+    </inertial>
+  </link>
+  <link name="A400">
+    <inertial>
+      <origin xyz="1.481e-13 0.013489 -0.076513" rpy="0 0 0"/>
+      <mass value="0.123722"/>
+      <inertia ixx="0.0005698" ixy="1.527e-15" ixz="-9.269e-14" iyy="0.0005444" iyz="8.7585e-05" izz="3.71296e-05"/>
+    </inertial>
+  </link>
+  <joint name="shoulder_pitch" type="revolute">
+    <parent link="A000"/>
+    <child link="A100"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-6.283185" upper="6.283185" effort="5" velocity="3"/>
+  </joint>
+  <joint name="shoulder_roll" type="revolute">
+    <parent link="A100"/>
+    <child link="A200"/>
+    <origin xyz="0.025 -0.045 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-6.283185" upper="6.283185" effort="5" velocity="3"/>
+  </joint>
+  <joint name="shoulder_yaw" type="revolute">
+    <parent link="A200"/>
+    <child link="A300"/>
+    <origin xyz="-0.025 0 -0.101" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-6.283185" upper="6.283185" effort="5" velocity="3"/>
+  </joint>
+  <joint name="elbow_pitch" type="revolute">
+    <parent link="A300"/>
+    <child link="A400"/>
+    <origin xyz="0 -0.025 -0.099" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-6.283185" upper="6.283185" effort="5" velocity="3"/>
+  </joint>
+  <link name="tcp"/>
+  <joint name="tcp_fixed" type="fixed">
+    <parent link="A400"/>
+    <child link="tcp"/>
+    <origin xyz="0 0.025 -0.2" rpy="0 0 0"/>
+  </joint>
+</robot>

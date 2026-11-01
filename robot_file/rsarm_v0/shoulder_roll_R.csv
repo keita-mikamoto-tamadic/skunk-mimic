@@ -1,0 +1,45 @@
+General
+	Part Number	RSARM000-A200
+	Part Name	RSARM000-A200 v39
+	Description
+	Material Name	(Various)
+
+Manage
+	Item Number
+	Lifecycle
+	Revision
+	State	Working
+	Change Order
+
+Physical
+	Mass	392.178 g
+	Volume	69449.814 mm^3
+	Density	0.006 g / mm^3
+	Area	72957.055 mm^2
+	World X,Y,Z	25.00 mm, -45.00 mm, 0.00 mm
+	Center of Mass	3.38 mm, -45.432 mm, -75.224 mm
+	Bounding Box
+		Length	74.00 mm
+		Width	67.00 mm
+		Height	131.50 mm
+	Moment of Inertia at Center of Mass   (g mm^2)
+		Ixx	3.830E+05
+		Ixy	-190.387
+		Ixz	-66712.306
+		Iyx	-190.387
+		Iyy	4.089E+05
+		Iyz	471.46
+		Izx	-66712.306
+		Izy	471.46
+		Izz	2.371E+05
+	Moment of Inertia at Origin   (g mm^2)
+		Ixx	3.412E+06
+		Ixy	60028.368
+		Ixz	32995.205
+		Iyx	60028.368
+		Iyy	2.633E+06
+		Iyz	-1.340E+06
+		Izx	32995.205
+		Izy	-1.340E+06
+		Izz	1.051E+06
+

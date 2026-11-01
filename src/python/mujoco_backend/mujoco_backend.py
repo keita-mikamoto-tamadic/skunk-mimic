@@ -22,8 +22,9 @@ from dora import Node
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
+# モデルは robot_file/mimic_v2_5/ (ロボットファイルの正本) から読む
 MODEL_PATH = os.path.join(
-    PROJECT_ROOT, "sim", os.environ.get("MUJOCO_MODEL", "mimic_v2.xml")
+    PROJECT_ROOT, "robot_file", "mimic_v2_5", os.environ.get("MUJOCO_MODEL", "mimic_v2.xml")
 )
 
 # ---------------------------------------------------------------------------
