@@ -380,13 +380,17 @@ int main() {
                 MotorDriver* driver = it->second;
 
                 switch (req.cmd) {
-                    case 1: {  // 電気角キャリブ(モータが回り数秒かかる)
-                        // volt_d は req.value に float ビットで載っている
+                    case 1: {  // 電気角キャリブ(モータが回り数秒〜十数秒かかる)
+                        // volt_d は req.value に float ビットで載っている。
+                        // 所要時間は (1500 + 4000*pole_pairs) サンプル / 12.5kHz、
+                        // バーニア有効時は mt 方向プローブでさらに +4000*pole_pairs
+                        // (elecangle_calib.cc)。pp=14 + バーニアで約 9.1 s が下限なので
+                        // 10 s では足りない → 30 s 待つ。
                         float volt_d;
                         std::memcpy(&volt_d, &req.value, 4);
                         float pos = 0;
                         bool ok = driver->Calibrate(
-                            req.device_id, volt_d, &pos, 10000);
+                            req.device_id, volt_d, &pos, 30000);
                         res.ok = ok ? 1 : 0;
                         std::memcpy(&res.value, &pos, 4);  // 完了時の機械角
                         break;
