@@ -188,7 +188,7 @@ def do_settings(node, device_id, args):
 
 
 def save_outputs(out_dir, stamp, aborted, n_done, q, dq, cmd_1k, q_cmd_grid,
-                 args, meta_extra):
+                 args, meta_extra, tau=None, cur_q=None):
     os.makedirs(out_dir, exist_ok=True)
     suffix = "_aborted" if aborted else ""
     record_path = os.path.join(out_dir, f"record_{stamp}{suffix}.csv")
@@ -200,6 +200,13 @@ def save_outputs(out_dir, stamp, aborted, n_done, q, dq, cmd_1k, q_cmd_grid,
     # sysid_record.py:94 と同形式 (ヘッダ・%.7g)
     np.savetxt(record_path, np.column_stack([t, q[:n], dq[:n], cmd_1k[:n]]),
                delimiter=",", header="t,q1,dq1,cmd1", comments="", fmt="%.7g")
+    # Isaac 互換 CSV は列固定なので、トルク/q軸電流は別ファイルに保存
+    # (駆動/回生のトルク上限・電源リミットの検証用)
+    if tau is not None:
+        ext_path = os.path.join(out_dir, f"record_{stamp}{suffix}_ext.csv")
+        np.savetxt(ext_path, np.column_stack([t, tau[:n], cur_q[:n]]),
+                   delimiter=",", header="t,torque,cur_q", comments="", fmt="%.7g")
+        print(f"[flywheel_sysid] wrote {ext_path}")
     # sysid_excite.py と同形式 (シム側で同一入力をリプレイするため)
     t_grid = np.arange(len(q_cmd_grid)) / args.rate
     np.savetxt(excite_path, np.column_stack([t_grid, q_cmd_grid]),
@@ -263,6 +270,8 @@ def main():
 
     q = np.empty(n_total)
     dq = np.empty(n_total)
+    tau = np.empty(n_total)
+    cur_q = np.empty(n_total)
     k = 0                   # 記録済みサンプル数
     meta_extra = {"readbacks": {}, "wall_run_s": None,
                   "started": datetime.now().isoformat(timespec="seconds"),
@@ -345,6 +354,8 @@ def main():
                 raise AbortRun(f"|position|={abs(act.position):.2f} > {POS_ABORT} (k={k})")
             q[k] = act.position
             dq[k] = act.velocity
+            tau[k] = act.torque
+            cur_q[k] = act.cur_q
             send_ref(node, AxisRef(motor_state=MOTOR_POSITION_PD, ref_val=cmd_1k[k],
                                    kp_scale=1.0, kv_scale=1.0))
             k += 1
@@ -372,7 +383,7 @@ def main():
             print(f"[flywheel_sysid] OFF 送信失敗: {e}", file=sys.stderr)
         if k > 0 or not aborted:
             save_outputs(args.out_dir, stamp, aborted, k, q, dq, cmd_1k,
-                         q_cmd_grid, args, meta_extra)
+                         q_cmd_grid, args, meta_extra, tau=tau, cur_q=cur_q)
         else:
             print("[flywheel_sysid] 記録 0 行のため CSV は保存しない")
 
